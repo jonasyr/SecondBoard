@@ -1,0 +1,115 @@
+import type { ClassCode } from './types';
+
+/**
+ * Single source of truth for the SecondBoard design system.
+ * Every value here is copied verbatim from design_handoff_secondboard/README.md §4-5.
+ * Do NOT approximate — if a value looks wrong, re-check the README/reference before changing it.
+ * app.css mirrors this object into CSS custom properties; keep them in sync.
+ */
+export const TOKENS = {
+	color: {
+		appBg: '#07080C',
+		sidebarGradient: 'linear-gradient(180deg,#0D0F17,#0A0B12)',
+		titleBarGradient: 'linear-gradient(180deg,#111420,#0C0E16)',
+		cardBg: '#14161F',
+		panelBg: '#101219',
+		insetBg: '#0F1119',
+		deepInsetBg: '#0B0C12',
+		bottomBarBg: '#0C0E15',
+		textPrimary: '#F3F4F8',
+		textPrimaryAlt: '#E3E6EE',
+		textSecondary: '#C7CCDA',
+		textSecondaryAlt: '#B8BDCC',
+		textSecondaryAlt2: '#9298A8',
+		textSecondaryAlt3: '#9AA0B0',
+		textTertiary: '#8A90A0',
+		textMuted: '#6B7180',
+		textMutedDark: '#565C6B',
+		hairlineLow: 'rgba(255,255,255,.05)',
+		hairlineHigh: 'rgba(255,255,255,.08)',
+		accentGreen: '#4ADEA0',
+		accentTeal: '#2DE0CE',
+		lightGreen1: '#8FE9C2',
+		lightGreen2: '#86E5A8',
+		lightGreen3: '#5EF0DE',
+		linkHoverGreen: '#74ECBC',
+		accentBlue: '#60A5FA',
+		accentBlueAlt: '#3B82F6',
+		accentIndigo: '#6366F1',
+		accentPurple: '#A78BFA',
+		accentPurpleAlt: '#8B5CF6',
+		missPurple: '#C77DFF',
+		accentAmber: '#F5B14C',
+		accentOrange: '#F97A45',
+		accentRed: '#F26B6B',
+		ctaPrimaryGradient: 'linear-gradient(135deg,#4ADEA0,#2DE0CE)',
+		ctaPrimaryText: '#062018',
+		ctaBlueGradient: 'linear-gradient(135deg,#3B82F6,#6366F1)',
+		ctaPurpleGradient: 'linear-gradient(135deg,#A78BFA,#8B5CF6)',
+		logoGradient: 'linear-gradient(140deg,#2DE0CE,#3B82F6 55%,#A78BFA)'
+	},
+	board: {
+		lightSquare: '#5B5473',
+		darkSquare: '#37344A',
+		lastMoveAlphaHex: '52',
+		evalBarTrack: '#26232E',
+		evalWhiteFillFrom: '#F4F5FA',
+		evalWhiteFillTo: '#DDE1EC',
+		evalMidline: 'rgba(45,224,206,.5)',
+		coordOnDark: 'rgba(255,255,255,.30)',
+		coordOnLight: 'rgba(20,20,30,.34)'
+	},
+	radius: {
+		card: '16px',
+		inset: '12px',
+		control: '10px',
+		pill: '20px',
+		chip: '9px',
+		board: '12px'
+	},
+	shadow: {
+		board: '0 20px 60px rgba(0,0,0,.5)',
+		ctaGlow: '0 8px 22px rgba(74,222,160,.3)'
+	},
+	layout: {
+		sidebarWidthExpanded: '236px',
+		sidebarWidthCollapsed: '70px',
+		reviewPanelWidth: '404px',
+		titleBarHeight: '38px',
+		navRowPadding: '9px 11px',
+		navRowGap: '11px'
+	},
+	scrollbar: {
+		size: '9px',
+		thumb: '#262A38',
+		thumbHover: '#363B4E',
+		radius: '20px'
+	},
+	font: {
+		sans: "'Geist', -apple-system, system-ui, sans-serif",
+		mono: "'Geist Mono', ui-monospace, monospace"
+	},
+	classification: {
+		brilliant: { name: 'Brilliant', word: 'brilliant', color: '#2DE0CE', glyph: '!!' },
+		great: { name: 'Great', word: 'a great move', color: '#60A5FA', glyph: '!' },
+		best: { name: 'Best', word: 'the best move', color: '#4ADEA0', glyph: '★' },
+		excellent: { name: 'Excellent', word: 'excellent', color: '#86E5A8', glyph: '✦' },
+		good: { name: 'Good', word: 'a good move', color: '#8FB39B', glyph: '✓' },
+		book: { name: 'Book', word: 'a book move', color: '#C99B6E', glyph: '◈' },
+		inaccuracy: { name: 'Inaccuracy', word: 'an inaccuracy', color: '#F5B14C', glyph: '?!' },
+		mistake: { name: 'Mistake', word: 'a mistake', color: '#F97A45', glyph: '?' },
+		miss: { name: 'Miss', word: 'a miss', color: '#C77DFF', glyph: '✕' },
+		blunder: { name: 'Blunder', word: 'a blunder', color: '#F26B6B', glyph: '??' }
+	} satisfies Record<ClassCode, { name: string; word: string; color: string; glyph: string }>
+} as const;
+
+export const DARK_FG_CODES: ClassCode[] = [
+	'brilliant',
+	'best',
+	'excellent',
+	'good',
+	'book',
+	'inaccuracy'
+];
+
+export const NOT_BEST_CODES: ClassCode[] = ['inaccuracy', 'mistake', 'miss', 'blunder'];
