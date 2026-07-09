@@ -1,2 +1,5 @@
-<h1>Welcome to SvelteKit</h1>
-<p>Visit <a href="https://svelte.dev/docs/kit">svelte.dev/docs/kit</a> to read the documentation</p>
+<main
+	style="flex:1; display:flex; align-items:center; justify-content:center; color:var(--color-text-muted); font-family:var(--font-mono);"
+>
+	SecondBoard — scaffold OK
+</main>
