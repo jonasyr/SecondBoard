@@ -58,5 +58,24 @@ export default [
 		rules: {
 			'@typescript-eslint/no-explicit-any': 'error'
 		}
+	},
+	{
+		files: ['**/*.svelte.ts'],
+		languageOptions: {
+			parser: svelteParser,
+			parserOptions: {
+				parser: tsParser,
+				projectService: true,
+				tsconfigRootDir: import.meta.dirname,
+				extraFileExtensions: ['.svelte.ts']
+			}
+		},
+		plugins: {
+			'@typescript-eslint': tsPlugin
+		},
+		rules: {
+			...tsPlugin.configs.recommended.rules,
+			'@typescript-eslint/no-explicit-any': 'error'
+		}
 	}
 ];
