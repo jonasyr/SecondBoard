@@ -24,8 +24,18 @@ const defaultState: AppState = {
 	selfAnalysis: false
 };
 
+/**
+ * Creates a non-reactive snapshot of the default application state.
+ * This function is primarily used for testing default values.
+ *
+ * Note: Application code should import and use the module-level `appState` export
+ * instead, which is the reactive singleton that tracks state changes.
+ *
+ * @returns A plain object copy of the default state (not reactive)
+ */
 export function createAppState(): AppState {
 	return { ...defaultState };
 }
 
+/** The reactive singleton store that tracks application state. Consumers should import and use this export. */
 export const appState = $state(defaultState);
