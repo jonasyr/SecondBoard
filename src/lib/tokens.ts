@@ -25,6 +25,9 @@ export const TOKENS = {
 		textTertiary: '#8A90A0',
 		textMuted: '#6B7180',
 		textMutedDark: '#565C6B',
+		// Chrome (title bar / sidebar) additions — Iteration 2, README §6.1.
+		windowDotGrey: '#3A3F4E',
+		activeItemText: '#EAF6F0',
 		hairlineLow: 'rgba(255,255,255,.05)',
 		hairlineHigh: 'rgba(255,255,255,.08)',
 		accentGreen: '#4ADEA0',

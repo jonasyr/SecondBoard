@@ -26,6 +26,11 @@ describe('TOKENS', () => {
 		expect(TOKENS.color.accentRed).toBe('#F26B6B');
 	});
 
+	it('matches the exact chrome-specific colors added in Iteration 2 (README §6.1)', () => {
+		expect(TOKENS.color.windowDotGrey).toBe('#3A3F4E');
+		expect(TOKENS.color.activeItemText).toBe('#EAF6F0');
+	});
+
 	it('matches the exact board color spec from README §4.4', () => {
 		expect(TOKENS.board.lightSquare).toBe('#5B5473');
 		expect(TOKENS.board.darkSquare).toBe('#37344A');
