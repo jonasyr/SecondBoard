@@ -1,0 +1,15 @@
+node_modules/
+.svelte-kit/
+build/
+dist/
+src-tauri/target/
+design_handoff_secondboard/
+package-lock.json
+docs/
+.serena/
+.superpowers/
+
+# app.css hex/gradient/rgba values must mirror src/lib/tokens.ts character-for-character
+# (README §4-5 zero-drift requirement); Prettier's CSS printer lowercases hex and adds
+# comma-spacing, which would break that invariant.
+src/app.css

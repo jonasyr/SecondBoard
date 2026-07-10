@@ -1,0 +1,173 @@
+@import '@fontsource/geist-sans/300.css';
+@import '@fontsource/geist-sans/400.css';
+@import '@fontsource/geist-sans/500.css';
+@import '@fontsource/geist-sans/600.css';
+@import '@fontsource/geist-sans/700.css';
+@import '@fontsource/geist-sans/800.css';
+@import '@fontsource/geist-mono/400.css';
+@import '@fontsource/geist-mono/500.css';
+@import '@fontsource/geist-mono/600.css';
+
+/*
+ * Design tokens mirrored from src/lib/tokens.ts (TOKENS object).
+ * These MUST stay in sync — if you change a value here, change it there too, and vice versa.
+ * Source: design_handoff_secondboard/README.md §4-5.
+ */
+:root {
+	/* Surfaces */
+	--color-app-bg: #07080C;
+	--color-sidebar-gradient: linear-gradient(180deg,#0D0F17,#0A0B12);
+	--color-titlebar-gradient: linear-gradient(180deg,#111420,#0C0E16);
+	--color-card-bg: #14161F;
+	--color-panel-bg: #101219;
+	--color-inset-bg: #0F1119;
+	--color-deep-inset-bg: #0B0C12;
+	--color-bottom-bar-bg: #0C0E15;
+
+	/* Text */
+	--color-text-primary: #F3F4F8;
+	--color-text-primary-alt: #E3E6EE;
+	--color-text-secondary: #C7CCDA;
+	--color-text-secondary-alt: #B8BDCC;
+	--color-text-secondary-alt2: #9298A8;
+	--color-text-secondary-alt3: #9AA0B0;
+	--color-text-tertiary: #8A90A0;
+	--color-text-muted: #6B7180;
+	--color-text-muted-dark: #565C6B;
+
+	/* Hairlines */
+	--color-hairline-low: rgba(255,255,255,.05);
+	--color-hairline-high: rgba(255,255,255,.08);
+
+	/* Accents */
+	--color-accent-green: #4ADEA0;
+	--color-accent-teal: #2DE0CE;
+	--color-light-green-1: #8FE9C2;
+	--color-light-green-2: #86E5A8;
+	--color-light-green-3: #5EF0DE;
+	--color-link-hover-green: #74ECBC;
+	--color-accent-blue: #60A5FA;
+	--color-accent-blue-alt: #3B82F6;
+	--color-accent-indigo: #6366F1;
+	--color-accent-purple: #A78BFA;
+	--color-accent-purple-alt: #8B5CF6;
+	--color-miss-purple: #C77DFF;
+	--color-accent-amber: #F5B14C;
+	--color-accent-orange: #F97A45;
+	--color-accent-red: #F26B6B;
+
+	/* Gradients */
+	--gradient-cta-primary: linear-gradient(135deg,#4ADEA0,#2DE0CE);
+	--color-cta-primary-text: #062018;
+	--gradient-cta-blue: linear-gradient(135deg,#3B82F6,#6366F1);
+	--gradient-cta-purple: linear-gradient(135deg,#A78BFA,#8B5CF6);
+	--gradient-logo: linear-gradient(140deg,#2DE0CE,#3B82F6 55%,#A78BFA);
+
+	/* Board */
+	--board-light-square: #5B5473;
+	--board-dark-square: #37344A;
+	--board-last-move-alpha-hex: 52;
+	--board-eval-bar-track: #26232E;
+	--board-eval-white-fill-from: #F4F5FA;
+	--board-eval-white-fill-to: #DDE1EC;
+	--board-eval-midline: rgba(45,224,206,.5);
+	--board-coord-on-dark: rgba(255,255,255,.30);
+	--board-coord-on-light: rgba(20,20,30,.34);
+
+	/* Radii */
+	--radius-card: 16px;
+	--radius-inset: 12px;
+	--radius-control: 10px;
+	--radius-pill: 20px;
+	--radius-chip: 9px;
+	--radius-board: 12px;
+
+	/* Shadows */
+	--shadow-board: 0 20px 60px rgba(0,0,0,.5);
+	--shadow-cta-glow: 0 8px 22px rgba(74,222,160,.3);
+
+	/* Layout */
+	--layout-sidebar-width-expanded: 236px;
+	--layout-sidebar-width-collapsed: 70px;
+	--layout-review-panel-width: 404px;
+	--layout-titlebar-height: 38px;
+
+	/* Scrollbar */
+	--scrollbar-size: 9px;
+	--scrollbar-thumb: #262A38;
+	--scrollbar-thumb-hover: #363B4E;
+	--scrollbar-radius: 20px;
+
+	/* Fonts */
+	--font-sans: 'Geist', -apple-system, system-ui, sans-serif;
+	--font-mono: 'Geist Mono', ui-monospace, monospace;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	height: 100%;
+	margin: 0;
+}
+
+body {
+	font-family: var(--font-sans);
+	background: var(--color-app-bg);
+	color: var(--color-text-primary);
+	-webkit-font-smoothing: antialiased;
+}
+
+.sbmono {
+	font-family: var(--font-mono);
+	font-feature-settings: 'tnum' 1;
+}
+
+/* Scrollbar utility — apply to any scrollable container per README §4.5 */
+.sbscroll {
+	scrollbar-width: thin;
+	scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+.sbscroll::-webkit-scrollbar {
+	width: var(--scrollbar-size);
+	height: var(--scrollbar-size);
+}
+
+.sbscroll::-webkit-scrollbar-thumb {
+	background: var(--scrollbar-thumb);
+	border-radius: var(--scrollbar-radius);
+	border: 2px solid transparent;
+	background-clip: padding-box;
+}
+
+.sbscroll::-webkit-scrollbar-thumb:hover {
+	background: var(--scrollbar-thumb-hover);
+	background-clip: padding-box;
+}
+
+/* Brilliant-move square ring pulse — README §4.6 */
+@keyframes bpulse {
+	0%,
+	100% {
+		box-shadow: 0 0 0 0 rgba(45, 224, 206, 0.55);
+	}
+	50% {
+		box-shadow: 0 0 0 6px rgba(45, 224, 206, 0);
+	}
+}
+
+/* Gentle floating emphasis — README §4.6 */
+@keyframes softfloat {
+	0% {
+		transform: translateY(0);
+	}
+	50% {
+		transform: translateY(-3px);
+	}
+	100% {
+		transform: translateY(0);
+	}
+}
