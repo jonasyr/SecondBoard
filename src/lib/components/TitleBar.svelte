@@ -4,7 +4,12 @@
 
 <div class="title-bar" data-tauri-drag-region>
 	<div class="window-controls">
-		<button type="button" class="dot" onclick={minimizeWindow} title="Minimize" aria-label="Minimize window"
+		<button
+			type="button"
+			class="dot"
+			onclick={minimizeWindow}
+			title="Minimize"
+			aria-label="Minimize window"
 		></button>
 		<button
 			type="button"
