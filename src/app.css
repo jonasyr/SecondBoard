@@ -35,6 +35,10 @@
 	--color-text-muted: #6B7180;
 	--color-text-muted-dark: #565C6B;
 
+	/* Chrome (title bar / sidebar) — Iteration 2, README §6.1 */
+	--color-window-dot: #3A3F4E;
+	--color-active-item-text: #EAF6F0;
+
 	/* Hairlines */
 	--color-hairline-low: rgba(255,255,255,.05);
 	--color-hairline-high: rgba(255,255,255,.08);
@@ -91,6 +95,8 @@
 	--layout-sidebar-width-collapsed: 70px;
 	--layout-review-panel-width: 404px;
 	--layout-titlebar-height: 38px;
+	--layout-nav-row-padding: 9px 11px;
+	--layout-nav-row-gap: 11px;
 
 	/* Scrollbar */
 	--scrollbar-size: 9px;

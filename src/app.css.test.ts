@@ -26,6 +26,14 @@ describe('app.css', () => {
 		expect(content).toContain('--board-dark-square: #37344A');
 	});
 
+	it('defines the chrome-specific custom properties added in Iteration 2 (README §6.1)', () => {
+		const content = css();
+		expect(content).toContain('--color-window-dot: #3A3F4E');
+		expect(content).toContain('--color-active-item-text: #EAF6F0');
+		expect(content).toContain('--layout-nav-row-padding: 9px 11px');
+		expect(content).toContain('--layout-nav-row-gap: 11px');
+	});
+
 	it('defines the .sbmono and .sbscroll utility classes', () => {
 		const content = css();
 		expect(content).toContain('.sbmono');
