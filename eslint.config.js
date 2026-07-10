@@ -8,7 +8,7 @@ import globals from 'globals';
 export default [
 	js.configs.recommended,
 	{
-		ignores: ['node_modules/', '.svelte-kit/', 'build/', 'dist/']
+		ignores: ['node_modules/', '.svelte-kit/', 'build/', 'dist/', 'src-tauri/target/']
 	},
 	{
 		languageOptions: {
