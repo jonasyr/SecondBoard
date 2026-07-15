@@ -49,19 +49,23 @@ const INTRO_COACH_TEXT =
  * `ply > 0` (coachText, `best`), so the observable classification at ply 0
  * is exposed here as `null` per this module's own ReviewPly contract.
  */
-export function getReviewPly(ply: number): ReviewPly {
+export function getReviewPly(
+	ply: number,
+	evalPerPly: number[] = EVAL_PER_PLY,
+	bestMoves: Record<number, Move & { san: string }> = BEST_MOVES
+): ReviewPly {
 	const position = MOCK_POSITIONS[ply];
 	const lastMove = ply > 0 ? MOCK_MOVE_META[ply - 1] : null;
 	const classCode: ClassCode | null = ply > 0 ? CLASS_CODES[ply - 1] : null;
 
-	const evalNum = EVAL_PER_PLY[ply];
+	const evalNum = evalPerPly[ply];
 	const evalStr = (evalNum >= 0 ? '+' : '') + evalNum.toFixed(2);
 	const whitePct = evalBarPct(evalNum);
 
 	// Engine best-move arrow: only surfaced when the played move was one of
-	// the NOT_BEST classifications and mock data actually has an entry for it.
+	// the NOT_BEST classifications and real/mock data actually has an entry for it.
 	const best =
-		ply > 0 && classCode && NOT_BEST_CODES.includes(classCode) ? (BEST_MOVES[ply] ?? null) : null;
+		ply > 0 && classCode && NOT_BEST_CODES.includes(classCode) ? (bestMoves[ply] ?? null) : null;
 
 	const moveNo = Math.ceil(ply / 2);
 	const coachMove =

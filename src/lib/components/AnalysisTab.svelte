@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { getReviewPly } from '$lib/game/review';
+	import { appState } from '$lib/stores/app-state.svelte';
 	import CoachCard from './CoachCard.svelte';
 	import MoveList from './MoveList.svelte';
 	import Icon from './Icon.svelte';
@@ -12,10 +13,13 @@
 
 	let { ply, onSelectPly, onNext }: Props = $props();
 
-	const data = $derived(getReviewPly(ply));
+	const data = $derived(getReviewPly(ply, appState.evalPerPly, appState.bestMoves));
 </script>
 
 <div class="analysis-tab">
+	{#if appState.analysisStatus === 'loading'}
+		<div class="analyzing-note">Analyzing with Stockfish…</div>
+	{/if}
 	<div class="coach-slot">
 		<CoachCard
 			classCode={data.classCode ?? 'book'}
@@ -55,6 +59,13 @@
 	.coach-slot {
 		flex: none;
 		padding: 13px 14px 0;
+	}
+	.analyzing-note {
+		flex: none;
+		padding: 10px 14px 0;
+		font-size: 11.5px;
+		font-weight: 600;
+		color: var(--color-text-tertiary);
 	}
 	.actions {
 		flex: none;

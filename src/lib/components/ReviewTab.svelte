@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { EVAL_PER_PLY, CLASS_CODES } from '$lib/game/mock-data';
+	import { CLASS_CODES } from '$lib/game/mock-data';
 	import EvalGraph from './EvalGraph.svelte';
 	import AccuracyBlock from './AccuracyBlock.svelte';
 	import BreakdownTable from './BreakdownTable.svelte';
@@ -7,14 +7,15 @@
 
 	interface Props {
 		ply: number;
+		evalPerPly: number[];
 	}
 
-	let { ply }: Props = $props();
+	let { ply, evalPerPly }: Props = $props();
 </script>
 
 <div class="review-tab sbscroll">
 	<div class="graph-slot">
-		<EvalGraph evalPerPly={EVAL_PER_PLY} classCodes={CLASS_CODES} {ply} height={66} />
+		<EvalGraph {evalPerPly} classCodes={CLASS_CODES} {ply} height={66} />
 	</div>
 	<AccuracyBlock />
 	<div class="divider"></div>
