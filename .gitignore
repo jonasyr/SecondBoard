@@ -27,3 +27,6 @@ src-tauri/target
 
 # VSCode
 .vscode
+
+# Sonarlint
+.sonarlint
