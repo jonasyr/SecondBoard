@@ -6,7 +6,7 @@
  * callers (README §8; LOGIC.md §7).
  */
 import { capturedInfo, evalBarPct } from '$lib/board/geometry';
-import type { Move, Position } from '$lib/board/types';
+import type { Move, PieceColor, PieceType, Position } from '$lib/board/types';
 import type { ClassCode } from '$lib/types';
 import { NOT_BEST_CODES } from '$lib/tokens';
 import {
@@ -88,7 +88,7 @@ export interface PlayerRowData {
 	isWhite: boolean;
 	clock: string;
 	clockActive: boolean;
-	captured: Array<{ color: 'w' | 'b'; type: 'P' | 'N' | 'B' | 'R' | 'Q' }>;
+	captured: Array<{ color: PieceColor; type: PieceType }>;
 	adv: string | null;
 }
 

@@ -7,16 +7,16 @@ beforeEach(() => {
 	Object.assign(appState, createAppState());
 });
 
-describe('root page (screen-switcher placeholder)', () => {
-	it('shows the Onboarding placeholder by default (screen=review, gameLoaded=false)', () => {
+describe('root page (screen switcher)', () => {
+	it('shows the OnboardingScreen by default (screen=review, gameLoaded=false)', () => {
 		const { getByText } = render(Page);
-		expect(getByText('Onboarding · Paste PGN — scaffold OK')).toBeTruthy();
+		expect(getByText('Review your chess game')).toBeTruthy();
 	});
 
-	it('renders the Board QA harness instead of a placeholder once a game is loaded on review', () => {
+	it('renders the GameReviewScreen board instead of onboarding once a game is loaded on review', () => {
 		appState.gameLoaded = true;
 		const { queryByText, container } = render(Page);
-		expect(queryByText('Game Review — scaffold OK')).toBeNull();
+		expect(queryByText('Review your chess game')).toBeNull();
 		expect(container.querySelectorAll('[data-sq]')).toHaveLength(64);
 	});
 
@@ -32,7 +32,7 @@ describe('root page (screen-switcher placeholder)', () => {
 		expect(getByText('Opening Explorer — scaffold OK')).toBeTruthy();
 	});
 
-	it('renders the temporary Board QA harness (64 squares) when a game is loaded on the review screen', () => {
+	it('renders the GameReviewScreen (64 board squares) when a game is loaded on the review screen', () => {
 		appState.gameLoaded = true;
 		appState.screen = 'review';
 		const { container } = render(Page);
