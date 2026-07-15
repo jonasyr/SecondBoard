@@ -78,6 +78,29 @@ describe('animateSlide', () => {
 		expect(originalLanding.style.visibility).toBe('');
 	});
 
+	it('removes the clone and restores visibility when transitionend fires, and a later timer expiry does not double-fire or throw', () => {
+		vi.useFakeTimers();
+		const board = makeBoard();
+		mockRect(board, { left: 0, top: 0 });
+		mockRect(board.querySelector('[data-sq="e2"]')!, { left: 0, top: 300 });
+		mockRect(board.querySelector('[data-sq="e4"]')!, { left: 0, top: 0 });
+
+		animateSlide(board, 'e2', 'e4');
+
+		const clone = board.querySelector('[data-sb-clone="1"]') as HTMLElement;
+		expect(clone).not.toBeNull();
+		clone.dispatchEvent(new Event('transitionend'));
+
+		expect(board.querySelector('[data-sb-clone="1"]')).toBeNull();
+		const originalLanding = board.querySelector('[data-sq="e4"] .piece') as HTMLElement;
+		expect(originalLanding.style.visibility).toBe('');
+
+		expect(() => vi.advanceTimersByTime(300)).not.toThrow();
+
+		expect(board.querySelector('[data-sb-clone="1"]')).toBeNull();
+		expect(originalLanding.style.visibility).toBe('');
+	});
+
 	it('is a no-op when from and to are the same square', () => {
 		const board = makeBoard();
 		animateSlide(board, 'e4', 'e4');
