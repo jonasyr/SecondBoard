@@ -23,6 +23,5 @@ Supporting pure logic lives in `src/lib/game/` (`mock-engine.ts`, `mock-data.ts`
 they stand in for the Rust `pgn`/`analysis`/`engine` modules until Iterations 5-8 replace them piece by
 piece (README §11).
 
-**Still to come:** EvalBar, StatCard, CoachCard, MoveList, Toggle, and the rest of the §6
-component inventory — each lands in the iteration that builds its screen (see README §11's
-build order).
+**Still to come:** StatCard, Toggle, and the rest of the §6 component inventory — each lands in
+the iteration that builds its screen (see README §11's build order).
