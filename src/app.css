@@ -154,14 +154,14 @@ body {
 	background-clip: padding-box;
 }
 
-/* Brilliant-move square ring pulse — README §4.6 */
+/* Brilliant-move square ring pulse — README §4.6, literal two-layer spec from dc.html lines 25-28 */
 @keyframes bpulse {
 	0%,
 	100% {
-		box-shadow: 0 0 0 0 rgba(45, 224, 206, 0.55);
+		box-shadow: 0 0 0 0 rgba(45, 224, 206, 0.55), 0 0 22px 3px rgba(45, 224, 206, 0.3);
 	}
 	50% {
-		box-shadow: 0 0 0 6px rgba(45, 224, 206, 0);
+		box-shadow: 0 0 0 7px rgba(45, 224, 206, 0), 0 0 34px 6px rgba(45, 224, 206, 0.45);
 	}
 }
 

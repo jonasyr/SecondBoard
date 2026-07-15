@@ -41,10 +41,14 @@ describe('app.css', () => {
 		expect(content).toContain('.sbscroll');
 	});
 
-	it('defines the bpulse and softfloat keyframes', () => {
+	it('defines the exact two-layer bpulse keyframes from the literal reference (dc.html lines 25-28)', () => {
 		const content = css();
-		expect(content).toContain('@keyframes bpulse');
-		expect(content).toContain('@keyframes softfloat');
+		expect(content).toContain(
+			'box-shadow: 0 0 0 0 rgba(45, 224, 206, 0.55), 0 0 22px 3px rgba(45, 224, 206, 0.3);'
+		);
+		expect(content).toContain(
+			'box-shadow: 0 0 0 7px rgba(45, 224, 206, 0), 0 0 34px 6px rgba(45, 224, 206, 0.45);'
+		);
 	});
 
 	it('applies box-sizing: border-box globally and antialiased body text', () => {
