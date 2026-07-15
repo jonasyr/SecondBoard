@@ -48,3 +48,4 @@ STOPPED HERE by user request (usage limit) after Task 3 review approval. NEXT: T
 Task 4: complete (commits f149d9e..99b165b, review clean/Approved)
 Task 5: complete (commits d2237b7..2643e3b, review clean/Approved; minor doc note: brief's Interfaces section lists TOKENS.review.moveTint as consumed but component doesn't use it — that's a separate move-list-row concern, not a badge defect)
 Task 6: complete (commits 779137c..d5af265, review clean/Approved; plan-mandated conflict noted and resolved by user: label colors #20222E/#E3E6EE hardcoded per brief's own code with no TOKENS backing — accepted as-is, not worth a follow-up token for two single-use colors)
+Task 7: complete (commits 18cbcc7..52dc696, review clean/Approved; test assertion adjusted for jsdom style.cssText re-serialization spacing (border-radius:8px -> border-radius: 8px), verified independently by reviewer, component itself untouched/verbatim)
