@@ -5,6 +5,7 @@ vi.mock('$lib/api/engine', () => ({ analyzeFen }));
 
 import { loadRealAnalysis } from './engine-analysis';
 import { MOCK_POSITIONS } from './mock-data';
+import { fullmoveNumberForPly, sideToMoveForPly } from './notation';
 
 describe('loadRealAnalysis', () => {
 	beforeEach(() => {
@@ -60,5 +61,39 @@ describe('loadRealAnalysis', () => {
 		const { evalPerPly } = await loadRealAnalysis();
 
 		expect(evalPerPly[0]).toBeLessThan(-50); // ply 0: White to move, mover IS being mated -> large negative
+	});
+
+	it('bounds concurrent analyzeFen calls to 4 in-flight at a time, preserving result order', async () => {
+		const BATCH_SIZE = 4;
+		let inFlight = 0;
+		let maxInFlight = 0;
+
+		analyzeFen.mockImplementation(async (fen: string) => {
+			inFlight++;
+			maxInFlight = Math.max(maxInFlight, inFlight);
+			// Yield a couple microtask turns so calls dispatched in the same batch
+			// overlap in flight before resolving, without relying on real timers.
+			await Promise.resolve();
+			await Promise.resolve();
+			inFlight--;
+
+			// Encode which position this call was for into the result so we can
+			// verify ordering isn't scrambled by the batching.
+			const ply = fen.split(' ')[5]; // fullmove number, used only as a distinguishing tag
+			return { evalCp: Number(ply), isMate: false, bestMoveUci: 'e2e4', pv: [] };
+		});
+
+		const { evalPerPly } = await loadRealAnalysis();
+
+		expect(maxInFlight).toBeLessThanOrEqual(BATCH_SIZE);
+		expect(maxInFlight).toBeGreaterThan(1); // sanity check: calls really do overlap within a batch
+
+		// Ordering check: evalPerPly[ply] must reflect MOCK_POSITIONS[ply]'s own analysis
+		// (fullmove number for that ply), not some other position's result.
+		evalPerPly.forEach((_, ply) => {
+			const expectedFullmove = fullmoveNumberForPly(ply);
+			const expectedSign = sideToMoveForPly(ply) === 'w' ? 1 : -1;
+			expect(evalPerPly[ply]).toBeCloseTo((expectedFullmove / 100) * expectedSign);
+		});
 	});
 });
