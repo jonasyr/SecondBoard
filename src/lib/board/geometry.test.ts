@@ -39,10 +39,38 @@ describe('arrowGeom', () => {
 
 describe('capturedInfo', () => {
 	const STANDARD_START: Position = {
-		a1: ['R', 'w'], b1: ['N', 'w'], c1: ['B', 'w'], d1: ['Q', 'w'], e1: ['K', 'w'], f1: ['B', 'w'], g1: ['N', 'w'], h1: ['R', 'w'],
-		a2: ['P', 'w'], b2: ['P', 'w'], c2: ['P', 'w'], d2: ['P', 'w'], e2: ['P', 'w'], f2: ['P', 'w'], g2: ['P', 'w'], h2: ['P', 'w'],
-		a7: ['P', 'b'], b7: ['P', 'b'], c7: ['P', 'b'], d7: ['P', 'b'], e7: ['P', 'b'], f7: ['P', 'b'], g7: ['P', 'b'], h7: ['P', 'b'],
-		a8: ['R', 'b'], b8: ['N', 'b'], c8: ['B', 'b'], d8: ['Q', 'b'], e8: ['K', 'b'], f8: ['B', 'b'], g8: ['N', 'b'], h8: ['R', 'b']
+		a1: ['R', 'w'],
+		b1: ['N', 'w'],
+		c1: ['B', 'w'],
+		d1: ['Q', 'w'],
+		e1: ['K', 'w'],
+		f1: ['B', 'w'],
+		g1: ['N', 'w'],
+		h1: ['R', 'w'],
+		a2: ['P', 'w'],
+		b2: ['P', 'w'],
+		c2: ['P', 'w'],
+		d2: ['P', 'w'],
+		e2: ['P', 'w'],
+		f2: ['P', 'w'],
+		g2: ['P', 'w'],
+		h2: ['P', 'w'],
+		a7: ['P', 'b'],
+		b7: ['P', 'b'],
+		c7: ['P', 'b'],
+		d7: ['P', 'b'],
+		e7: ['P', 'b'],
+		f7: ['P', 'b'],
+		g7: ['P', 'b'],
+		h7: ['P', 'b'],
+		a8: ['R', 'b'],
+		b8: ['N', 'b'],
+		c8: ['B', 'b'],
+		d8: ['Q', 'b'],
+		e8: ['K', 'b'],
+		f8: ['B', 'b'],
+		g8: ['N', 'b'],
+		h8: ['R', 'b']
 	};
 
 	it('returns no captures and zero advantage for the standard starting position', () => {

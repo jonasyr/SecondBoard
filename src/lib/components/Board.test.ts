@@ -26,11 +26,13 @@ describe('Board', () => {
 		const { container: unflipped } = render(Board, { props: { position: {}, ply: 0 } });
 		expect(unflipped.querySelectorAll('[data-sq]')[0].getAttribute('data-sq')).toBe('a8');
 
-		const { container: flipped } = render(Board, { props: { position: {}, ply: 0, flipped: true } });
+		const { container: flipped } = render(Board, {
+			props: { position: {}, ply: 0, flipped: true }
+		});
 		expect(flipped.querySelectorAll('[data-sq]')[0].getAttribute('data-sq')).toBe('h1');
 	});
 
-	it('renders the classification badge on the last move\'s destination square', () => {
+	it("renders the classification badge on the last move's destination square", () => {
 		const { container } = render(Board, {
 			props: { position: POS_1, ply: 1, lastMove: { from: 'e2', to: 'e4' }, classCode: 'best' }
 		});

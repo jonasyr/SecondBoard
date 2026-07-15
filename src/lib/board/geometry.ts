@@ -34,12 +34,18 @@ export interface ArrowGeometry {
  * angle; everything else is a straight shaft with a shortened tail/head so
  * the polygon arrowhead doesn't overlap the piece sprites.
  */
-export function arrowGeom(fromSq: Square, toSq: Square, w: number, flipped: boolean): ArrowGeometry {
+export function arrowGeom(
+	fromSq: Square,
+	toSq: Square,
+	w: number,
+	flipped: boolean
+): ArrowGeometry {
 	const a = center(fromSq, flipped);
 	const b = center(toSq, flipped);
 	const df = FILES.indexOf(toSq[0]) - FILES.indexOf(fromSq[0]);
 	const dr = Number(toSq[1]) - Number(fromSq[1]);
-	const knight = (Math.abs(df) === 1 && Math.abs(dr) === 2) || (Math.abs(df) === 2 && Math.abs(dr) === 1);
+	const knight =
+		(Math.abs(df) === 1 && Math.abs(dr) === 2) || (Math.abs(df) === 2 && Math.abs(dr) === 1);
 	const P = (x: number, y: number) => x.toFixed(1) + ' ' + y.toFixed(1);
 	const headLen = w * 1.7;
 	const headHalf = w * 1.25;
@@ -106,8 +112,10 @@ export function capturedInfo(pos: Position): CapturedInfo {
 	const whiteCap: CapturedInfo['whiteCap'] = [];
 	const blackCap: CapturedInfo['blackCap'] = [];
 	for (const t of CAPTURE_ORDER) {
-		for (let i = 0; i < START_EACH[t] - (cnt.b[t] ?? 0); i++) whiteCap.push({ color: 'b', type: t });
-		for (let i = 0; i < START_EACH[t] - (cnt.w[t] ?? 0); i++) blackCap.push({ color: 'w', type: t });
+		for (let i = 0; i < START_EACH[t] - (cnt.b[t] ?? 0); i++)
+			whiteCap.push({ color: 'b', type: t });
+		for (let i = 0; i < START_EACH[t] - (cnt.w[t] ?? 0); i++)
+			blackCap.push({ color: 'w', type: t });
 	}
 	let wMat = 0;
 	let bMat = 0;

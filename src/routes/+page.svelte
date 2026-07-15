@@ -51,7 +51,8 @@
 		<div class="board-harness-controls sbmono">
 			<button type="button" onclick={() => (harnessPly = Math.max(0, harnessPly - 1))}>Prev</button>
 			<span>ply {harnessPly}</span>
-			<button type="button" onclick={() => (harnessPly = Math.min(31, harnessPly + 1))}>Next</button>
+			<button type="button" onclick={() => (harnessPly = Math.min(31, harnessPly + 1))}>Next</button
+			>
 			<button type="button" onclick={() => (harnessFlipped = !harnessFlipped)}>Flip</button>
 		</div>
 	</div>

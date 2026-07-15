@@ -92,7 +92,11 @@ describe('BoardSquare', () => {
 
 	it('renders the brilliant pulsing ring only when isBrilliant', () => {
 		const { container } = render(BoardSquare, {
-			props: { square: { ...baseSquare, isBrilliant: true }, lastMoveColor: '#4ADEA0', showCoords: true }
+			props: {
+				square: { ...baseSquare, isBrilliant: true },
+				lastMoveColor: '#4ADEA0',
+				showCoords: true
+			}
 		});
 		expect(container.querySelector('.brilliant-ring')).not.toBeNull();
 	});

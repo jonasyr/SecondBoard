@@ -10,7 +10,9 @@
 
 	let { square, lastMoveColor, showCoords }: Props = $props();
 
-	const spriteKey = $derived(square.piece ? ((square.piece[1] + square.piece[0]) as PieceSpriteKey) : null);
+	const spriteKey = $derived(
+		square.piece ? ((square.piece[1] + square.piece[0]) as PieceSpriteKey) : null
+	);
 </script>
 
 <div class="square" class:dark={square.isDark} class:light={!square.isDark} data-sq={square.id}>
@@ -69,8 +71,8 @@
 		filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.4));
 	}
 	.piece-black {
-		filter:
-			drop-shadow(0 0 1.4px rgba(255, 255, 255, 0.45)) drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
+		filter: drop-shadow(0 0 1.4px rgba(255, 255, 255, 0.45))
+			drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
 	}
 	.brilliant-ring {
 		position: absolute;
