@@ -1,3 +1,6 @@
-// <Board> component, piece sprites, arrow/slide-animation logic land here in Iteration 3
-// (design_handoff_secondboard/README.md §6.3, LOGIC.md §2). Empty on purpose for now.
-export {};
+export * from './types';
+export * from './geometry';
+export * from './pieces';
+export * from './build-squares';
+export * from './diff-move';
+export * from './animate-slide';
