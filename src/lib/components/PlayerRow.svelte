@@ -22,6 +22,7 @@
 			? `background:${TOKENS.review.clockActiveBg};color:${TOKENS.review.clockActiveText};box-shadow:inset 0 0 0 1px rgba(45,224,206,.3);`
 			: `background:${TOKENS.review.clockInactiveBg};color:${TOKENS.review.clockInactiveText};`
 	);
+	const newGameStyle = `background:${TOKENS.review.newGameBg};border:1px solid ${TOKENS.review.newGameBorder};color:${TOKENS.review.newGameText};`;
 </script>
 
 <div class="player-row">
@@ -45,7 +46,13 @@
 	</div>
 	<div class="spacer"></div>
 	{#if showNewGameButton}
-		<button type="button" class="new-game" onclick={onNewGame} title="Load a different PGN">
+		<button
+			type="button"
+			class="new-game"
+			style={newGameStyle}
+			onclick={onNewGame}
+			title="Load a different PGN"
+		>
 			<Icon d="M12 5v14M5 12h14" size={13} stroke="#4ADEA0" strokeWidth={2.2} />
 			New PGN
 		</button>
@@ -118,9 +125,6 @@
 		padding: 7px 12px;
 		margin-right: 10px;
 		border-radius: var(--radius-control);
-		background: #181a24;
-		border: 1px solid rgba(255, 255, 255, 0.08);
-		color: #c7ccda;
 		font-size: 12px;
 		font-weight: 600;
 		cursor: pointer;
