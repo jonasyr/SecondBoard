@@ -42,12 +42,23 @@ describe('loadRealAnalysis', () => {
 		expect(bestMoves[MOCK_POSITIONS.length]).toBeUndefined();
 	});
 
-	it('reports a large-magnitude eval for mate scores, sign matching the mover', async () => {
-		analyzeFen.mockResolvedValue({ evalCp: 0, isMate: true, bestMoveUci: 'e2e4', pv: [] });
+	it('reports a large positive eval for a favorable mate for the mover (White to move, ply 0)', async () => {
+		analyzeFen.mockResolvedValue({ evalCp: 100_000, isMate: true, bestMoveUci: 'e2e4', pv: [] });
 
 		const { evalPerPly } = await loadRealAnalysis();
 
-		expect(evalPerPly[0]).toBeGreaterThan(50); // ply 0: White to move, mate found -> large positive
-		expect(evalPerPly[1]).toBeLessThan(-50); // ply 1: Black to move, mate found -> large negative (White POV)
+		expect(evalPerPly[0]).toBeGreaterThan(50); // ply 0: White to move, mate FOR mover -> large positive
+	});
+
+	it('reports a large negative eval for a losing mate for the mover (White to move, ply 0)', async () => {
+		// Regression test: evalCp is already signed relative to the mover by the Rust
+		// side (positive = mate for the mover, negative = mover is being mated). If
+		// toWhitePovEval discards that sign and hardcodes a positive magnitude for any
+		// mate score, this case (mover is being mated) would incorrectly come out positive.
+		analyzeFen.mockResolvedValue({ evalCp: -100_000, isMate: true, bestMoveUci: 'e2e4', pv: [] });
+
+		const { evalPerPly } = await loadRealAnalysis();
+
+		expect(evalPerPly[0]).toBeLessThan(-50); // ply 0: White to move, mover IS being mated -> large negative
 	});
 });

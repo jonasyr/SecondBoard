@@ -17,9 +17,8 @@ export interface RealAnalysis {
 
 /** Stockfish's score is relative to the side to move at the analyzed FEN — flip it
  * to White's POV (positive = good for White) so it matches evalBarPct's convention. */
-function toWhitePovEval(evalCp: number, isMate: boolean, sideToMove: 'w' | 'b'): number {
-	const moverPov = isMate ? 100 : evalCp / 100;
-	return sideToMove === 'w' ? moverPov : -moverPov;
+function toWhitePovEval(evalCp: number, sideToMove: 'w' | 'b'): number {
+	return sideToMove === 'w' ? evalCp / 100 : -(evalCp / 100);
 }
 
 export async function loadRealAnalysis(): Promise<RealAnalysis> {
@@ -30,7 +29,7 @@ export async function loadRealAnalysis(): Promise<RealAnalysis> {
 	);
 
 	const evalPerPly = results.map((r, ply) =>
-		toWhitePovEval(r.evalCp, r.isMate, sideToMoveForPly(ply))
+		toWhitePovEval(r.evalCp, sideToMoveForPly(ply))
 	);
 
 	const bestMoves: Record<number, Move & { san: string }> = {};
