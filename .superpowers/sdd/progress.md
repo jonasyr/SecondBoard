@@ -68,3 +68,4 @@ BRANCH READY TO MERGE. Next: use superpowers:finishing-a-development-branch.
 ---
 Iteration 5 (Rust analyze_fen + Stockfish UCI):
 Task 1: complete (commit 5e3de9d, review clean/Approved; UCI info/bestmove line parsers, 7/7 tests pass, no new deps, no non-test unwraps; minor note: parse_info_line/parse_bestmove_line are pub(crate) but unused until Task 2 wires them in -- expected task-splitting, not a defect)
+Task 2: complete (commit c71dec8, review clean/Approved; real Stockfish 18 process driven over UCI, 9/9 tests pass including a genuine real-engine analysis test independently re-verified by the reviewer; minor notes deferred: mate distance collapsed to flat +/-100000 magnitude with no ply-count field, sequential stdin-write/stdout-read has a latent (currently non-triggered) pipe-buffer deadlock risk if Stockfish ever emits more info output than the OS pipe buffer before reads begin)
