@@ -45,3 +45,4 @@ Task 2: complete (commits 2409089..d9fb1b4, review clean/Approved; ground-truth 
 Task 3: complete (commits d9fb1b4..cb0f94e, review clean/Approved; getReviewPly/getPlayerRows verified line-by-line against SecondBoard.dc.html renderVals() 1221-1330, ply-0 classCode:null confirmed correct vs reference's internal 'book' placeholder which is always gated out)
 
 STOPPED HERE by user request (usage limit) after Task 3 review approval. NEXT: Task 4 (appState screen/tab/ply transitions). To resume: read this file, confirm HEAD matches cb0f94e-derived history via git log, then continue subagent-driven-development from Task 4 using task-brief script on docs/superpowers/plans/2026-07-15-iteration-04-game-review.md.
+Task 4: complete (commits f149d9e..99b165b, review clean/Approved)
