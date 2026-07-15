@@ -1,19 +1,15 @@
 /**
  * ============================================================================
- * TEMPORARY — DEV/QA-ONLY FIXTURE. NOT PRODUCT CODE. DO NOT IMPORT ELSEWHERE.
+ * MOCK — SAN-to-position engine. NOT PRODUCT LOGIC LONG-TERM.
  * ============================================================================
- * Ported verbatim from design_handoff_secondboard/reference/logic/chess-mock.js
- * (the mock SAN->position engine) and reference/logic/data.js (the sample
- * Italian Game). LOGIC.md explicitly warns "THIS IS A MOCK... In the REAL
- * app you MUST NOT ship this — replace it with the Rust `pgn` module using
- * `shakmaty`". This file exists ONLY to feed a temporary visual-verification
- * harness in src/routes/+page.svelte so the Board component (Iteration 3)
- * can be pixel-compared against reference/screens/2-*.png and 3-*.png
- * before the real Game Review screen (Iteration 4) replaces this wiring
- * with real backend data. Delete this file once Iteration 4 lands.
+ * Ported verbatim from design_handoff_secondboard/reference/logic/chess-mock.js.
+ * LOGIC.md explicitly warns this is a MOCK: "In the REAL app you MUST NOT
+ * ship this — replace it with the Rust `pgn` module using `shakmaty`"
+ * (README §3, §8; LOGIC.md header table). It feeds the Game Review screen's
+ * mock data (Iteration 4, README §11 step 4) until the Rust backend + shakmaty
+ * land (README §11 steps 5-6), at which point this file is deleted.
  */
-import type { ClassCode } from '$lib/types';
-import type { Move, Piece, Position } from './types';
+import type { Move, Piece, Position } from '$lib/board/types';
 
 const FILES = 'abcdefgh';
 
@@ -124,7 +120,7 @@ function applySan(b: Position, sanRaw: string, color: 'w' | 'b'): Move {
 	return { from: from!, to: target };
 }
 
-function buildGame(sanList: string[]): { positions: Position[]; meta: Move[] } {
+export function buildGame(sanList: string[]): { positions: Position[]; meta: Move[] } {
 	const b = standardBoard();
 	const positions: Position[] = [{ ...b }];
 	const meta: Move[] = [];
@@ -137,92 +133,3 @@ function buildGame(sanList: string[]): { positions: Position[]; meta: Move[] } {
 	}
 	return { positions, meta };
 }
-
-// Sample Italian Game, copied verbatim from reference/logic/data.js.
-const SAN_LIST = [
-	'e4',
-	'e5',
-	'Nf3',
-	'Nc6',
-	'Bc4',
-	'Bc5',
-	'c3',
-	'Nf6',
-	'd3',
-	'd6',
-	'O-O',
-	'O-O',
-	'Re1',
-	'a6',
-	'Bb3',
-	'Ba7',
-	'h3',
-	'h6',
-	'Nbd2',
-	'Be6',
-	'Bxe6',
-	'fxe6',
-	'Nf1',
-	'Qe7',
-	'Ng3',
-	'Rad8',
-	'd4',
-	'exd4',
-	'cxd4',
-	'd5',
-	'Ne5'
-];
-
-const CLASS_CODES: ClassCode[] = [
-	'book',
-	'book',
-	'book',
-	'book',
-	'book',
-	'book',
-	'best',
-	'good',
-	'good',
-	'good',
-	'best',
-	'best',
-	'good',
-	'inaccuracy',
-	'best',
-	'good',
-	'good',
-	'good',
-	'best',
-	'good',
-	'good',
-	'good',
-	'excellent',
-	'good',
-	'best',
-	'good',
-	'great',
-	'good',
-	'best',
-	'inaccuracy',
-	'brilliant'
-];
-
-const EVAL_PER_PLY = [
-	0, 0.3, 0.2, 0.3, 0.2, 0.3, 0.2, 0.35, 0.25, 0.3, 0.25, 0.3, 0.3, 0.35, 0.1, 0.4, 0.3, 0.35, 0.3,
-	0.5, 0.4, 0.45, 0.3, 0.7, 0.55, 0.8, 0.7, 1.3, 1.05, 1.5, 1.0, 2.37
-];
-
-const BEST_MOVES: Record<number, Move & { san: string }> = {
-	14: { from: 'c8', to: 'g4', san: 'Bg4' },
-	30: { from: 'f6', to: 'g4', san: 'Ng4' }
-};
-
-const { positions, meta } = buildGame(SAN_LIST);
-
-export const DEV_GAME = {
-	positions,
-	meta,
-	classCodes: CLASS_CODES,
-	evalPerPly: EVAL_PER_PLY,
-	bestMoves: BEST_MOVES
-};
