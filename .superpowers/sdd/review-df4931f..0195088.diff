@@ -1,0 +1,219 @@
+# Review package: df4931fe408256c04eec02e81a9b4c6b700f2881..HEAD
+
+## Commits
+0195088 feat: wire Tauri window controls (decorations off, window API wrapper, permissions)
+
+## Files changed
+ package-lock.json                   |  5 ++---
+ package.json                        |  4 ++--
+ src-tauri/capabilities/default.json |  8 +++++++-
+ src-tauri/tauri.conf.json           |  3 ++-
+ src/lib/api/window.test.ts          | 30 ++++++++++++++++++++++++++++++
+ src/lib/api/window.ts               | 16 ++++++++++++++++
+ 6 files changed, 59 insertions(+), 7 deletions(-)
+
+## Diff
+diff --git a/package-lock.json b/package-lock.json
+index 843352e..533035e 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -2,28 +2,28 @@
+ 	"name": "secondboard",
+ 	"version": "0.0.1",
+ 	"lockfileVersion": 3,
+ 	"requires": true,
+ 	"packages": {
+ 		"": {
+ 			"name": "secondboard",
+ 			"version": "0.0.1",
+ 			"dependencies": {
+ 				"@fontsource/geist-mono": "^5.2.8",
+-				"@fontsource/geist-sans": "^5.2.5"
++				"@fontsource/geist-sans": "^5.2.5",
++				"@tauri-apps/api": "^2.11.1"
+ 			},
+ 			"devDependencies": {
+ 				"@eslint/js": "^10.0.1",
+ 				"@sveltejs/adapter-static": "^3.0.10",
+ 				"@sveltejs/kit": "^2.63.0",
+ 				"@sveltejs/vite-plugin-svelte": "^7.1.2",
+-				"@tauri-apps/api": "^2.11.1",
+ 				"@tauri-apps/cli": "^2.11.4",
+ 				"@testing-library/svelte": "^5.4.2",
+ 				"@types/node": "^26.1.1",
+ 				"@typescript-eslint/eslint-plugin": "^8.63.0",
+ 				"@typescript-eslint/parser": "^8.63.0",
+ 				"@vitest/ui": "^4.1.10",
+ 				"eslint": "^10.6.0",
+ 				"eslint-plugin-svelte": "^3.20.0",
+ 				"globals": "^17.7.0",
+ 				"jsdom": "^29.1.1",
+@@ -986,21 +986,20 @@
+ 			},
+ 			"peerDependencies": {
+ 				"svelte": "^5.46.4",
+ 				"vite": "^8.0.0-beta.7 || ^8.0.0"
+ 			}
+ 		},
+ 		"node_modules/@tauri-apps/api": {
+ 			"version": "2.11.1",
+ 			"resolved": "https://registry.npmjs.org/@tauri-apps/api/-/api-2.11.1.tgz",
+ 			"integrity": "sha512-M2FPuYND2m+wh5hfW9ZpSdxMPdEJovPBWwoHJmwUpysTYNHaOkVFN419m/K0LIgjb/7KU2vBgsUepJWugQCvAA==",
+-			"dev": true,
+ 			"license": "Apache-2.0 OR MIT",
+ 			"funding": {
+ 				"type": "opencollective",
+ 				"url": "https://opencollective.com/tauri"
+ 			}
+ 		},
+ 		"node_modules/@tauri-apps/cli": {
+ 			"version": "2.11.4",
+ 			"resolved": "https://registry.npmjs.org/@tauri-apps/cli/-/cli-2.11.4.tgz",
+ 			"integrity": "sha512-R8xGtMpwyetawSqm9kYOuMmEqkhUbvcUy8n0aNXIxollKBLESUu5f4Fx+64hgASYm1H+jSWq6jCW6zqTnH6hqQ==",
+diff --git a/package.json b/package.json
+index f5a728a..613a9d3 100644
+--- a/package.json
++++ b/package.json
+@@ -12,21 +12,20 @@
+ 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+ 		"lint": "eslint .",
+ 		"format": "prettier --write .",
+ 		"test": "vitest"
+ 	},
+ 	"devDependencies": {
+ 		"@eslint/js": "^10.0.1",
+ 		"@sveltejs/adapter-static": "^3.0.10",
+ 		"@sveltejs/kit": "^2.63.0",
+ 		"@sveltejs/vite-plugin-svelte": "^7.1.2",
+-		"@tauri-apps/api": "^2.11.1",
+ 		"@tauri-apps/cli": "^2.11.4",
+ 		"@testing-library/svelte": "^5.4.2",
+ 		"@types/node": "^26.1.1",
+ 		"@typescript-eslint/eslint-plugin": "^8.63.0",
+ 		"@typescript-eslint/parser": "^8.63.0",
+ 		"@vitest/ui": "^4.1.10",
+ 		"eslint": "^10.6.0",
+ 		"eslint-plugin-svelte": "^3.20.0",
+ 		"globals": "^17.7.0",
+ 		"jsdom": "^29.1.1",
+@@ -34,13 +33,14 @@
+ 		"prettier-plugin-svelte": "^4.1.1",
+ 		"svelte": "^5.56.1",
+ 		"svelte-check": "^4.6.0",
+ 		"svelte-eslint-parser": "^1.8.0",
+ 		"typescript": "^6.0.3",
+ 		"vite": "^8.0.16",
+ 		"vitest": "^4.1.10"
+ 	},
+ 	"dependencies": {
+ 		"@fontsource/geist-mono": "^5.2.8",
+-		"@fontsource/geist-sans": "^5.2.5"
++		"@fontsource/geist-sans": "^5.2.5",
++		"@tauri-apps/api": "^2.11.1"
+ 	}
+ }
+diff --git a/src-tauri/capabilities/default.json b/src-tauri/capabilities/default.json
+index 25be56e..aaff0d9 100644
+--- a/src-tauri/capabilities/default.json
++++ b/src-tauri/capabilities/default.json
+@@ -1,7 +1,13 @@
+ {
+ 	"$schema": "../gen/schemas/desktop-schema.json",
+ 	"identifier": "default",
+ 	"description": "enables the default permissions",
+ 	"windows": ["main"],
+-	"permissions": ["core:default"]
++	"permissions": [
++		"core:default",
++		"core:window:allow-close",
++		"core:window:allow-minimize",
++		"core:window:allow-toggle-maximize",
++		"core:window:allow-start-dragging"
++	]
+ }
+diff --git a/src-tauri/tauri.conf.json b/src-tauri/tauri.conf.json
+index 86f0073..c2a1fb2 100644
+--- a/src-tauri/tauri.conf.json
++++ b/src-tauri/tauri.conf.json
+@@ -9,21 +9,22 @@
+ 		"beforeDevCommand": "npm run dev",
+ 		"beforeBuildCommand": "npm run build"
+ 	},
+ 	"app": {
+ 		"windows": [
+ 			{
+ 				"title": "SecondBoard — Local Chess Review Companion",
+ 				"width": 800,
+ 				"height": 600,
+ 				"resizable": true,
+-				"fullscreen": false
++				"fullscreen": false,
++				"decorations": false
+ 			}
+ 		],
+ 		"security": {
+ 			"csp": null
+ 		}
+ 	},
+ 	"bundle": {
+ 		"active": true,
+ 		"targets": "all",
+ 		"icon": [
+diff --git a/src/lib/api/window.test.ts b/src/lib/api/window.test.ts
+new file mode 100644
+index 0000000..4e2cdc7
+--- /dev/null
++++ b/src/lib/api/window.test.ts
+@@ -0,0 +1,30 @@
++import { describe, it, expect, vi } from 'vitest';
++
++const { minimize, toggleMaximize, close } = vi.hoisted(() => ({
++	minimize: vi.fn(),
++	toggleMaximize: vi.fn(),
++	close: vi.fn()
++}));
++
++vi.mock('@tauri-apps/api/window', () => ({
++	getCurrentWindow: () => ({ minimize, toggleMaximize, close })
++}));
++
++import { minimizeWindow, toggleMaximizeWindow, closeWindow } from './window';
++
++describe('window API wrappers', () => {
++	it('minimizeWindow calls Window.minimize', () => {
++		minimizeWindow();
++		expect(minimize).toHaveBeenCalledOnce();
++	});
++
++	it('toggleMaximizeWindow calls Window.toggleMaximize', () => {
++		toggleMaximizeWindow();
++		expect(toggleMaximize).toHaveBeenCalledOnce();
++	});
++
++	it('closeWindow calls Window.close', () => {
++		closeWindow();
++		expect(close).toHaveBeenCalledOnce();
++	});
++});
+diff --git a/src/lib/api/window.ts b/src/lib/api/window.ts
+new file mode 100644
+index 0000000..3126ed4
+--- /dev/null
++++ b/src/lib/api/window.ts
+@@ -0,0 +1,16 @@
++import { getCurrentWindow } from '@tauri-apps/api/window';
++
++/** Minimizes the app window. Wired to the title bar's leftmost dot (README §6.1). */
++export function minimizeWindow(): void {
++	getCurrentWindow().minimize();
++}
++
++/** Toggles the app window between maximized and restored. Wired to the title bar's middle dot. */
++export function toggleMaximizeWindow(): void {
++	getCurrentWindow().toggleMaximize();
++}
++
++/** Closes the app window. Wired to the title bar's rightmost dot. */
++export function closeWindow(): void {
++	getCurrentWindow().close();
++}

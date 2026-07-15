@@ -1,0 +1,162 @@
+# Review package: 019508833afec54d2c162333be70d11a007a9ee5..HEAD
+
+## Commits
+441b96d feat: add TitleBar component with real Tauri window controls
+
+## Files changed
+ src/lib/components/TitleBar.svelte  | 97 +++++++++++++++++++++++++++++++++++++
+ src/lib/components/TitleBar.test.ts | 42 ++++++++++++++++
+ 2 files changed, 139 insertions(+)
+
+## Diff
+diff --git a/src/lib/components/TitleBar.svelte b/src/lib/components/TitleBar.svelte
+new file mode 100644
+index 0000000..74386e3
+--- /dev/null
++++ b/src/lib/components/TitleBar.svelte
+@@ -0,0 +1,97 @@
++<script lang="ts">
++	import { minimizeWindow, toggleMaximizeWindow, closeWindow } from '$lib/api/window';
++</script>
++
++<div class="title-bar" data-tauri-drag-region>
++	<div class="window-controls">
++		<button type="button" class="dot" onclick={minimizeWindow} title="Minimize" aria-label="Minimize window"
++		></button>
++		<button
++			type="button"
++			class="dot"
++			onclick={toggleMaximizeWindow}
++			title="Maximize"
++			aria-label="Maximize window"
++		></button>
++		<button type="button" class="dot" onclick={closeWindow} title="Close" aria-label="Close window"
++		></button>
++	</div>
++	<div class="title" data-tauri-drag-region>SecondBoard — Local Chess Review Companion</div>
++	<div class="right">
++		<div class="status-pill">
++			<span class="status-dot"></span>
++			<span class="status-text">Local · Offline</span>
++		</div>
++		<span class="version sbmono">v0.4.1</span>
++	</div>
++</div>
++
++<style>
++	.title-bar {
++		height: var(--layout-titlebar-height);
++		flex: none;
++		display: flex;
++		align-items: center;
++		padding: 0 14px;
++		background: var(--color-titlebar-gradient);
++		border-bottom: 1px solid var(--color-hairline-low);
++		gap: 14px;
++		/* Windows/webview drag-region shim per Tauri's window-customization guide. */
++		app-region: drag;
++	}
++	.window-controls {
++		display: flex;
++		gap: 8px;
++		align-items: center;
++		app-region: no-drag;
++	}
++	.dot {
++		width: 11px;
++		height: 11px;
++		border-radius: 50%;
++		background: var(--color-window-dot);
++		border: none;
++		padding: 0;
++		cursor: pointer;
++	}
++	.title {
++		flex: 1;
++		text-align: center;
++		font-size: 12px;
++		letter-spacing: 0.04em;
++		color: var(--color-text-muted);
++		font-weight: 500;
++	}
++	.right {
++		display: flex;
++		align-items: center;
++		gap: 12px;
++		app-region: no-drag;
++	}
++	.status-pill {
++		display: flex;
++		align-items: center;
++		gap: 6px;
++		padding: 3px 9px;
++		border-radius: var(--radius-pill);
++		background: rgba(74, 222, 160, 0.1);
++		border: 1px solid rgba(74, 222, 160, 0.22);
++	}
++	.status-dot {
++		width: 6px;
++		height: 6px;
++		border-radius: 50%;
++		background: var(--color-accent-green);
++		box-shadow: 0 0 8px var(--color-accent-green);
++	}
++	.status-text {
++		font-size: 10.5px;
++		color: var(--color-light-green-1);
++		font-weight: 500;
++		letter-spacing: 0.02em;
++	}
++	.version {
++		font-size: 10.5px;
++		color: var(--color-text-muted-dark);
++	}
++</style>
+diff --git a/src/lib/components/TitleBar.test.ts b/src/lib/components/TitleBar.test.ts
+new file mode 100644
+index 0000000..989d7d9
+--- /dev/null
++++ b/src/lib/components/TitleBar.test.ts
+@@ -0,0 +1,42 @@
++import { describe, it, expect, vi } from 'vitest';
++import { render, fireEvent } from '@testing-library/svelte';
++import TitleBar from './TitleBar.svelte';
++
++const { minimizeWindow, toggleMaximizeWindow, closeWindow } = vi.hoisted(() => ({
++	minimizeWindow: vi.fn(),
++	toggleMaximizeWindow: vi.fn(),
++	closeWindow: vi.fn()
++}));
++
++vi.mock('$lib/api/window', () => ({ minimizeWindow, toggleMaximizeWindow, closeWindow }));
++
++describe('TitleBar', () => {
++	it('renders the window title text', () => {
++		const { getByText } = render(TitleBar);
++		expect(getByText('SecondBoard — Local Chess Review Companion')).toBeTruthy();
++	});
++
++	it('renders the "Local · Offline" pill and version string', () => {
++		const { getByText } = render(TitleBar);
++		expect(getByText('Local · Offline')).toBeTruthy();
++		expect(getByText('v0.4.1')).toBeTruthy();
++	});
++
++	it('calls minimizeWindow when the minimize dot is clicked', async () => {
++		const { getByTitle } = render(TitleBar);
++		await fireEvent.click(getByTitle('Minimize'));
++		expect(minimizeWindow).toHaveBeenCalledOnce();
++	});
++
++	it('calls toggleMaximizeWindow when the maximize dot is clicked', async () => {
++		const { getByTitle } = render(TitleBar);
++		await fireEvent.click(getByTitle('Maximize'));
++		expect(toggleMaximizeWindow).toHaveBeenCalledOnce();
++	});
++
++	it('calls closeWindow when the close dot is clicked', async () => {
++		const { getByTitle } = render(TitleBar);
++		await fireEvent.click(getByTitle('Close'));
++		expect(closeWindow).toHaveBeenCalledOnce();
++	});
++});

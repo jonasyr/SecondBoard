@@ -1,0 +1,228 @@
+# Review package: 9681bfb93fc6bb0d044d2b1bdb77263059598cdf..HEAD
+
+## Commits
+a7b22ae feat: add Sidebar component with working screen-switch navigation
+
+## Files changed
+ src/lib/components/Sidebar.svelte  | 151 +++++++++++++++++++++++++++++++++++++
+ src/lib/components/Sidebar.test.ts |  54 +++++++++++++
+ 2 files changed, 205 insertions(+)
+
+## Diff
+diff --git a/src/lib/components/Sidebar.svelte b/src/lib/components/Sidebar.svelte
+new file mode 100644
+index 0000000..2d7e472
+--- /dev/null
++++ b/src/lib/components/Sidebar.svelte
+@@ -0,0 +1,151 @@
++<script lang="ts">
++	import { appState } from '$lib/stores/app-state.svelte';
++	import Icon from './Icon.svelte';
++	import { NAV_ITEMS } from './nav-items';
++	import SidebarNavItem from './SidebarNavItem.svelte';
++	import SidebarSyncCard from './SidebarSyncCard.svelte';
++	import SidebarProfile from './SidebarProfile.svelte';
++
++	function toggleCollapsed() {
++		appState.sidebarCollapsed = !appState.sidebarCollapsed;
++	}
++
++	// README §6.1: chevrons point left (collapse) when expanded, right (expand) when collapsed.
++	const collapseIcon = $derived(
++		appState.sidebarCollapsed ? 'M13 5l7 7-7 7M5 5l7 7-7 7' : 'M11 5l-7 7 7 7M19 5l-7 7 7 7'
++	);
++</script>
++
++<aside class="sidebar" class:collapsed={appState.sidebarCollapsed}>
++	<div class="header" class:collapsed={appState.sidebarCollapsed}>
++		<div class="logo">
++			<div class="logo-cutout"></div>
++			<div class="logo-square logo-square--teal"></div>
++			<div class="logo-square logo-square--purple"></div>
++		</div>
++		{#if !appState.sidebarCollapsed}
++			<div class="brand">
++				<div class="brand-name">SecondBoard</div>
++				<div class="brand-tagline">Chess Review Lab</div>
++			</div>
++		{/if}
++		<button type="button" class="collapse-toggle" onclick={toggleCollapsed} title="Toggle sidebar">
++			<Icon d={collapseIcon} size={16} stroke="#8A90A0" strokeWidth={2} />
++		</button>
++	</div>
++
++	<nav class="nav-list">
++		{#each NAV_ITEMS as item (item.id)}
++			<SidebarNavItem
++				label={item.label}
++				icon={item.icon}
++				active={appState.screen === item.id}
++				collapsed={appState.sidebarCollapsed}
++				onclick={() => (appState.screen = item.id)}
++			/>
++		{/each}
++	</nav>
++
++	<div class="spacer"></div>
++
++	{#if !appState.sidebarCollapsed}
++		<SidebarSyncCard />
++	{/if}
++
++	<SidebarProfile collapsed={appState.sidebarCollapsed} />
++</aside>
++
++<style>
++	.sidebar {
++		width: var(--layout-sidebar-width-expanded);
++		flex: none;
++		background: var(--color-sidebar-gradient);
++		border-right: 1px solid var(--color-hairline-low);
++		display: flex;
++		flex-direction: column;
++		padding: 18px 14px;
++		transition: width 0.2s ease;
++	}
++	.sidebar.collapsed {
++		width: var(--layout-sidebar-width-collapsed);
++	}
++	.header {
++		display: flex;
++		align-items: center;
++		gap: 11px;
++		padding: 4px 6px 18px;
++	}
++	.header.collapsed {
++		flex-direction: column;
++		gap: 12px;
++		padding: 2px 0 16px;
++	}
++	.logo {
++		width: 38px;
++		height: 38px;
++		flex: none;
++		border-radius: 11px;
++		background: var(--gradient-logo);
++		position: relative;
++		box-shadow: 0 6px 18px rgba(59, 130, 246, 0.35);
++		overflow: hidden;
++	}
++	.logo-cutout {
++		position: absolute;
++		inset: 7px;
++		border-radius: 5px;
++		background: var(--color-deep-inset-bg);
++	}
++	.logo-square {
++		position: absolute;
++		width: 9px;
++		height: 9px;
++		border-radius: 2px;
++	}
++	.logo-square--teal {
++		left: 11px;
++		top: 11px;
++		background: var(--color-accent-teal);
++	}
++	.logo-square--purple {
++		right: 9px;
++		bottom: 9px;
++		background: var(--color-accent-purple);
++	}
++	.brand {
++		flex: 1;
++		min-width: 0;
++	}
++	.brand-name {
++		font-size: 16px;
++		font-weight: 700;
++		letter-spacing: -0.01em;
++	}
++	.brand-tagline {
++		font-size: 10.5px;
++		color: var(--color-text-muted-dark);
++		letter-spacing: 0.02em;
++		margin-top: 1px;
++	}
++	.collapse-toggle {
++		width: 26px;
++		height: 26px;
++		flex: none;
++		border-radius: 7px;
++		background: var(--color-card-bg);
++		border: 1px solid rgba(255, 255, 255, 0.06);
++		display: flex;
++		align-items: center;
++		justify-content: center;
++		cursor: pointer;
++		padding: 0;
++	}
++	.nav-list {
++		display: flex;
++		flex-direction: column;
++		gap: 2px;
++	}
++	.spacer {
++		flex: 1;
++	}
++</style>
+diff --git a/src/lib/components/Sidebar.test.ts b/src/lib/components/Sidebar.test.ts
+new file mode 100644
+index 0000000..3a79a3c
+--- /dev/null
++++ b/src/lib/components/Sidebar.test.ts
+@@ -0,0 +1,54 @@
++import { describe, it, expect, beforeEach } from 'vitest';
++import { render, fireEvent } from '@testing-library/svelte';
++import Sidebar from './Sidebar.svelte';
++import { appState, createAppState } from '$lib/stores/app-state.svelte';
++
++beforeEach(() => {
++	Object.assign(appState, createAppState());
++});
++
++describe('Sidebar', () => {
++	it('renders the brand name and all 9 nav items', () => {
++		const { getByText, getByTitle } = render(Sidebar);
++		expect(getByText('SecondBoard')).toBeTruthy();
++		expect(getByText('Chess Review Lab')).toBeTruthy();
++		expect(getByTitle('Home')).toBeTruthy();
++		expect(getByTitle('Game Review')).toBeTruthy();
++		expect(getByTitle('Settings')).toBeTruthy();
++	});
++
++	it('clicking a nav item updates appState.screen', async () => {
++		const { getByTitle } = render(Sidebar);
++		await fireEvent.click(getByTitle('Openings'));
++		expect(appState.screen).toBe('openings');
++	});
++
++	it('marks the nav item matching appState.screen as active', () => {
++		appState.screen = 'insights';
++		const { getByTitle } = render(Sidebar);
++		expect(getByTitle('Insights').classList.contains('active')).toBe(true);
++		expect(getByTitle('Home').classList.contains('active')).toBe(false);
++	});
++
++	it('clicking the collapse toggle flips appState.sidebarCollapsed', async () => {
++		const { getByTitle } = render(Sidebar);
++		expect(appState.sidebarCollapsed).toBe(false);
++		await fireEvent.click(getByTitle('Toggle sidebar'));
++		expect(appState.sidebarCollapsed).toBe(true);
++	});
++
++	it('shows the Chess.com sync card when expanded and hides it when collapsed', () => {
++		const expanded = render(Sidebar);
++		expect(expanded.getByText('Chess.com sync')).toBeTruthy();
++		expanded.unmount();
++
++		appState.sidebarCollapsed = true;
++		const collapsed = render(Sidebar);
++		expect(collapsed.queryByText('Chess.com sync')).toBeNull();
++	});
++
++	it('always renders the profile row', () => {
++		const { getByText } = render(Sidebar);
++		expect(getByText('Jonas')).toBeTruthy();
++	});
++});

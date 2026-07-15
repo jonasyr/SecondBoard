@@ -1,0 +1,274 @@
+# Review package: e702eca..9bf450d
+
+## Commits
+9bf450d feat: add board domain types and geometry math ported from view-math.js
+
+## Files changed
+ src/lib/board/geometry.test.ts |  76 +++++++++++++++++++++++++
+ src/lib/board/geometry.ts      | 124 +++++++++++++++++++++++++++++++++++++++++
+ src/lib/board/types.test.ts    |  12 ++++
+ src/lib/board/types.ts         |  25 +++++++++
+ 4 files changed, 237 insertions(+)
+
+## Diff
+diff --git a/src/lib/board/geometry.test.ts b/src/lib/board/geometry.test.ts
+new file mode 100644
+index 0000000..af182cd
+--- /dev/null
++++ b/src/lib/board/geometry.test.ts
+@@ -0,0 +1,76 @@
++import { describe, it, expect } from 'vitest';
++import { center, arrowGeom, capturedInfo, evalBarPct } from './geometry';
++import type { Position } from './types';
++
++describe('center', () => {
++	it('maps e4 to its pixel center, unflipped', () => {
++		// f=4 (e), r=4 -> col=4, rowTop=8-4=4 -> x=4*75+37.5=337.5, y=337.5
++		expect(center('e4', false)).toEqual({ x: 337.5, y: 337.5 });
++	});
++
++	it('maps e4 to its pixel center, flipped', () => {
++		// col=7-4=3, rowTop=4-1=3 -> x=3*75+37.5=262.5, y=262.5
++		expect(center('e4', true)).toEqual({ x: 262.5, y: 262.5 });
++	});
++
++	it('maps a1 to the bottom-left corner region, unflipped', () => {
++		// f=0, r=1 -> col=0, rowTop=8-1=7 -> x=37.5, y=7*75+37.5=562.5
++		expect(center('a1', false)).toEqual({ x: 37.5, y: 562.5 });
++	});
++});
++
++describe('arrowGeom', () => {
++	it('produces a straight shaft for a non-knight move (e2-e4)', () => {
++		const g = arrowGeom('e2', 'e4', 11, false);
++		expect(g.shaft.startsWith('M')).toBe(true);
++		expect(g.shaft).toContain('L');
++		expect(g.head.split(' ').length).toBeGreaterThanOrEqual(6); // 3 points x,y pairs
++	});
++
++	it('bends at a right angle for a knight move (f3-g5)', () => {
++		const straight = arrowGeom('e2', 'e4', 11, false);
++		const knight = arrowGeom('f3', 'g5', 11, false);
++		// A knight-move shaft has two line segments (two 'L's); a straight one has one.
++		const countL = (s: string) => (s.match(/L/g) ?? []).length;
++		expect(countL(knight.shaft)).toBe(2);
++		expect(countL(straight.shaft)).toBe(1);
++	});
++});
++
++describe('capturedInfo', () => {
++	const STANDARD_START: Position = {
++		a1: ['R', 'w'], b1: ['N', 'w'], c1: ['B', 'w'], d1: ['Q', 'w'], e1: ['K', 'w'], f1: ['B', 'w'], g1: ['N', 'w'], h1: ['R', 'w'],
++		a2: ['P', 'w'], b2: ['P', 'w'], c2: ['P', 'w'], d2: ['P', 'w'], e2: ['P', 'w'], f2: ['P', 'w'], g2: ['P', 'w'], h2: ['P', 'w'],
++		a7: ['P', 'b'], b7: ['P', 'b'], c7: ['P', 'b'], d7: ['P', 'b'], e7: ['P', 'b'], f7: ['P', 'b'], g7: ['P', 'b'], h7: ['P', 'b'],
++		a8: ['R', 'b'], b8: ['N', 'b'], c8: ['B', 'b'], d8: ['Q', 'b'], e8: ['K', 'b'], f8: ['B', 'b'], g8: ['N', 'b'], h8: ['R', 'b']
++	};
++
++	it('returns no captures and zero advantage for the standard starting position', () => {
++		expect(capturedInfo(STANDARD_START)).toEqual({ whiteCap: [], blackCap: [], adv: 0 });
++	});
++
++	it('counts a single missing black pawn as a White capture with +1 advantage', () => {
++		const pos: Position = { ...STANDARD_START };
++		delete pos.e7;
++		const result = capturedInfo(pos);
++		expect(result.whiteCap).toEqual([{ color: 'b', type: 'P' }]);
++		expect(result.blackCap).toEqual([]);
++		expect(result.adv).toBe(1);
++	});
++});
++
++describe('evalBarPct', () => {
++	it('returns 50 (even) for an eval of 0', () => {
++		expect(evalBarPct(0)).toBe(50);
++	});
++
++	it('scales linearly within the ±8 pawn range', () => {
++		expect(evalBarPct(4)).toBe(72);
++		expect(evalBarPct(-4)).toBe(28);
++	});
++
++	it('clamps at ±44 around 50 for evals beyond ±8', () => {
++		expect(evalBarPct(20)).toBe(94);
++		expect(evalBarPct(-20)).toBe(6);
++	});
++});
+diff --git a/src/lib/board/geometry.ts b/src/lib/board/geometry.ts
+new file mode 100644
+index 0000000..079817d
+--- /dev/null
++++ b/src/lib/board/geometry.ts
+@@ -0,0 +1,124 @@
++/**
++ * Pure board-geometry math, ported verbatim from
++ * design_handoff_secondboard/reference/logic/view-math.js (marked there as
++ * "NOT MOCKS — reusable as-is"). Only the board-relevant functions are
++ * ported here; evalGraph/radar/chartPaths land with the charts that use
++ * them in later iterations.
++ */
++import type { Piece, PieceColor, PieceType, Position, Square } from './types';
++
++const FILES = 'abcdefgh';
++
++export interface Point {
++	x: number;
++	y: number;
++}
++
++/** Maps a square to its pixel center in the 600x600 board viewBox (75 units/square). */
++export function center(sq: Square, flipped: boolean): Point {
++	const f = FILES.indexOf(sq[0]);
++	const r = Number(sq[1]);
++	const col = flipped ? 7 - f : f;
++	const rowTop = flipped ? r - 1 : 8 - r;
++	return { x: col * 75 + 37.5, y: rowTop * 75 + 37.5 };
++}
++
++export interface ArrowGeometry {
++	shaft: string;
++	head: string;
++}
++
++/**
++ * Best-move arrow geometry. w = shaft width (Board.svelte always passes 11,
++ * matching the reference's stroke-width). Knight moves bend at a right
++ * angle; everything else is a straight shaft with a shortened tail/head so
++ * the polygon arrowhead doesn't overlap the piece sprites.
++ */
++export function arrowGeom(fromSq: Square, toSq: Square, w: number, flipped: boolean): ArrowGeometry {
++	const a = center(fromSq, flipped);
++	const b = center(toSq, flipped);
++	const df = FILES.indexOf(toSq[0]) - FILES.indexOf(fromSq[0]);
++	const dr = Number(toSq[1]) - Number(fromSq[1]);
++	const knight = (Math.abs(df) === 1 && Math.abs(dr) === 2) || (Math.abs(df) === 2 && Math.abs(dr) === 1);
++	const P = (x: number, y: number) => x.toFixed(1) + ' ' + y.toFixed(1);
++	const headLen = w * 1.7;
++	const headHalf = w * 1.25;
++
++	if (knight) {
++		const bend = Math.abs(dr) > Math.abs(df) ? { x: a.x, y: b.y } : { x: b.x, y: a.y };
++		const lx = b.x - bend.x;
++		const ly = b.y - bend.y;
++		const ll = Math.hypot(lx, ly);
++		const ux = lx / ll;
++		const uy = ly / ll;
++		const pxp = -uy;
++		const pyp = ux;
++		const se = { x: b.x - ux * headLen, y: b.y - uy * headLen };
++		return {
++			shaft: 'M' + P(a.x, a.y) + ' L' + P(bend.x, bend.y) + ' L' + P(se.x, se.y),
++			head:
++				P(b.x, b.y) +
++				' ' +
++				P(se.x + pxp * headHalf, se.y + pyp * headHalf) +
++				' ' +
++				P(se.x - pxp * headHalf, se.y - pyp * headHalf)
++		};
++	}
++
++	const dx = b.x - a.x;
++	const dy = b.y - a.y;
++	const L = Math.hypot(dx, dy);
++	const ux = dx / L;
++	const uy = dy / L;
++	const pxp = -uy;
++	const pyp = ux;
++	const se = { x: b.x - ux * headLen, y: b.y - uy * headLen };
++	const st = { x: a.x + ux * (w * 0.2), y: a.y + uy * (w * 0.2) };
++	return {
++		shaft: 'M' + P(st.x, st.y) + ' L' + P(se.x, se.y),
++		head:
++			P(b.x, b.y) +
++			' ' +
++			P(se.x + pxp * headHalf, se.y + pyp * headHalf) +
++			' ' +
++			P(se.x - pxp * headHalf, se.y - pyp * headHalf)
++	};
++}
++
++export interface CapturedInfo {
++	whiteCap: Array<{ color: PieceColor; type: PieceType }>;
++	blackCap: Array<{ color: PieceColor; type: PieceType }>;
++	/** Net material advantage in points; positive = White is up. */
++	adv: number;
++}
++
++const START_EACH: Record<Exclude<PieceType, 'K'>, number> = { P: 8, N: 2, B: 2, R: 2, Q: 1 };
++const PIECE_VALUE: Record<Exclude<PieceType, 'K'>, number> = { P: 1, N: 3, B: 3, R: 5, Q: 9 };
++const CAPTURE_ORDER: Array<Exclude<PieceType, 'K'>> = ['Q', 'R', 'B', 'N', 'P'];
++
++/** Diffs a position against the full starting army to derive captured material. */
++export function capturedInfo(pos: Position): CapturedInfo {
++	const cnt: Record<PieceColor, Partial<Record<PieceType, number>>> = { w: {}, b: {} };
++	for (const sq in pos) {
++		const p: Piece = pos[sq];
++		cnt[p[1]][p[0]] = (cnt[p[1]][p[0]] ?? 0) + 1;
++	}
++	const whiteCap: CapturedInfo['whiteCap'] = [];
++	const blackCap: CapturedInfo['blackCap'] = [];
++	for (const t of CAPTURE_ORDER) {
++		for (let i = 0; i < START_EACH[t] - (cnt.b[t] ?? 0); i++) whiteCap.push({ color: 'b', type: t });
++		for (let i = 0; i < START_EACH[t] - (cnt.w[t] ?? 0); i++) blackCap.push({ color: 'w', type: t });
++	}
++	let wMat = 0;
++	let bMat = 0;
++	for (const t of CAPTURE_ORDER) {
++		wMat += (cnt.w[t] ?? 0) * PIECE_VALUE[t];
++		bMat += (cnt.b[t] ?? 0) * PIECE_VALUE[t];
++	}
++	return { whiteCap, blackCap, adv: wMat - bMat };
++}
++
++/** White's fill fraction (0-100) of the eval bar, clamped to ±44 around 50. */
++export function evalBarPct(evNum: number): number {
++	return 50 + Math.max(-44, Math.min(44, (evNum / 8) * 44));
++}
+diff --git a/src/lib/board/types.test.ts b/src/lib/board/types.test.ts
+new file mode 100644
+index 0000000..3b5675b
+--- /dev/null
++++ b/src/lib/board/types.test.ts
+@@ -0,0 +1,12 @@
++import { describe, it, expect } from 'vitest';
++import type { Piece, Position } from './types';
++
++describe('board types', () => {
++	it('Piece is a [type, color] tuple usable as a Position value', () => {
++		const piece: Piece = ['N', 'w'];
++		const position: Position = { g1: piece, e4: ['P', 'b'] };
++		expect(position.g1[0]).toBe('N');
++		expect(position.g1[1]).toBe('w');
++		expect(position.e4).toEqual(['P', 'b']);
++	});
++});
+diff --git a/src/lib/board/types.ts b/src/lib/board/types.ts
+new file mode 100644
+index 0000000..e76465c
+--- /dev/null
++++ b/src/lib/board/types.ts
+@@ -0,0 +1,25 @@
++/**
++ * Board domain types. Position shape mirrors the mock engine documented in
++ * design_handoff_secondboard/reference/logic/chess-mock.js:
++ *   positions[ply] = { <square>: [<pieceType>, <'w'|'b'>], ... }
++ * The real Rust `pgn` module (Iteration 4+) emits the same shape (or a FEN
++ * converted to this shape) per LOGIC.md §2.1.
++ */
++
++export type PieceColor = 'w' | 'b';
++export type PieceType = 'K' | 'Q' | 'R' | 'B' | 'N' | 'P';
++
++/** [type, color], e.g. ['N', 'w'] = white knight. */
++export type Piece = [PieceType, PieceColor];
++
++/** File+rank square id, e.g. 'e4'. */
++export type Square = string;
++
++/** A full board position: square id -> occupying piece (absent squares are empty). */
++export type Position = Record<Square, Piece>;
++
++/** A single move's origin/destination squares. */
++export interface Move {
++	from: Square;
++	to: Square;
++}

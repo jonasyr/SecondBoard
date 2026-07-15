@@ -1,0 +1,81 @@
+# Review package: cc76185..e702eca
+
+## Commits
+e702eca fix: correct bpulse keyframes to match literal two-layer reference spec
+
+## Files changed
+ src/app.css         |  6 +++---
+ src/app.css.test.ts | 10 +++++++---
+ 2 files changed, 10 insertions(+), 6 deletions(-)
+
+## Diff
+diff --git a/src/app.css b/src/app.css
+index 04ccd07..2851d76 100644
+--- a/src/app.css
++++ b/src/app.css
+@@ -147,28 +147,28 @@ body {
+ 	border-radius: var(--scrollbar-radius);
+ 	border: 2px solid transparent;
+ 	background-clip: padding-box;
+ }
+ 
+ .sbscroll::-webkit-scrollbar-thumb:hover {
+ 	background: var(--scrollbar-thumb-hover);
+ 	background-clip: padding-box;
+ }
+ 
+-/* Brilliant-move square ring pulse — README §4.6 */
++/* Brilliant-move square ring pulse — README §4.6, literal two-layer spec from dc.html lines 25-28 */
+ @keyframes bpulse {
+ 	0%,
+ 	100% {
+-		box-shadow: 0 0 0 0 rgba(45, 224, 206, 0.55);
++		box-shadow: 0 0 0 0 rgba(45, 224, 206, 0.55), 0 0 22px 3px rgba(45, 224, 206, 0.3);
+ 	}
+ 	50% {
+-		box-shadow: 0 0 0 6px rgba(45, 224, 206, 0);
++		box-shadow: 0 0 0 7px rgba(45, 224, 206, 0), 0 0 34px 6px rgba(45, 224, 206, 0.45);
+ 	}
+ }
+ 
+ /* Gentle floating emphasis — README §4.6 */
+ @keyframes softfloat {
+ 	0% {
+ 		transform: translateY(0);
+ 	}
+ 	50% {
+ 		transform: translateY(-3px);
+diff --git a/src/app.css.test.ts b/src/app.css.test.ts
+index 07aa1c1..1040163 100644
+--- a/src/app.css.test.ts
++++ b/src/app.css.test.ts
+@@ -34,22 +34,26 @@ describe('app.css', () => {
+ 		expect(content).toContain('--layout-nav-row-gap: 11px');
+ 	});
+ 
+ 	it('defines the .sbmono and .sbscroll utility classes', () => {
+ 		const content = css();
+ 		expect(content).toContain('.sbmono');
+ 		expect(content).toContain("font-feature-settings: 'tnum' 1");
+ 		expect(content).toContain('.sbscroll');
+ 	});
+ 
+-	it('defines the bpulse and softfloat keyframes', () => {
++	it('defines the exact two-layer bpulse keyframes from the literal reference (dc.html lines 25-28)', () => {
+ 		const content = css();
+-		expect(content).toContain('@keyframes bpulse');
+-		expect(content).toContain('@keyframes softfloat');
++		expect(content).toContain(
++			'box-shadow: 0 0 0 0 rgba(45, 224, 206, 0.55), 0 0 22px 3px rgba(45, 224, 206, 0.3);'
++		);
++		expect(content).toContain(
++			'box-shadow: 0 0 0 7px rgba(45, 224, 206, 0), 0 0 34px 6px rgba(45, 224, 206, 0.45);'
++		);
+ 	});
+ 
+ 	it('applies box-sizing: border-box globally and antialiased body text', () => {
+ 		const content = css();
+ 		expect(content).toContain('box-sizing: border-box');
+ 		expect(content).toContain('-webkit-font-smoothing: antialiased');
+ 	});
+ });

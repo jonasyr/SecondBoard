@@ -1,0 +1,99 @@
+# Review package: ff2fa2ca334479ad9ab1b0f3ecb2a287b3239e37..HEAD
+
+## Commits
+b858b32 chore: add self-hosted Geist and Geist Mono fonts via @fontsource
+
+## Files changed
+ package-lock.json | 22 ++++++++++++++++++++++
+ package.json      |  4 ++++
+ 2 files changed, 26 insertions(+)
+
+## Diff
+diff --git a/package-lock.json b/package-lock.json
+index 7a4f917..a7ea907 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,19 +1,23 @@
+ {
+ 	"name": "secondboard",
+ 	"version": "0.0.1",
+ 	"lockfileVersion": 3,
+ 	"requires": true,
+ 	"packages": {
+ 		"": {
+ 			"name": "secondboard",
+ 			"version": "0.0.1",
++			"dependencies": {
++				"@fontsource/geist-mono": "^5.2.8",
++				"@fontsource/geist-sans": "^5.2.5"
++			},
+ 			"devDependencies": {
+ 				"@eslint/js": "^10.0.1",
+ 				"@sveltejs/adapter-auto": "^7.0.1",
+ 				"@sveltejs/kit": "^2.63.0",
+ 				"@sveltejs/vite-plugin-svelte": "^7.1.2",
+ 				"@typescript-eslint/eslint-plugin": "^8.63.0",
+ 				"@typescript-eslint/parser": "^8.63.0",
+ 				"@vitest/ui": "^4.1.10",
+ 				"eslint": "^10.6.0",
+ 				"eslint-plugin-svelte": "^3.20.0",
+@@ -406,20 +410,38 @@
+ 			},
+ 			"peerDependencies": {
+ 				"@noble/hashes": "^1.8.0 || ^2.0.0"
+ 			},
+ 			"peerDependenciesMeta": {
+ 				"@noble/hashes": {
+ 					"optional": true
+ 				}
+ 			}
+ 		},
++		"node_modules/@fontsource/geist-mono": {
++			"version": "5.2.8",
++			"resolved": "https://registry.npmjs.org/@fontsource/geist-mono/-/geist-mono-5.2.8.tgz",
++			"integrity": "sha512-YqZUb3X42GjRaHkibUNyE8K4Rk9A6I9Ez81YpJYiuJN4ggmTW2ixoQpa9EWCPfXZtIsCQJTyrDoV9OJOZO/UcA==",
++			"license": "OFL-1.1",
++			"funding": {
++				"url": "https://github.com/sponsors/ayuhito"
++			}
++		},
++		"node_modules/@fontsource/geist-sans": {
++			"version": "5.2.5",
++			"resolved": "https://registry.npmjs.org/@fontsource/geist-sans/-/geist-sans-5.2.5.tgz",
++			"integrity": "sha512-anllOHyJbElRs9fV15TeDRqAeb1IKm4bSknPl6ZMoyPTx1BBy7logudcUwpNjmQLkzn4Q0JGQLRCUKJYoyST6A==",
++			"license": "OFL-1.1",
++			"funding": {
++				"url": "https://github.com/sponsors/ayuhito"
++			}
++		},
+ 		"node_modules/@humanfs/core": {
+ 			"version": "0.19.2",
+ 			"resolved": "https://registry.npmjs.org/@humanfs/core/-/core-0.19.2.tgz",
+ 			"integrity": "sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==",
+ 			"dev": true,
+ 			"license": "Apache-2.0",
+ 			"dependencies": {
+ 				"@humanfs/types": "^0.15.0"
+ 			},
+ 			"engines": {
+diff --git a/package.json b/package.json
+index bfe0e8b..db6da4b 100644
+--- a/package.json
++++ b/package.json
+@@ -26,12 +26,16 @@
+ 		"globals": "^17.7.0",
+ 		"jsdom": "^29.1.1",
+ 		"prettier": "^3.9.4",
+ 		"prettier-plugin-svelte": "^4.1.1",
+ 		"svelte": "^5.56.1",
+ 		"svelte-check": "^4.6.0",
+ 		"svelte-eslint-parser": "^1.8.0",
+ 		"typescript": "^6.0.3",
+ 		"vite": "^8.0.16",
+ 		"vitest": "^4.1.10"
++	},
++	"dependencies": {
++		"@fontsource/geist-mono": "^5.2.8",
++		"@fontsource/geist-sans": "^5.2.5"
+ 	}
+ }
