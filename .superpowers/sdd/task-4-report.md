@@ -1,94 +1,50 @@
-# Task 4 Implementation Report: `buildBoardSquares()` — Pure Square-List Builder
+# Task 4 Report: appState screen/tab/ply transitions
 
-## Summary
-Implemented `buildBoardSquares()` pure function with complete test coverage. All 10 tests passing, code meets all requirements, no issues found during self-review.
+## What changed
 
-## What Was Implemented
+- `src/lib/stores/app-state.svelte.ts`:
+  - Added `import { SAN_LIST } from '$lib/game/mock-data';`
+  - Added exports (verbatim per brief): `MAX_PLY`, `goToPly(ply)`, `stepPly(delta)`, `startReview()`, `newGame()`, `handleReviewKeydown(e)`.
+- `src/lib/stores/app-state.test.ts`:
+  - Added `beforeEach` import from vitest.
+  - Added new `describe('screen/ply transitions', ...)` block with the 6 tests from the brief (MAX_PLY value, goToPly clamping, stepPly clamping, startReview reset, newGame reset, handleReviewKeydown guarded on screen==='review').
 
-Created two new files:
-1. **`src/lib/board/build-squares.ts`** (74 lines)
-   - Exports `BoardSquareVM` interface (board square view-model)
-   - Exports `BuildBoardSquaresOptions` interface (configuration options)
-   - Implements `buildBoardSquares(position, opts)` function
+## TDD process
 
-2. **`src/lib/board/build-squares.test.ts`** (87 lines)
-   - 10 comprehensive test cases covering all functionality
+1. Discovered the environment's `node_modules` was incompletely installed (missing `.bin`, `vitest` package not resolvable) — ran `pnpm install` to restore it (project uses pnpm, not npm, per `package.json` scripts and the `.pnpm` store layout). Note: `npm run test` doesn't work in this repo as-is because there's no npm-style `node_modules/.bin` populated by npm; the working invocation is `pnpm run test -- --run <path>`.
+2. Wrote the 6 failing tests, ran the targeted suite, confirmed failure: `MAX_PLY` was `undefined` and the 5 new functions were reported as "not a function". All 6 new tests failed as expected; the 112 pre-existing tests still passed.
+3. Implemented the additions in `app-state.svelte.ts` exactly as specified in the brief.
+4. Re-ran the targeted suite — all tests pass.
+5. Ran the full suite and `svelte-check`.
 
-## TDD Evidence
+## Test commands and results
 
-### RED (Tests Initially Failed)
-Confirmed tests fail with missing module:
+**Targeted (required by task):**
 ```
-FAIL: ./build-squares does not exist
+pnpm run test -- --run src/lib/stores/app-state.test.ts
 ```
+Result: `Test Files 1 failed | 24 passed (25)`, `Tests 118 passed (118)`. The 1 "failed" file is `src/routes/page.test.ts`, which fails only because `src/routes/+page.svelte` imports the deleted `$lib/board/dev-fixtures` module — the known, expected pre-existing breakage scoped to Task 19. Confirmed unrelated to this task's files: the error is exactly `Failed to resolve import "$lib/board/dev-fixtures" from "src/routes/+page.svelte"`. All 118 individual tests, including every test in `app-state.test.ts`, pass.
 
-### GREEN (Tests Now Pass)
-All 10 tests pass:
+**Full suite:**
 ```
-Test Files  1 passed (1)
-Tests  10 passed (10)
-Duration  4.58s
+pnpm run test -- --run
 ```
+Same result: `Test Files 1 failed | 24 passed (25)`, `Tests 118 passed (118)` — same single pre-existing `page.test.ts` failure, no new failures introduced.
 
-### Details
-- Returns exactly 64 squares ✓
-- Correct unflipped order (a8..h8, a7..h7, ... a1..h1) ✓
-- Correct flipped order (h1..a1, h2..a2, ... h8..a8) ✓
-- Square color parity: `(f+r)%2===1 => dark` ✓
-- Piece attachment to occupied squares ✓
-- Last move highlighting (both from/to squares) ✓
-- Brilliant move flag (single square) ✓
-- Classification badge placement and glyph/color ✓
-- Coordinate labels (unflipped: left=rank, bottom=file) ✓
-- Flipped coordinate labels (right=rank, top=file) ✓
-
-## Self-Review Findings
-
-### Square Color Parity
-✓ **Verified:** Line 58 uses `(f + r) % 2 === 1` for dark squares.
-- a1: f=0, r=1 → (0+1)%2 = 1 → dark ✓
-- a8: f=0, r=8 → (0+8)%2 = 0 → light ✓
-- Matches board specification exactly
-
-### Flip Logic
-✓ **Verified:** Correct reversal of both rank and file order
-- Unflipped ranks: [8,7,6,5,4,3,2,1] (descending, top-to-bottom)
-- Flipped ranks: [1,2,3,4,5,6,7,8] (ascending, bottom-to-top)
-- Unflipped files: [0,1,2,3,4,5,6,7] (a-h, left-to-right)
-- Flipped files: [7,6,5,4,3,2,1,0] (h-a, right-to-left)
-
-✓ **Verified:** Coordinate label edges flip correctly
-- Unflipped: ranks on f===0 (a-file, left), files on r===1 (rank 1, bottom)
-- Flipped: ranks on f===7 (h-file, right), files on r===8 (rank 8, top)
-
-### Badge and Brilliant Flags
-✓ **Verified:** Applied to exactly one square each
-- `isBrilliant`: Only true when `brilliantSquare === id`
-- `hasBadge`: Only true when `badge.square === id`
-- Both tested to verify non-matching squares are false
-
-### Type Safety and Scope
-✓ **Verified:** 
-- No `any` types used
-- No mutation (all immutable patterns)
-- Only exports: `BoardSquareVM`, `BuildBoardSquaresOptions`, `buildBoardSquares`
-- No scope creep (no extra utilities)
-
-### Code Quality
-✓ **Verified:**
-- 74 lines, well within 800-line limit
-- Functions are focused and readable
-- Proper TypeScript strict mode compliance
-- Imports from `./types` work correctly
-
-## Commits Created
-- **a11ded4** `feat: add buildBoardSquares pure square-list builder`
-
-## Files Changed
+**Type check:**
 ```
-src/lib/board/build-squares.ts        (new, 74 lines)
-src/lib/board/build-squares.test.ts   (new, 87 lines)
+pnpm run check
 ```
+Result: `3 ERRORS, 6 WARNINGS, 4 FILES_WITH_PROBLEMS`. All 3 errors are pre-existing and unrelated to this task:
+- `src/lib/game/review.ts:115` and `:125` — `PieceType`/color literal mismatch (existing type bug, not touched by this task).
+- `src/routes/+page.svelte:5:27` — `Cannot find module '$lib/board/dev-fixtures'` (the known Task 19 issue).
+Confirmed via `grep -i "app-state"` on the check output: zero matches — no errors or warnings in `app-state.svelte.ts` or `app-state.test.ts`.
 
-## No Concerns
-All requirements met, all tests passing, self-review clean.
+## Concerns
+
+- None specific to this task's code. The pre-existing `node_modules` install was incomplete in this environment; I ran `pnpm install` to fix it so tests could run at all (reinstalled per the existing lockfile/package.json, no version changes made). Worth noting for whoever runs Task 19 later, since they'll hit the same dev-fixtures error already known/expected.
+- The two other pre-existing failures (`review.ts` type errors, `+page.svelte` dev-fixtures) are out of scope per instructions and were left untouched.
+
+## Commit
+
+`99b165ba02ab8cf1df5324abde945f2e82e58856` — "feat: add screen/ply/tab transition helpers to appState"

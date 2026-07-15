@@ -1,74 +1,51 @@
-# Task 9 Report: Temporary visual-verification harness
+## Task 9 Report: `CoachCard.svelte`
 
-## Summary
+**Status:** DONE_WITH_CONCERNS (two minor test-code fixes were needed; see below)
 
-Implemented per brief with one necessary adaptation to the existing `page.test.ts` (documented below). All required files created/modified; no other files touched.
+**Commit:** `33dbc2d6e738a0dad4b372413bb90ad125e7a048` — "feat: add CoachCard component"
 
-## Files changed
+### What was changed
 
-- Created: `src/lib/board/dev-fixtures.ts` — verbatim port of `chess-mock.js` + `data.js` (Italian Game sample), with the mandated "TEMPORARY — DEV/QA-ONLY FIXTURE" warning banner as the file's leading comment, matching the brief verbatim.
-- Created: `src/lib/board/dev-fixtures.test.ts` — the brief's 6 structural tests (positions length/shape, meta, classCodes, evalPerPly, bestMoves).
-- Modified: `src/routes/+page.svelte` — replaced wholesale per brief Step 7 (screen-switcher placeholder + new `{#if appState.screen === 'review' && appState.gameLoaded}` branch rendering `<Board>` + Prev/Next/Flip controls sourced from `DEV_GAME`).
-- Modified: `src/routes/page.test.ts` — added the brief's new harness test, plus one adaptation (see below).
+- Created `src/lib/components/CoachCard.svelte` — implemented exactly as given in the brief (Step 3), no logic changes. Consumes `TOKENS.classification`, `TOKENS.color.cardBg`, and `Icon.svelte` as specified. `classCode` prop is non-nullable `ClassCode` per the brief's design note; the `?? 'book'` ply-0 fallback was intentionally left out of this component, to be handled by the caller in a later task.
+- Created `src/lib/components/CoachCard.test.ts` — based on the brief's Step 1 code, with two minimal, explained fixes (see Concerns below).
 
-## TDD evidence
+Verified prerequisites before implementing (all present, untouched):
+- `$lib/types` exports `ClassCode` (`src/lib/types/index.ts:14`).
+- `$lib/tokens` exports `TOKENS.classification` (keyed by `ClassCode`, each with `name`/`word`/`color`/`glyph`) and `TOKENS.color.cardBg` (`src/lib/tokens.ts:14`, `:95-106`).
+- `$lib/board/types` exports `Move` (`src/lib/board/types.ts:22`).
+- `src/lib/components/Icon.svelte` exists with props `d`, `size?`, `stroke?`, `strokeWidth?`.
 
-**dev-fixtures.ts**
-- RED: `npm run test -- --run src/lib/board/dev-fixtures.test.ts` failed with "Failed to resolve import './dev-fixtures'" (file didn't exist yet).
-- GREEN: after writing the implementation, same command → `Test Files 1 passed (1)`, `Tests 6 passed (6)`.
+### Test commands run
 
-**+page.svelte harness wiring**
-- RED (new test only): before wiring, `npm run test -- --run src/routes/page.test.ts` failed the new "renders the temporary Board QA harness (64 squares)..." test with `expected [] to have a length of 64 but got +0` (placeholder had no `[data-sq]` elements).
-- After wiring +page.svelte (brief Step 7), re-ran the same command: the new test passed, but this **also broke a pre-existing test** — see adaptation below.
-- GREEN (final): `npm run test -- --run src/routes/page.test.ts` → `Test Files 1 passed (1)`, `Tests 5 passed (5)`.
+1. `pnpm run test -- --run src/lib/components/CoachCard.test.ts` (before creating the component)
+   → Result: FAILED as expected — `Failed to resolve import "./CoachCard.svelte"`. Confirms the test was wired up correctly and would fail without the component.
 
-## Adaptation: pre-existing test conflict (not in brief)
+2. `pnpm run test -- --run src/lib/components/CoachCard.test.ts` (after creating the component, brief's test verbatim)
+   → Result: 2/2 CoachCard tests FAILED. Root cause was in the test code itself, not the component (details below). One unrelated pre-existing suite (`src/routes/page.test.ts`) also failed on `$lib/board/dev-fixtures`.
 
-The existing test `'shows the Game Review placeholder once a game is loaded'` set `appState.gameLoaded = true` (leaving `appState.screen` at its default value `'review'`, per `defaultState` in `app-state.svelte.ts`) and asserted the placeholder text `'Game Review — scaffold OK'` was present.
+3. `pnpm run test -- --run src/lib/components/CoachCard.test.ts` (after the two test fixes)
+   → Result: PASS — 133/133 tests passed across the run; only `src/routes/page.test.ts` fails (pre-existing, unrelated to this task).
 
-Once the harness is wired, that exact combination (`screen==='review' && gameLoaded===true`) is precisely the condition that now renders `<Board>` instead of the placeholder — so that placeholder text becomes unreachable dead code for this state, and the old test failed with a `getByText` "unable to find an element" error (confirmed by running the suite after Step 7, before adapting).
+4. `pnpm run check`
+   → Result: 3 errors / 6 warnings total, all pre-existing and unrelated to this task's files:
+     - 2 errors in `src/lib/game/review.ts` (`PieceType`/`"K"` mismatch — pre-existing).
+     - 1 error in `src/routes/+page.svelte` (`$lib/board/dev-fixtures` missing — same incomplete migration as above).
+     - 6 warnings in `src/lib/components/Board.svelte` and `TitleBar.svelte` (pre-existing, unrelated).
+   - No errors or warnings attributed to `CoachCard.svelte` or `CoachCard.test.ts`.
 
-This is the intentional, expected consequence of the harness superseding the placeholder for that specific state — exactly the scenario the task instructions anticipated ("adapt the brief's addition to fit cleanly ... this is a normal adaptation, not a blocker"). I updated the test in place to assert the new correct behavior:
+### Concerns — two test-code bugs found and fixed (per brief's own instruction to "investigate and explain rather than silently change")
 
-```ts
-it('renders the Board QA harness instead of a placeholder once a game is loaded on review', () => {
-	appState.gameLoaded = true;
-	const { queryByText, container } = render(Page);
-	expect(queryByText('Game Review — scaffold OK')).toBeNull();
-	expect(container.querySelectorAll('[data-sq]')).toHaveLength(64);
-});
-```
+The brief explicitly flagged the first item as something to check; I found a second, related issue too. Both were in the test code as given verbatim, not in the component implementation (the component itself renders exactly what the reference calls for).
 
-This is layered with, not duplicative of, the brief's own new test (which explicitly sets both `screen` and `gameLoaded`) — the adapted test also covers the "leave `screen` at its default `review` value" path, which the brief's added test doesn't exercise.
+1. **`getByText('is', { exact: false })` matched two elements, not one.**
+   `coachText` in the first test is `'This move creates a strong threat...'`, and `'This'` contains the substring `'is'`. With `exact: false`, `getByText` does a case-insensitive substring match across all text nodes, so it matched both the intended `<span class="word">is brilliant</span>` and the `<p class="text">This move creates...</p>`, throwing `TestingLibraryElementError: Found multiple elements with the text: is`.
+   Fix: replaced the loose text query with a scoped DOM check on the actual `.word` element: `expect(container.querySelector('.word')?.textContent).toContain('is brilliant')`. This preserves the original intent (checking the `.word` span's rendered text) without relying on an ambiguous substring match.
 
-## Test results
+2. **Second test's two `render()` calls in one `it()` block leaked into each other.** `@testing-library/svelte`'s destructured `queryByText`/`getByText` are bound to `document.body`, not to the specific render's own container. Calling `render()` twice in the same test without cleanup leaves both instances mounted in the DOM, so the second render's `queryByText('Best was')` picked up the *first* render's leftover "Best was" element and returned non-null, failing the assertion that it should be null for `classCode: 'best'` with no `best` move.
+   This exact pattern (`cleanup()` between successive `render()` calls in one test) is already an established convention elsewhere in this repo — see `src/lib/components/PlayerRow.test.ts:39`. I applied the same fix: imported `cleanup` from `@testing-library/svelte` and called `cleanup()` right after the first render's assertions, before the second `render()`.
 
-- `npm run test -- --run src/lib/board/dev-fixtures.test.ts` → 6/6 passed.
-- `npm run test -- --run src/routes/page.test.ts` → 5/5 passed.
-- Full suite `npm run test -- --run` → **105/105 tests passed across 22 files**, no regressions.
-- `npx svelte-check --tsconfig ./tsconfig.json` → 0 errors, 6 warnings (all pre-existing, in `Board.svelte`/`TitleBar.svelte`, unrelated to this task's changes).
+Neither fix touched the component under test or changed what behavior is being verified — both address bugs/omissions in the literal test code from the brief. Flagging per your instructions rather than treating this as a silent pass.
 
-## Self-review checklist
-
-- [x] `dev-fixtures.ts` has the prominent "TEMPORARY — DEV/QA-ONLY FIXTURE. NOT PRODUCT CODE. DO NOT IMPORT ELSEWHERE." banner, verbatim from the brief.
-- [x] `buildGame`/`applySan`/`canReach`/`clearPath`/`standardBoard` reproduce the reference engine's behavior for the 31-move sample game — verified by all 6 dev-fixtures tests (starting position, e4 opening ply, move meta, classCodes[30]==='brilliant', bestMoves[14] and [30]).
-- [x] `+page.svelte` still shows the placeholder text for all other screens/states — verified by the `home` and `openings` tests (unchanged, still passing) and by the onboarding-default test (`gameLoaded=false` on `review`).
-- [x] `src/lib/stores/app-state.svelte.ts` completely untouched — confirmed via `git diff --stat src/lib/stores/app-state.svelte.ts` (empty output) and `git status --short` (file not listed).
-- [x] No `any` used anywhere in `dev-fixtures.ts`. No scope creep — `+page.svelte`'s harness is just `<Board>` + Prev/Next/Flip controls, not a full Game Review layout (no avatars, eval bar, or tabbed panel — those are explicitly deferred to Iteration 4 per the brief's own comment in the file).
-
-## What I could and could NOT verify (visual/pixel fidelity)
-
-**Could verify (structural/automated):**
-- The harness renders exactly 64 `[data-sq]` squares (automated test).
-- `dev-fixtures.ts`'s move-application logic produces the correct board state at every ply of the 31-move sample game, matching the reference engine's documented behavior for this specific game (automated test, including the brilliant-move classification at ply 31 and both best-move-arrow entries).
-- The dev server (`npm run dev`) boots without errors (`VITE ... ready`) and serves the root route with `HTTP 200` under the default state (`gameLoaded=false`, so it serves the Onboarding placeholder, not the harness — consistent with `app-state.svelte.ts` being untouched).
-- `svelte-check` reports 0 type errors on the full project after these changes.
-
-**Could NOT verify (requires a human with a browser):**
-- I cannot render a browser or capture screenshots in this environment, so I did **not** perform the pixel-comparison against `design_handoff_secondboard/reference/screens/2-game-review-analysis-tab.png` and `3-game-review-review-tab.png` described in brief Step 9 (square colors/radius/shadow match, the teal `brilliant` badge with pulsing ring on e5 at ply 31, coordinate label colors per square shade, the bent best-move arrow at ply 30, slide-animation on Prev/Next vs. no animation on Flip).
-- I explicitly did **not** claim any visual/pixel match — this must be performed by a human running `npm run dev`, temporarily flipping `gameLoaded`'s default in `app-state.svelte.ts` (and reverting it afterward, which I did not need to do since I never made that edit), and eyeballing the rendered harness against the two reference screenshots.
-
-## Concerns
-
-- None blocking. The one adaptation (updating a pre-existing test whose asserted state became unreachable) is a natural, intentional consequence of wiring the harness and is documented above.
-- The visual pixel-verification (brief Step 9) remains outstanding and requires a human with a browser — flagged clearly above and in my final report.
+### Files touched
+- `/home/jonas/Documents/Code/SecondBoard/src/lib/components/CoachCard.svelte` (new)
+- `/home/jonas/Documents/Code/SecondBoard/src/lib/components/CoachCard.test.ts` (new, with the two fixes noted above)

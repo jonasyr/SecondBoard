@@ -1,290 +1,227 @@
-### Task 8: `Board.svelte` — grid assembly, best-move arrow, slide animation
+## Task 8: `PlayerRow.svelte`
 
 **Files:**
-- Create: `src/lib/components/Board.svelte`
-- Create: `src/lib/components/Board.test.ts`
+- Create: `src/lib/components/PlayerRow.svelte`
+- Test: `src/lib/components/PlayerRow.test.ts`
 
 **Interfaces:**
-- Consumes: `buildBoardSquares` (Task 4), `BoardSquare` (Task 7), `arrowGeom` from `$lib/board/geometry` (Task 2), `diffMove` from `$lib/board/diff-move` (Task 5), `animateSlide` from `$lib/board/animate-slide` (Task 6), `TOKENS`, `NOT_BEST_CODES` from `$lib/tokens`, `ClassCode` from `$lib/types`, `Position`, `Move` from `$lib/board/types` (Task 2).
-- Produces: `Board` component with props `{ position: Position; ply: number; flipped?: boolean; lastMove?: Move | null; classCode?: ClassCode | null; best?: (Move & { san: string }) | null; showCoords?: boolean }` — consumed by Task 9 (the temporary QA harness) and, in Iteration 4, the real Game Review screen.
+- Consumes: `PlayerRowData` type from `$lib/game/review`; `PIECE_SPRITES` from `$lib/board/pieces`; `TOKENS.review` avatar/clock tokens.
+- Props:
+  ```ts
+  interface Props {
+  	player: import('$lib/game/review').PlayerRowData;
+  	showNewGameButton?: boolean; // default false; only the top row in the reference has it
+  	onNewGame?: () => void;
+  }
+  ```
 
-Container sizing per the literal reference (item 9 of the extraction): `Board` renders a `100cqmin` square and **expects to be placed inside a `container-type:size` ancestor** by its consumer — this is documented as a consumption contract, not baked into `Board` itself, matching how the reference nests the board inside a flex container that establishes the query container.
+Reference: markup lines 150-162 (top row incl. New PGN button) and 196-207 (bottom row, no button) — same internal structure otherwise. Avatar/clock/captured-piece styling: lines 1245-1254 (`clk`, `whiteP.avatarStyle`, `blackP.avatarStyle`) and `capturedInfo`'s `st()` helper (line 1038 of the earlier read) for the 18px captured-sprite style.
 
-- [ ] **Step 1: Write the failing tests**
-
-Create `src/lib/components/Board.test.ts`:
+- [ ] **Step 1: Write the failing test**
 
 ```ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+// src/lib/components/PlayerRow.test.ts
+import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/svelte';
-import { tick } from 'svelte';
+import PlayerRow from './PlayerRow.svelte';
+import type { PlayerRowData } from '$lib/game/review';
 
-const { animateSlide } = vi.hoisted(() => ({ animateSlide: vi.fn() }));
-vi.mock('$lib/board/animate-slide', () => ({ animateSlide }));
+const base: PlayerRowData = {
+	name: 'Jonas',
+	rating: '1867',
+	initial: 'J',
+	isWhite: true,
+	clock: '4:12',
+	clockActive: true,
+	captured: [{ color: 'b', type: 'Q' }],
+	adv: '+3'
+};
 
-import Board from './Board.svelte';
-import type { Position } from '$lib/board/types';
-
-const POS_0: Position = { e2: ['P', 'w'] };
-const POS_1: Position = { e4: ['P', 'w'] };
-const POS_FAR: Position = { e4: ['P', 'w'], d5: ['P', 'b'] };
-
-beforeEach(() => {
-	animateSlide.mockClear();
-});
-
-describe('Board', () => {
-	it('renders exactly 64 squares', () => {
-		const { container } = render(Board, { props: { position: {}, ply: 0 } });
-		expect(container.querySelectorAll('[data-sq]')).toHaveLength(64);
+describe('PlayerRow', () => {
+	it('renders name, rating, and clock', () => {
+		const { getByText } = render(PlayerRow, { props: { player: base } });
+		expect(getByText('Jonas')).toBeTruthy();
+		expect(getByText('1867')).toBeTruthy();
+		expect(getByText('4:12')).toBeTruthy();
 	});
 
-	it('renders unflipped by default (first square a8) and flips when flipped=true', () => {
-		const { container: unflipped } = render(Board, { props: { position: {}, ply: 0 } });
-		expect(unflipped.querySelectorAll('[data-sq]')[0].getAttribute('data-sq')).toBe('a8');
-
-		const { container: flipped } = render(Board, { props: { position: {}, ply: 0, flipped: true } });
-		expect(flipped.querySelectorAll('[data-sq]')[0].getAttribute('data-sq')).toBe('h1');
+	it('renders one captured-piece sprite per entry plus the material advantage', () => {
+		const { container, getByText } = render(PlayerRow, { props: { player: base } });
+		expect(container.querySelectorAll('.captured-piece')).toHaveLength(1);
+		expect(getByText('+3')).toBeTruthy();
 	});
 
-	it('renders the classification badge on the last move\'s destination square', () => {
-		const { container } = render(Board, {
-			props: { position: POS_1, ply: 1, lastMove: { from: 'e2', to: 'e4' }, classCode: 'best' }
-		});
-		const dest = container.querySelector('[data-sq="e4"]')!;
-		expect(dest.querySelector('.badge')).not.toBeNull();
+	it('omits the advantage span when adv is null', () => {
+		const { container } = render(PlayerRow, { props: { player: { ...base, adv: null } } });
+		expect(container.querySelector('.adv')).toBeNull();
 	});
 
-	it('renders the best-move arrow only when the classification is a NOT_BEST code and a best move is given', () => {
-		const { container: withArrow } = render(Board, {
-			props: {
-				position: POS_1,
-				ply: 1,
-				lastMove: { from: 'e2', to: 'e4' },
-				classCode: 'mistake',
-				best: { from: 'g8', to: 'f6', san: 'Nf6' }
-			}
-		});
-		expect(withArrow.querySelector('svg.arrow-overlay')).not.toBeNull();
+	it('only renders the New PGN button when showNewGameButton is true', () => {
+		const { queryByText } = render(PlayerRow, { props: { player: base, showNewGameButton: true } });
+		expect(queryByText('New PGN')).not.toBeNull();
 
-		const { container: noArrowBestMove } = render(Board, {
-			props: {
-				position: POS_1,
-				ply: 1,
-				lastMove: { from: 'e2', to: 'e4' },
-				classCode: 'best',
-				best: null
-			}
-		});
-		expect(noArrowBestMove.querySelector('svg.arrow-overlay')).toBeNull();
-
-		const { container: noArrowGoodClass } = render(Board, {
-			props: {
-				position: POS_1,
-				ply: 1,
-				lastMove: { from: 'e2', to: 'e4' },
-				classCode: 'excellent',
-				best: { from: 'g8', to: 'f6', san: 'Nf6' }
-			}
-		});
-		expect(noArrowGoodClass.querySelector('svg.arrow-overlay')).toBeNull();
-	});
-
-	it('triggers the slide animation on a single-step ply change with the same flip state', async () => {
-		const { rerender } = render(Board, { props: { position: POS_0, ply: 0, flipped: false } });
-		await rerender({ position: POS_1, ply: 1, flipped: false });
-		await tick();
-		expect(animateSlide).toHaveBeenCalledTimes(1);
-		expect(animateSlide).toHaveBeenCalledWith(expect.anything(), 'e2', 'e4');
-	});
-
-	it('does not trigger the slide animation on a multi-step ply jump', async () => {
-		const { rerender } = render(Board, { props: { position: POS_0, ply: 0, flipped: false } });
-		await rerender({ position: POS_FAR, ply: 5, flipped: false });
-		await tick();
-		expect(animateSlide).not.toHaveBeenCalled();
-	});
-
-	it('does not trigger the slide animation when flipped changes alongside a single-step ply change', async () => {
-		const { rerender } = render(Board, { props: { position: POS_0, ply: 0, flipped: false } });
-		await rerender({ position: POS_1, ply: 1, flipped: true });
-		await tick();
-		expect(animateSlide).not.toHaveBeenCalled();
+		const { queryByText: queryByTextNoBtn } = render(PlayerRow, { props: { player: base } });
+		expect(queryByTextNoBtn('New PGN')).toBeNull();
 	});
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm run test -- --run src/lib/components/Board.test.ts`
-Expected: FAIL — `Board.svelte` does not exist.
+Run: `npm run test -- --run src/lib/components/PlayerRow.test.ts`
+Expected: FAIL.
 
-- [ ] **Step 3: Write the implementation**
-
-Create `src/lib/components/Board.svelte`:
+- [ ] **Step 3: Implement `src/lib/components/PlayerRow.svelte`**
 
 ```svelte
 <script lang="ts">
-	import { buildBoardSquares } from '$lib/board/build-squares';
-	import { arrowGeom } from '$lib/board/geometry';
-	import { diffMove } from '$lib/board/diff-move';
-	import { animateSlide } from '$lib/board/animate-slide';
-	import type { Move, Position } from '$lib/board/types';
-	import type { ClassCode } from '$lib/types';
-	import { TOKENS, NOT_BEST_CODES } from '$lib/tokens';
-	import BoardSquare from './BoardSquare.svelte';
+	import { TOKENS } from '$lib/tokens';
+	import { PIECE_SPRITES, type PieceSpriteKey } from '$lib/board/pieces';
+	import type { PlayerRowData } from '$lib/game/review';
+	import Icon from './Icon.svelte';
 
 	interface Props {
-		position: Position;
-		/** Current half-move index; drives single-step slide-animation detection. */
-		ply: number;
-		flipped?: boolean;
-		lastMove?: Move | null;
-		classCode?: ClassCode | null;
-		best?: (Move & { san: string }) | null;
-		showCoords?: boolean;
+		player: PlayerRowData;
+		showNewGameButton?: boolean;
+		onNewGame?: () => void;
 	}
 
-	let {
-		position,
-		ply,
-		flipped = false,
-		lastMove = null,
-		classCode = null,
-		best = null,
-		showCoords = true
-	}: Props = $props();
+	let { player, showNewGameButton = false, onNewGame }: Props = $props();
 
-	let boardEl: HTMLDivElement | undefined = $state();
-
-	const highlightColor = $derived(
-		classCode ? TOKENS.classification[classCode].color : TOKENS.color.accentGreen
+	const avatarStyle = $derived(
+		player.isWhite
+			? `background:${TOKENS.review.avatarWhiteBg};border:1px solid ${TOKENS.review.avatarWhiteBorder};color:${TOKENS.review.avatarWhiteText};`
+			: `background:${TOKENS.review.avatarBlackBg};border:1px solid ${TOKENS.review.avatarBlackBorder};color:${TOKENS.review.avatarBlackText};`
 	);
-
-	const squares = $derived(
-		buildBoardSquares(position, {
-			flipped,
-			lastSquares: lastMove ? [lastMove.from, lastMove.to] : null,
-			brilliantSquare: classCode === 'brilliant' && lastMove ? lastMove.to : null,
-			badge:
-				lastMove && classCode
-					? {
-							square: lastMove.to,
-							glyph: TOKENS.classification[classCode].glyph,
-							color: TOKENS.classification[classCode].color
-						}
-					: null
-		})
+	const clockStyle = $derived(
+		player.clockActive
+			? `background:${TOKENS.review.clockActiveBg};color:${TOKENS.review.clockActiveText};box-shadow:inset 0 0 0 1px rgba(45,224,206,.3);`
+			: `background:${TOKENS.review.clockInactiveBg};color:${TOKENS.review.clockInactiveText};`
 	);
-
-	const showArrow = $derived(!!best && !!classCode && NOT_BEST_CODES.includes(classCode));
-	const arrow = $derived(showArrow && best ? arrowGeom(best.from, best.to, 11, flipped) : null);
-
-	// Single-step slide-animation trigger, ported from the reference's
-	// componentDidUpdate guards (LOGIC.md §2.4): only animate when |Δply|===1
-	// and the flip state hasn't changed between renders.
-	let lastPly = ply;
-	let lastPosition = position;
-	let lastFlipped = flipped;
-
-	$effect(() => {
-		const curPly = ply;
-		const curPosition = position;
-		const curFlipped = flipped;
-
-		if (Math.abs(curPly - lastPly) === 1 && curFlipped === lastFlipped && boardEl) {
-			const move = diffMove(lastPosition, curPosition);
-			if (move) animateSlide(boardEl, move.from, move.to);
-		}
-
-		lastPly = curPly;
-		lastPosition = curPosition;
-		lastFlipped = curFlipped;
-	});
 </script>
 
-<div class="board-frame">
-	<div class="board-grid" bind:this={boardEl} data-sb-board="1">
-		{#each squares as square (square.id)}
-			<BoardSquare {square} lastMoveColor={highlightColor} {showCoords} />
-		{/each}
+<div class="player-row">
+	<div class="avatar" style={avatarStyle}>{player.initial}</div>
+	<div class="info">
+		<div class="name-row">
+			<span class="name">{player.name}</span>
+			<span class="rating sbmono">{player.rating}</span>
+		</div>
+		<div class="captured-row">
+			{#each player.captured as piece, i (i)}
+				<span
+					class="captured-piece"
+					style={`background-image:url(${PIECE_SPRITES[(piece.color + piece.type) as PieceSpriteKey]});filter:${TOKENS.review.capturedSpriteShadow};`}
+				></span>
+			{/each}
+			{#if player.adv}
+				<span class="adv sbmono">{player.adv}</span>
+			{/if}
+		</div>
 	</div>
-	{#if arrow}
-		<svg class="arrow-overlay" viewBox="0 0 600 600" preserveAspectRatio="none">
-			<path
-				d={arrow.shaft}
-				fill="none"
-				stroke="#4ADEA0"
-				stroke-width="11"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-				opacity="0.82"
-			/>
-			<polygon points={arrow.head} fill="#4ADEA0" opacity="0.82" />
-		</svg>
+	<div class="spacer"></div>
+	{#if showNewGameButton}
+		<button type="button" class="new-game" onclick={onNewGame} title="Load a different PGN">
+			<Icon d="M12 5v14M5 12h14" size={13} stroke="#4ADEA0" strokeWidth={2.2} />
+			New PGN
+		</button>
 	{/if}
+	<div class="clock sbmono" style={clockStyle}>{player.clock}</div>
 </div>
 
 <style>
-	/*
-	 * Expects to be placed inside a `container-type: size` ancestor sized to
-	 * the available board area — the literal reference nests the board in a
-	 * flex container that establishes the query container (README §6.3).
-	 */
-	.board-frame {
-		position: relative;
-		width: 100cqmin;
-		height: 100cqmin;
-		border-radius: var(--radius-board);
-		overflow: hidden;
-		box-shadow: var(--shadow-board);
-		border: 1px solid rgba(255, 255, 255, 0.06);
+	.player-row {
+		display: flex;
+		align-items: center;
+		gap: 11px;
+		padding: 0 2px;
+		flex: none;
 	}
-	.board-grid {
-		display: grid;
-		grid-template-columns: repeat(8, 1fr);
-		grid-template-rows: repeat(8, 1fr);
-		width: 100%;
-		height: 100%;
+	.avatar {
+		width: 34px;
+		height: 34px;
+		flex: none;
+		border-radius: 9px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-weight: 700;
+		font-size: 14px;
 	}
-	.arrow-overlay {
-		position: absolute;
-		inset: 0;
-		width: 100%;
-		height: 100%;
-		pointer-events: none;
+	.info {
+		flex: none;
+	}
+	.name-row {
+		display: flex;
+		align-items: center;
+		gap: 7px;
+	}
+	.name {
+		font-size: 15.5px;
+		font-weight: 600;
+	}
+	.rating {
+		font-size: 12px;
+		color: var(--color-text-muted);
+	}
+	.captured-row {
+		display: flex;
+		align-items: center;
+		gap: 1px;
+		margin-top: 4px;
+		height: 20px;
+	}
+	.captured-piece {
+		width: 18px;
+		height: 18px;
+		background-size: contain;
+		background-repeat: no-repeat;
+		background-position: center;
+	}
+	.adv {
+		font-size: 12.5px;
+		font-weight: 600;
+		color: var(--color-light-green-1);
+		margin-left: 5px;
+	}
+	.spacer {
+		flex: 1;
+	}
+	.new-game {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 7px 12px;
+		margin-right: 10px;
+		border-radius: var(--radius-control);
+		background: var(--review-new-game-bg, #181a24);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		color: #c7ccda;
+		font-size: 12px;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.clock {
+		font-size: 18px;
+		font-weight: 600;
+		padding: 5px 12px;
+		border-radius: var(--radius-control);
 	}
 </style>
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+(`var(--review-new-game-bg, #181a24)` — no root CSS var exists for this yet since it's a one-off; the fallback literal `#181a24` matches `TOKENS.review.newGameBg` exactly. Simplify by just using the literal `background: #181a24;` in the `<style>` block directly instead of a fake CSS var — remove the `var(...)` wrapper.)
 
-Run: `npm run test -- --run src/lib/components/Board.test.ts`
-Expected: PASS (7 tests).
+- [ ] **Step 4: Run test to verify it passes**
 
-- [ ] **Step 5: Update the board module's barrel export**
+Run: `npm run test -- --run src/lib/components/PlayerRow.test.ts`
+Expected: PASS (4/4).
 
-Replace the full contents of `src/lib/board/index.ts` (currently the Iteration-1 placeholder `export {};`):
-
-```ts
-export * from './types';
-export * from './geometry';
-export * from './pieces';
-export * from './build-squares';
-export * from './diff-move';
-export * from './animate-slide';
-```
-
-- [ ] **Step 6: Run the full test suite**
-
-Run: `npm run test -- --run`
-Expected: all tests pass, including all prior iterations' tests.
-
-- [ ] **Step 7: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/components/Board.svelte src/lib/components/Board.test.ts src/lib/board/index.ts
-git commit -m "feat: add Board component with grid, best-move arrow, and slide animation"
+git add src/lib/components/PlayerRow.svelte src/lib/components/PlayerRow.test.ts
+git commit -m "feat: add PlayerRow component"
 ```
 
 ---

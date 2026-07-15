@@ -1,201 +1,130 @@
-### Task 6: `animateSlide()` — imperative DOM clone/transition
+## Task 6: `EvalBar.svelte`
 
 **Files:**
-- Create: `src/lib/board/animate-slide.ts`
-- Create: `src/lib/board/animate-slide.test.ts`
+- Create: `src/lib/components/EvalBar.svelte`
+- Test: `src/lib/components/EvalBar.test.ts`
 
 **Interfaces:**
-- Consumes: nothing beyond the DOM (queries `[data-sq]`/`.piece` elements by attribute — set by Task 7's `BoardSquare.svelte`).
-- Produces: `animateSlide(boardEl, fromSq, toSq): void` — consumed by Task 8 (`Board.svelte`).
+- Consumes: nothing beyond props (pure presentational; the caller passes precomputed numbers so this component has no dependency on `$lib/game`).
+- Props:
+  ```ts
+  interface Props {
+  	whitePct: number; // 0-100, White's fill share
+  	evalNum: number; // signed eval, for the label + label-position/color logic
+  	whiteAtBottom: boolean; // !flipped
+  }
+  ```
 
-Ported from the reference's `_animateMove()` DOM-manipulation steps 3-5 (LOGIC.md §2.4): clone the landing piece, position it over the from-square, hide the real piece, transition `transform` to the to-square delta over `.17s cubic-bezier(.33,.9,.35,1)`, then clean up on `transitionend` or a 300ms safety timeout.
+Reference: markup lines 166-170, computed styles lines 1308-1310 (`evalBarLabelStyle`, `barFillStyle`).
 
-- [ ] **Step 1: Write the failing tests**
-
-Create `src/lib/board/animate-slide.test.ts`:
+- [ ] **Step 1: Write the failing test**
 
 ```ts
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { animateSlide } from './animate-slide';
+// src/lib/components/EvalBar.test.ts
+import { describe, it, expect } from 'vitest';
+import { render } from '@testing-library/svelte';
+import EvalBar from './EvalBar.svelte';
 
-function makeBoard(): HTMLDivElement {
-	const board = document.createElement('div');
-	board.innerHTML = `
-		<div data-sq="e2"><span class="piece" style="background-image:url(pawn.svg)"></span></div>
-		<div data-sq="e4"><span class="piece" style="background-image:url(pawn.svg)"></span></div>
-	`;
-	document.body.appendChild(board);
-	return board;
-}
-
-function mockRect(el: Element, rect: Partial<DOMRect>) {
-	vi.spyOn(el, 'getBoundingClientRect').mockReturnValue({
-		top: 0,
-		left: 0,
-		right: 0,
-		bottom: 0,
-		width: 75,
-		height: 75,
-		x: 0,
-		y: 0,
-		toJSON: () => ({}),
-		...rect
-	} as DOMRect);
-}
-
-afterEach(() => {
-	document.body.innerHTML = '';
-	vi.restoreAllMocks();
-	vi.useRealTimers();
-});
-
-describe('animateSlide', () => {
-	it('clones the destination piece, hides the original, and positions the clone over the from-square', () => {
-		const board = makeBoard();
-		mockRect(board, { left: 0, top: 0 });
-		mockRect(board.querySelector('[data-sq="e2"]')!, { left: 0, top: 300 });
-		mockRect(board.querySelector('[data-sq="e4"]')!, { left: 0, top: 0 });
-
-		animateSlide(board, 'e2', 'e4');
-
-		const clone = board.querySelector('[data-sb-clone="1"]') as HTMLElement;
-		expect(clone).not.toBeNull();
-		expect(clone.style.position).toBe('absolute');
-		expect(clone.style.left).toBe('0px');
-		expect(clone.style.top).toBe('300px');
-
-		const originalLanding = board.querySelector('[data-sq="e4"] .piece') as HTMLElement;
-		expect(originalLanding.style.visibility).toBe('hidden');
+describe('EvalBar', () => {
+	it('renders the fill height from whitePct and grows from the bottom when White is at the bottom', () => {
+		const { container } = render(EvalBar, {
+			props: { whitePct: 62.5, evalNum: 2.37, whiteAtBottom: true }
+		});
+		const fill = container.querySelector('.fill') as HTMLElement;
+		expect(fill.getAttribute('style')).toContain('height: 62.5%');
+		expect(fill.getAttribute('style')).toContain('bottom: 0px');
 	});
 
-	it('transitions the clone transform to the from->to delta', () => {
-		const board = makeBoard();
-		mockRect(board, { left: 0, top: 0 });
-		mockRect(board.querySelector('[data-sq="e2"]')!, { left: 0, top: 300 });
-		mockRect(board.querySelector('[data-sq="e4"]')!, { left: 0, top: 0 });
-
-		animateSlide(board, 'e2', 'e4');
-		const clone = board.querySelector('[data-sb-clone="1"]') as HTMLElement;
-		expect(clone.style.transform).toBe('translate(0px,-300px)');
-		expect(clone.style.transition).toBe('transform .17s cubic-bezier(.33,.9,.35,1)');
+	it('grows from the top when flipped (White not at the bottom)', () => {
+		const { container } = render(EvalBar, {
+			props: { whitePct: 62.5, evalNum: 2.37, whiteAtBottom: false }
+		});
+		const fill = container.querySelector('.fill') as HTMLElement;
+		expect(fill.getAttribute('style')).toContain('top: 0px');
 	});
 
-	it('removes the clone and restores visibility after the 300ms safety timeout', () => {
-		vi.useFakeTimers();
-		const board = makeBoard();
-		mockRect(board, { left: 0, top: 0 });
-		mockRect(board.querySelector('[data-sq="e2"]')!, { left: 0, top: 300 });
-		mockRect(board.querySelector('[data-sq="e4"]')!, { left: 0, top: 0 });
+	it('shows the absolute eval magnitude as the label, positive or negative eval', () => {
+		const { container: pos } = render(EvalBar, {
+			props: { whitePct: 62.5, evalNum: 2.37, whiteAtBottom: true }
+		});
+		expect(pos.querySelector('.label')?.textContent).toBe('2.4');
 
-		animateSlide(board, 'e2', 'e4');
-		vi.advanceTimersByTime(300);
-
-		expect(board.querySelector('[data-sb-clone="1"]')).toBeNull();
-		const originalLanding = board.querySelector('[data-sq="e4"] .piece') as HTMLElement;
-		expect(originalLanding.style.visibility).toBe('');
-	});
-
-	it('is a no-op when from and to are the same square', () => {
-		const board = makeBoard();
-		animateSlide(board, 'e4', 'e4');
-		expect(board.querySelector('[data-sb-clone="1"]')).toBeNull();
-	});
-
-	it('clears any stale clone and visibility from a previous animation before starting', () => {
-		const board = makeBoard();
-		const stale = document.createElement('span');
-		stale.setAttribute('data-sb-clone', '1');
-		board.appendChild(stale);
-		const landing = board.querySelector('[data-sq="e4"] .piece') as HTMLElement;
-		landing.style.visibility = 'hidden';
-
-		mockRect(board, { left: 0, top: 0 });
-		mockRect(board.querySelector('[data-sq="e2"]')!, { left: 0, top: 300 });
-		mockRect(board.querySelector('[data-sq="e4"]')!, { left: 0, top: 0 });
-
-		animateSlide(board, 'e2', 'e4');
-
-		expect(board.contains(stale)).toBe(false);
+		const { container: neg } = render(EvalBar, {
+			props: { whitePct: 20, evalNum: -1.5, whiteAtBottom: true }
+		});
+		expect(neg.querySelector('.label')?.textContent).toBe('1.5');
 	});
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm run test -- --run src/lib/board/animate-slide.test.ts`
-Expected: FAIL — `./animate-slide` does not exist.
+Run: `npm run test -- --run src/lib/components/EvalBar.test.ts`
+Expected: FAIL.
 
-- [ ] **Step 3: Write the implementation**
+- [ ] **Step 3: Implement `src/lib/components/EvalBar.svelte`**
 
-Create `src/lib/board/animate-slide.ts`:
+```svelte
+<script lang="ts">
+	import { TOKENS } from '$lib/tokens';
 
-```ts
-/**
- * Imperative DOM piece-slide animation, ported from the reference's
- * _animateMove() steps 3-5 (LOGIC.md §2.4). Board.svelte calls this from an
- * $effect only when a single-step ply change is detected with the same flip
- * (the multi-step / different-flip guards live in Board.svelte, matching
- * the reference's componentDidUpdate guards).
- */
-export function animateSlide(boardEl: HTMLElement, fromSq: string, toSq: string): void {
-	boardEl.querySelectorAll('[data-sb-clone="1"]').forEach((clone) => clone.remove());
-	boardEl.querySelectorAll<HTMLElement>('[data-sq] .piece').forEach((piece) => {
-		piece.style.visibility = '';
-	});
+	interface Props {
+		whitePct: number;
+		evalNum: number;
+		whiteAtBottom: boolean;
+	}
 
-	if (fromSq === toSq) return;
+	let { whitePct, evalNum, whiteAtBottom }: Props = $props();
 
-	const startCell = boardEl.querySelector<HTMLElement>(`[data-sq="${fromSq}"]`);
-	const endCell = boardEl.querySelector<HTMLElement>(`[data-sq="${toSq}"]`);
-	if (!startCell || !endCell) return;
+	const label = $derived((evalNum >= 0 ? evalNum : -evalNum).toFixed(1));
+	// Reference: label sits opposite the fill's growth edge, colored for contrast against
+	// whichever background (fill vs. track) it's drawn over there.
+	const labelOnFilledEdge = $derived(whiteAtBottom === evalNum >= 0);
+	const fillStyle = $derived(
+		`position:absolute;left:0;right:0;${whiteAtBottom ? 'bottom:0;' : 'top:0;'}height:${whitePct.toFixed(1)}%;background:linear-gradient(${whiteAtBottom ? '180deg' : '0deg'},${TOKENS.board.evalWhiteFillFrom},${TOKENS.board.evalWhiteFillTo});transition:height .25s ease;`
+	);
+	const labelStyle = $derived(
+		`position:absolute;left:0;right:0;${labelOnFilledEdge ? 'bottom:3px;color:#20222E;' : 'top:3px;color:#E3E6EE;'}text-align:center;font-size:9px;font-weight:700;`
+	);
+</script>
 
-	const landing = endCell.querySelector<HTMLElement>('.piece');
-	if (!landing) return;
+<div class="eval-bar">
+	<div class="fill" style={fillStyle}></div>
+	<div class="midline"></div>
+	<div class="label sbmono" style={labelStyle}>{label}</div>
+</div>
 
-	const boardRect = boardEl.getBoundingClientRect();
-	const startRect = startCell.getBoundingClientRect();
-	const endRect = endCell.getBoundingClientRect();
-
-	const clone = landing.cloneNode(true) as HTMLElement;
-	clone.setAttribute('data-sb-clone', '1');
-	clone.style.position = 'absolute';
-	clone.style.margin = '0';
-	clone.style.zIndex = '7';
-	clone.style.pointerEvents = 'none';
-	clone.style.left = `${startRect.left - boardRect.left}px`;
-	clone.style.top = `${startRect.top - boardRect.top}px`;
-	clone.style.width = `${startRect.width}px`;
-	clone.style.height = `${startRect.height}px`;
-	clone.style.transition = 'none';
-	clone.style.transform = 'translate(0,0)';
-	boardEl.appendChild(clone);
-	landing.style.visibility = 'hidden';
-	void clone.getBoundingClientRect(); // force reflow before enabling the transition
-
-	const dx = endRect.left - startRect.left;
-	const dy = endRect.top - startRect.top;
-	clone.style.transition = 'transform .17s cubic-bezier(.33,.9,.35,1)';
-	clone.style.transform = `translate(${dx}px,${dy}px)`;
-
-	const cleanup = () => {
-		clone.remove();
-		landing.style.visibility = '';
-	};
-	clone.addEventListener('transitionend', cleanup, { once: true });
-	setTimeout(cleanup, 300);
-}
+<style>
+	.eval-bar {
+		width: 20px;
+		flex: none;
+		position: relative;
+		border-radius: 6px;
+		overflow: hidden;
+		background: var(--board-eval-bar-track);
+		border: 1px solid rgba(255, 255, 255, 0.06);
+	}
+	.midline {
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: 50%;
+		height: 1px;
+		background: var(--board-eval-midline);
+	}
+</style>
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [ ] **Step 4: Run test to verify it passes**
 
-Run: `npm run test -- --run src/lib/board/animate-slide.test.ts`
-Expected: PASS (5 tests).
+Run: `npm run test -- --run src/lib/components/EvalBar.test.ts`
+Expected: PASS (3/3). (If the "bottom: 0px"/"top: 0px" assertions fail because jsdom's CSSOM normalizes `bottom:0;` to `bottom: 0px;` differently, adjust the assertion to match — jsdom quirks here are the same category the BoardSquare task hit in Iteration 3; use `getAttribute('style')` and match the normalized substring, not the literal input string.)
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/board/animate-slide.ts src/lib/board/animate-slide.test.ts
-git commit -m "feat: add animateSlide DOM clone/transition for the piece-slide animation"
+git add src/lib/components/EvalBar.svelte src/lib/components/EvalBar.test.ts
+git commit -m "feat: add EvalBar component"
 ```
 
 ---

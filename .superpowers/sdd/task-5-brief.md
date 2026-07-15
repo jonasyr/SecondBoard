@@ -1,116 +1,144 @@
-### Task 5: `diffMove()` — pure from/to detector for the slide animation
+## Task 5: `ClassBadge.svelte`
 
 **Files:**
-- Create: `src/lib/board/diff-move.ts`
-- Create: `src/lib/board/diff-move.test.ts`
+- Create: `src/lib/components/ClassBadge.svelte`
+- Test: `src/lib/components/ClassBadge.test.ts`
 
 **Interfaces:**
-- Consumes: `Position`, `Move` from `./types` (Task 2).
-- Produces: `diffMove(prev, cur): Move | null` — consumed by Task 8 (`Board.svelte`).
+- Consumes: `TOKENS.classification`, `TOKENS.review.moveTint`, `DARK_FG_CODES` from `$lib/tokens`; `ClassCode` from `$lib/types`.
+- Produces: a component with props
+  ```ts
+  interface Props {
+  	classCode: ClassCode;
+  	size: 16 | 21 | 22;
+  	useDarkFg?: boolean; // default false — only breakdown(21)/phase(22) badges pass true
+  }
+  ```
 
-Ported from the diff portion of the reference's `_animateMove()` (LOGIC.md §2.4 steps 1-2): "diff previous vs current position maps... pick the from/to pair carrying the same piece... fall back to `froms[0]/tos[0]`."
+Per Global Constraints, this does **not** replace `BoardSquare.svelte`'s 36px badge.
 
-- [ ] **Step 1: Write the failing tests**
-
-Create `src/lib/board/diff-move.test.ts`:
+- [ ] **Step 1: Write the failing test**
 
 ```ts
+// src/lib/components/ClassBadge.test.ts
 import { describe, it, expect } from 'vitest';
-import { diffMove } from './diff-move';
-import type { Position } from './types';
+import { render } from '@testing-library/svelte';
+import ClassBadge from './ClassBadge.svelte';
 
-describe('diffMove', () => {
-	it('detects a simple pawn push', () => {
-		const prev: Position = { e2: ['P', 'w'] };
-		const cur: Position = { e4: ['P', 'w'] };
-		expect(diffMove(prev, cur)).toEqual({ from: 'e2', to: 'e4' });
+describe('ClassBadge', () => {
+	it('renders the glyph and background color for the given classification', () => {
+		const { container } = render(ClassBadge, { props: { classCode: 'brilliant', size: 16 } });
+		const el = container.firstElementChild as HTMLElement;
+		expect(el.textContent).toBe('!!');
+		expect(el.getAttribute('style')).toContain('45, 224, 206'); // #2DE0CE
 	});
 
-	it('detects the moving piece robustly across a capture (extra square vacated by the captured piece)', () => {
-		// White knight f3 captures a black pawn on e5.
-		const prev: Position = { f3: ['N', 'w'], e5: ['P', 'b'] };
-		const cur: Position = { e5: ['N', 'w'] };
-		expect(diffMove(prev, cur)).toEqual({ from: 'f3', to: 'e5' });
+	it('sizes the badge in pixels via the size prop', () => {
+		const { container } = render(ClassBadge, { props: { classCode: 'best', size: 21 } });
+		const el = container.firstElementChild as HTMLElement;
+		expect(el.getAttribute('style')).toContain('width: 21px');
+		expect(el.getAttribute('style')).toContain('height: 21px');
 	});
 
-	it('picks the king (primary traveller) for castling by matching piece identity', () => {
-		// White kingside castle: Ke1-g1, Rh1-f1.
-		const prev: Position = { e1: ['K', 'w'], h1: ['R', 'w'] };
-		const cur: Position = { g1: ['K', 'w'], f1: ['R', 'w'] };
-		const result = diffMove(prev, cur);
-		expect(result).not.toBeNull();
-		expect(['e1', 'h1']).toContain(result!.from);
-		expect(['g1', 'f1']).toContain(result!.to);
-		// The matched pair must carry the same piece identity.
-		expect(prev[result!.from]).toEqual(cur[result!.to]);
-	});
+	it('uses dark foreground text only when useDarkFg is set and the code is in DARK_FG_CODES', () => {
+		const { container: withDark } = render(ClassBadge, {
+			props: { classCode: 'best', size: 21, useDarkFg: true }
+		});
+		expect((withDark.firstElementChild as HTMLElement).getAttribute('style')).toContain(
+			'11, 18, 15'
+		); // #0B120F
 
-	it('returns null when there is no change', () => {
-		const pos: Position = { e4: ['P', 'w'] };
-		expect(diffMove(pos, pos)).toBeNull();
-	});
-
-	it('returns null when either position has no vacated/occupied squares to pair', () => {
-		expect(diffMove({}, {})).toBeNull();
+		const { container: withoutDark } = render(ClassBadge, {
+			props: { classCode: 'best', size: 16, useDarkFg: false }
+		});
+		expect((withoutDark.firstElementChild as HTMLElement).getAttribute('style')).toContain(
+			'255, 255, 255'
+		);
 	});
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm run test -- --run src/lib/board/diff-move.test.ts`
-Expected: FAIL — `./diff-move` does not exist.
+Run: `npm run test -- --run src/lib/components/ClassBadge.test.ts`
+Expected: FAIL (component doesn't exist).
 
-- [ ] **Step 3: Write the implementation**
+- [ ] **Step 3: Implement `src/lib/components/ClassBadge.svelte`**
 
-Create `src/lib/board/diff-move.ts`:
+```svelte
+<script lang="ts">
+	import { TOKENS, DARK_FG_CODES } from '$lib/tokens';
+	import type { ClassCode } from '$lib/types';
 
-```ts
-/**
- * Pure from/to detector for the piece-slide animation, ported from the diff
- * portion of the reference's _animateMove() (LOGIC.md §2.4 steps 1-2).
- * Diffs two position maps and returns the square pair whose piece identity
- * matches (robust across captures, castling, promotions), falling back to
- * the first vacated/occupied pair if no identity match is found.
- */
-import type { Move, Piece, Position } from './types';
-
-function pieceEquals(a?: Piece, b?: Piece): boolean {
-	return !!a && !!b && a[0] === b[0] && a[1] === b[1];
-}
-
-export function diffMove(prev: Position, cur: Position): Move | null {
-	const keys = new Set<string>([...Object.keys(prev), ...Object.keys(cur)]);
-	const froms: string[] = [];
-	const tos: string[] = [];
-
-	for (const key of keys) {
-		const before = prev[key];
-		const after = cur[key];
-		if (before && !pieceEquals(before, after)) froms.push(key);
-		if (after && !pieceEquals(before, after)) tos.push(key);
+	interface Props {
+		classCode: ClassCode;
+		size: 16 | 21 | 22;
+		useDarkFg?: boolean;
 	}
 
-	for (const to of tos) {
-		const from = froms.find((candidate) => pieceEquals(prev[candidate], cur[to]));
-		if (from) return { from, to };
-	}
+	let { classCode, size, useDarkFg = false }: Props = $props();
 
-	if (froms.length && tos.length) return { from: froms[0], to: tos[0] };
-	return null;
-}
+	const cls = $derived(TOKENS.classification[classCode]);
+	const fg = $derived(useDarkFg && DARK_FG_CODES.includes(classCode) ? '#0B120F' : '#fff');
+	const fontSize = $derived(size === 16 ? '8.5px' : size === 21 ? '10.5px' : '11px');
+</script>
+
+<span
+	class="badge"
+	style={`width:${size}px;height:${size}px;font-size:${fontSize};background:${cls.color};color:${fg};`}
+>{cls.glyph}</span>
+
+<style>
+	.badge {
+		flex: none;
+		border-radius: 50%;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		font-weight: 800;
+		letter-spacing: -0.5px;
+		text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+	}
+</style>
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+Note: the reference's breakdown/phase badges (21px/22px) don't carry `text-shadow`/`box-shadow` (their `badgeStyle` strings only set width/height/radius/flex/display/align/justify/font-weight/font-size/letter-spacing/background/color — no shadow). Only the 16px move-list badge has `text-shadow:0 1px 1px rgba(0,0,0,.25)` + `box-shadow:0 1px 3px rgba(0,0,0,.35)`. Fix the component so shadows only apply when `size === 16`:
 
-Run: `npm run test -- --run src/lib/board/diff-move.test.ts`
-Expected: PASS (5 tests).
+```svelte
+<span
+	class="badge"
+	class:with-shadow={size === 16}
+	style={`width:${size}px;height:${size}px;font-size:${fontSize};background:${cls.color};color:${fg};`}
+>{cls.glyph}</span>
+
+<style>
+	.badge {
+		flex: none;
+		border-radius: 50%;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		font-weight: 800;
+		letter-spacing: -0.5px;
+	}
+	.badge.with-shadow {
+		text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+	}
+</style>
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `npm run test -- --run src/lib/components/ClassBadge.test.ts`
+Expected: PASS (3/3).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/board/diff-move.ts src/lib/board/diff-move.test.ts
-git commit -m "feat: add diffMove pure from/to detector for the slide animation"
+git add src/lib/components/ClassBadge.svelte src/lib/components/ClassBadge.test.ts
+git commit -m "feat: add ClassBadge component for move-list/breakdown/phase badges"
 ```
 
 ---

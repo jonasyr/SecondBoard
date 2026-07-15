@@ -1,111 +1,199 @@
-### Task 10: Final verification sweep
+## Task 10: `MoveList.svelte`
 
 **Files:**
-- Modify: `src/lib/components/README.md`
-- Modify: `.superpowers/sdd/progress.md`
+- Create: `src/lib/components/MoveList.svelte`
+- Test: `src/lib/components/MoveList.test.ts`
 
 **Interfaces:**
-- Consumes: everything from Tasks 1-9.
-- Produces: nothing (verification + ledger update only).
+- Consumes: `SAN_LIST`, `CLASS_CODES` from `$lib/game/mock-data`; `ClassBadge.svelte`; `TOKENS.review.moveTint`.
+- Props:
+  ```ts
+  interface Props {
+  	selectedPly: number;
+  	onSelectPly: (ply: number) => void;
+  }
+  ```
 
-- [ ] **Step 1: Update the components README**
+Reference: markup lines 329-339 (grid `30px 1fr 1fr`, 16 rows); computed styles lines 1145-1167 (`moveRows()`); auto-scroll lines 822-830 (`_syncMoveScroll`).
 
-Replace the full contents of `src/lib/components/README.md`:
+- [ ] **Step 1: Write the failing test**
 
-```markdown
-# components
+```ts
+// src/lib/components/MoveList.test.ts
+import { describe, it, expect, vi } from 'vitest';
+import { render } from '@testing-library/svelte';
+import MoveList from './MoveList.svelte';
 
-Shared UI components live here, one component + its co-located test per file.
+describe('MoveList', () => {
+	it('renders 16 rows with move-number gutter', () => {
+		const { container } = render(MoveList, { props: { selectedPly: 0, onSelectPly: () => {} } });
+		expect(container.querySelectorAll('.row')).toHaveLength(16);
+		expect(container.textContent).toContain('1.');
+		expect(container.textContent).toContain('16.');
+	});
 
-**Landed (Iteration 2 — persistent chrome):** `Icon.svelte`, `TitleBar.svelte`, `Sidebar.svelte`,
-`SidebarNavItem.svelte`, `SidebarSyncCard.svelte`, `SidebarProfile.svelte`, and `nav-items.ts`.
-See `design_handoff_secondboard/README.md` §6.1.
+	it('marks the cell matching selectedPly as selected via data-sb-sel', () => {
+		const { container } = render(MoveList, { props: { selectedPly: 31, onSelectPly: () => {} } });
+		expect(container.querySelector('[data-sb-sel="1"]')).not.toBeNull();
+	});
 
-**Landed (Iteration 3 — the Board component):** `Board.svelte` (grid, best-move arrow, slide
-animation) and `BoardSquare.svelte` (single square: background, last-move tint, brilliant ring,
-coordinate labels, piece, classification badge). Supporting pure logic lives in `src/lib/board/`
-(`types.ts`, `geometry.ts`, `pieces.ts`, `build-squares.ts`, `diff-move.ts`, `animate-slide.ts`).
-See `design_handoff_secondboard/README.md` §4.4/§5/§6.3 and `LOGIC.md` §2. `src/lib/board/dev-fixtures.ts`
-is a **temporary** mock-data harness for visual QA only — it is expected to be deleted once
-Iteration 4 wires the real Game Review screen to real backend data.
+	it('calls onSelectPly with the clicked ply', () => {
+		const onSelectPly = vi.fn();
+		const { container } = render(MoveList, { props: { selectedPly: 0, onSelectPly } });
+		const firstWhiteCell = container.querySelector('.cell') as HTMLElement;
+		firstWhiteCell.click();
+		expect(onSelectPly).toHaveBeenCalledWith(1);
+	});
 
-**Still to come:** EvalBar, StatCard, CoachCard, MoveList, Toggle, and the rest of the §6
-component inventory — each lands in the iteration that builds its screen (see README §11's
-build order).
+	it('renders no black cell in the final (odd-move-count) row', () => {
+		const { container } = render(MoveList, { props: { selectedPly: 31, onSelectPly: () => {} } });
+		const rows = container.querySelectorAll('.row');
+		const lastRow = rows[rows.length - 1];
+		expect(lastRow.querySelectorAll('.cell')).toHaveLength(1); // white only — SAN_LIST has 31 plies
+	});
+});
 ```
 
-- [ ] **Step 2: Run lint**
+- [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm run lint`
-Expected: exits 0, clean output. Fix any reported issue before continuing.
+Run: `npm run test -- --run src/lib/components/MoveList.test.ts`
+Expected: FAIL.
 
-- [ ] **Step 3: Run type-check**
+- [ ] **Step 3: Implement `src/lib/components/MoveList.svelte`**
 
-Run: `npm run check`
-Expected: exits 0, 0 errors. (This is the step that confirms the `?url` SVG imports in `pieces.ts` typecheck correctly under SvelteKit's generated `vite/client` ambient types.)
+```svelte
+<script lang="ts">
+	import { tick } from 'svelte';
+	import { SAN_LIST, CLASS_CODES } from '$lib/game/mock-data';
+	import { TOKENS } from '$lib/tokens';
+	import ClassBadge from './ClassBadge.svelte';
 
-- [ ] **Step 4: Run the full test suite**
+	interface Props {
+		selectedPly: number;
+		onSelectPly: (ply: number) => void;
+	}
 
-Run: `npm run test -- --run`
-Expected: exits 0, all tests pass (Iterations 1-3 combined).
+	let { selectedPly, onSelectPly }: Props = $props();
 
-- [ ] **Step 5: Run format check**
+	interface Row {
+		num: string;
+		wPly: number;
+		bPly: number | null;
+		striped: boolean;
+	}
 
-Run: `npm run format`
-Expected: exits 0. Review `git status`/`git diff` afterward — if Prettier reformatted anything unexpected, inspect before proceeding.
+	const rows: Row[] = Array.from({ length: 16 }, (_, i) => {
+		const wPly = 2 * i + 1;
+		const bPly = 2 * i + 2;
+		return {
+			num: i + 1 + '.',
+			wPly,
+			bPly: bPly <= SAN_LIST.length ? bPly : null,
+			striped: i % 2 === 1
+		};
+	});
 
-- [ ] **Step 6: Run the frontend build**
+	function cellStyle(sel: boolean, code: import('$lib/types').ClassCode): string {
+		return sel
+			? 'background:rgba(45,224,206,.14);color:#5EF0DE;font-weight:600;box-shadow:inset 0 0 0 1px rgba(45,224,206,.3);'
+			: `color:${TOKENS.review.moveTint[code]};`;
+	}
 
-Run: `npm run build`
-Expected: exits 0, produces the static `build/` output including the 12 hashed piece-sprite assets under `build/_app/immutable/assets/`.
+	let listEl: HTMLDivElement | undefined = $state();
 
-- [ ] **Step 7: Run the native Tauri debug build**
+	// Reference _syncMoveScroll (SecondBoard.dc.html lines 822-830): manual
+	// scrollTop adjustment, NOT scrollIntoView, run after each ply change.
+	$effect(() => {
+		void selectedPly;
+		requestAnimationFrame(() => {
+			const c = listEl;
+			if (!c) return;
+			const row = c.querySelector('[data-sb-sel="1"]');
+			if (!row) return;
+			const delta = row.getBoundingClientRect().top - c.getBoundingClientRect().top - 2;
+			c.scrollTop += delta;
+		});
+	});
+</script>
 
-Run (PowerShell, for correct PATH):
+<div class="move-list sbscroll" bind:this={listEl} data-sb-movelist="1">
+	{#each rows as row (row.wPly)}
+		<div class="row" class:striped={row.striped}>
+			<span class="num sbmono">{row.num}</span>
+			<div
+				class="cell"
+				data-sb-sel={selectedPly === row.wPly ? '1' : '0'}
+				style={cellStyle(selectedPly === row.wPly, CLASS_CODES[row.wPly - 1])}
+				onclick={() => onSelectPly(row.wPly)}
+			>
+				<ClassBadge classCode={CLASS_CODES[row.wPly - 1]} size={16} />
+				<span class="san sbmono">{SAN_LIST[row.wPly - 1]}</span>
+			</div>
+			{#if row.bPly !== null}
+				<div
+					class="cell"
+					data-sb-sel={selectedPly === row.bPly ? '1' : '0'}
+					style={cellStyle(selectedPly === row.bPly, CLASS_CODES[row.bPly - 1])}
+					onclick={() => onSelectPly(row.bPly!)}
+				>
+					<ClassBadge classCode={CLASS_CODES[row.bPly - 1]} size={16} />
+					<span class="san sbmono">{SAN_LIST[row.bPly - 1]}</span>
+				</div>
+			{:else}
+				<div></div>
+			{/if}
+		</div>
+	{/each}
+</div>
 
-```powershell
-npx tauri build --debug
+<style>
+	.move-list {
+		flex: 1;
+		min-height: 0;
+		overflow-y: auto;
+		overflow-x: hidden;
+		padding: 2px 10px 10px;
+	}
+	.row {
+		display: grid;
+		grid-template-columns: 30px 1fr 1fr;
+		align-items: center;
+		column-gap: 4px;
+		padding: 1px 4px;
+		border-radius: 8px;
+	}
+	.row.striped {
+		background: rgba(255, 255, 255, 0.022);
+	}
+	.num {
+		font-size: 11px;
+		color: var(--color-text-muted-dark);
+		text-align: right;
+		padding-right: 2px;
+	}
+	.cell {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 5px 8px;
+		border-radius: 7px;
+		font-size: 12.5px;
+		cursor: pointer;
+	}
+</style>
 ```
 
-Expected: exits 0 — confirms the new frontend assets (piece sprites, Board component) bundle correctly into the desktop shell.
+- [ ] **Step 4: Run test to verify it passes**
 
-- [ ] **Step 8: Update the SDD progress ledger**
+Run: `npm run test -- --run src/lib/components/MoveList.test.ts`
+Expected: PASS (4/4). (`requestAnimationFrame` needs to exist in jsdom — Vitest's `jsdom` environment provides it; if the effect's async callback causes flakiness in the "calls onSelectPly" test, that test doesn't depend on the scroll effect and should be unaffected.)
 
-In `.superpowers/sdd/progress.md`, append (after the existing Iteration 2 lines):
-
-```
----
-Iteration 3 (The Board component):
-Task 1: complete (fixed bpulse keyframes drift to match literal two-layer reference spec)
-Task 2: complete (board domain types + geometry math ported from view-math.js)
-Task 3: complete (12 piece sprites bundled + PIECE_SPRITES registry)
-Task 4: complete (buildBoardSquares pure square-list builder)
-Task 5: complete (diffMove pure from/to detector)
-Task 6: complete (animateSlide DOM clone/transition)
-Task 7: complete (BoardSquare component)
-Task 8: complete (Board component: grid, best-move arrow, slide animation)
-Task 9: complete (temporary visual-verification harness with mock game data)
-Task 10: complete (final verification sweep: lint/check/test/format/build/native-build all pass)
-```
-
-- [ ] **Step 9: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/components/README.md .superpowers/sdd/progress.md
-git commit -m "chore: final verification sweep for iteration 3 board component"
+git add src/lib/components/MoveList.svelte src/lib/components/MoveList.test.ts
+git commit -m "feat: add MoveList component with auto-scroll"
 ```
 
 ---
 
-## Self-Review Notes (spec coverage)
-
-- **README §4.4 board colors, §5 badge spec, §6.3 board layout** — Tasks 4, 7, 8. ✅
-- **README §9 piece sprites reused 1:1** — Task 3. ✅
-- **LOGIC.md §2.2 rendering (grid, flip-aware coords, square parity, last-move overlay, brilliant ring)** — Tasks 4, 7. ✅
-- **LOGIC.md §2.3 best-move arrow (`arrowGeom`, knight bend)** — Tasks 2, 8. ✅
-- **LOGIC.md §2.4 piece-slide animation (diff, clone, transition, cleanup, single-step-only guard)** — Tasks 5, 6, 8. ✅
-- **`psize` vestigial per literal extraction — not ported as a prop** — documented in Global Constraints and Task 4. ✅
-- **Zero-deviation `bpulse` fix** — Task 1 (pre-existing Iteration 1 drift caught during spec review). ✅
-- **"Do not ship chess-mock.js as product code"** — Task 9 isolates it in an explicitly-labeled temporary dev file with a warning banner, and Task 10's README update calls out its expected deletion in Iteration 4. ✅
-- **Pixel verification against `reference/screens/2-*.png` / `3-*.png`** — Task 9 Step 9 (manual check via the temporary harness). ✅
-- **EvalBar, captured-material row, coach card, move list, tabs** — explicitly out of scope; deferred to Iteration 4 (Game Review screen) per README §11 step 4 / LOGIC.md §8 step 4, not gaps.

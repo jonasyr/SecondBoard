@@ -1,75 +1,35 @@
-# Task 5 Report: `diffMove()` — Pure from/to Detector for Slide Animation
+## Task 5 Report: `ClassBadge.svelte`
 
-## Summary
-Successfully implemented `diffMove()`, a pure function that diffs two chess positions and returns the piece movement (from/to) for animation purposes. Handles simple moves, captures, and castling robustly via piece identity matching.
+**Status:** DONE
 
-## Implementation
+**Commit:** `2643e3bd4e349244e9862da260cbaa82cce545ba` — "feat: add ClassBadge component for move-list/breakdown/phase badges"
 
-### Files Created
-- `src/lib/board/diff-move.ts` — Main implementation
-- `src/lib/board/diff-move.test.ts` — Test suite
+### What was changed
 
-### Algorithm
-The `diffMove` function:
-1. Collects all squares that differ between two positions into `froms` (vacated) and `tos` (occupied)
-2. Attempts to find an identity match: iterates through `tos` and looks for a `from` whose piece equals the piece at `to` in `cur`
-3. If match found, returns the pair
-4. Fallback: returns first pair `{ from: froms[0], to: tos[0] }` if no identity match
-5. Returns `null` if no froms/tos or positions are identical
+- Created `src/lib/components/ClassBadge.test.ts` — verbatim from the brief's Step 1, 3 test cases: glyph/background color rendering, pixel sizing via `size` prop, and dark-foreground logic gated by `useDarkFg` + `DARK_FG_CODES`.
+- Created `src/lib/components/ClassBadge.svelte` — implemented using the brief's **final corrected** version (Step 3's second code block): `class:with-shadow={size === 16}` on the `<span>`, with `text-shadow`/`box-shadow` moved into a `.badge.with-shadow` CSS rule (not applied unconditionally to `.badge`). This matches the reference behavior where only the 16px move-list badge carries shadows; 21px/22px breakdown/phase badges do not.
 
-Helper function `pieceEquals(a?: Piece, b?: Piece)` compares piece tuples for equality.
+### Commands run and results
 
-### TDD Evidence
+1. **Test written, then run to confirm failure (pre-implementation):**
+   `pnpm run test -- --run src/lib/components/ClassBadge.test.ts`
+   Result: FAILED as expected — `Failed to resolve import "./ClassBadge.svelte"` (component did not yet exist). The suite also showed the pre-existing, unrelated `src/routes/page.test.ts` failure (`$lib/board/dev-fixtures` missing module, from a later task's incomplete migration).
 
-#### Step 2: RED (Tests fail before implementation)
-```
-Error: Failed to resolve import "./diff-move" from "src/lib/board/diff-move.test.ts".
-Does the file exist?
-```
+2. **Component implemented, test run again:**
+   `pnpm run test -- --run src/lib/components/ClassBadge.test.ts`
+   Result: `ClassBadge.test.ts` now passes; overall run shows `Test Files 1 failed | 25 passed (26)`, `Tests 121 passed (121)` — the one failing file is still the pre-existing `page.test.ts` (unrelated, not in scope).
 
-#### Step 4: GREEN (All tests pass after implementation)
-```
-Test Files  1 passed (1)
-     Tests  5 passed (5)
-```
+3. **Isolated confirmation:**
+   `pnpm exec vitest run src/lib/components/ClassBadge.test.ts`
+   Result: `Test Files 1 passed (1)`, `Tests 3 passed (3)` — clean 3/3 pass with no other suites involved.
 
-All 5 tests pass:
-1. ✓ Detects simple pawn push (e2 → e4)
-2. ✓ Detects capture robustly (N f3 captures P e5)
-3. ✓ Handles castling by piece identity (K e1 → g1 + R h1 → f1)
-4. ✓ Returns null when no change
-5. ✓ Returns null for empty positions
+4. **Type check:**
+   `pnpm run check`
+   Result: `COMPLETED 427 FILES 3 ERRORS 6 WARNINGS 4 FILES_WITH_PROBLEMS`. All 3 errors are pre-existing and unrelated to this task:
+   - `src/lib/game/review.ts:115` and `:125` — `PieceType` union mismatch (`"K"` not assignable), from the game-review data layer (later/other task).
+   - `src/routes/+page.svelte:5:27` — `Cannot find module '$lib/board/dev-fixtures'`, the known missing-fixture issue called out in the assignment.
+   No errors or warnings reference `ClassBadge.svelte` or `ClassBadge.test.ts`.
 
-## Self-Review Findings
+### Concerns
 
-### Correctness Checklist
-- [x] Identity match logic correctly prioritizes piece matching
-- [x] Fallback correctly uses `froms[0]/tos[0]` only when no identity match exists
-- [x] Null returned correctly for no-change and empty-position cases
-- [x] No type violations (strict TypeScript, no `any`)
-- [x] Proper imports from `./types` (Move, Piece, Position)
-- [x] No scope creep — only created required files
-
-### Logic Verification
-- The `pieceEquals` helper correctly checks both type and color
-- The `froms`/`tos` collection handles all squares involved (including captures where captured piece leaves a square)
-- The identity-match loop provides robustness for multi-piece transitions (castling)
-- Fallback `froms[0]/tos[0]` handles edge cases where no piece identity can be matched
-
-### Code Quality
-- Function is pure (no side effects)
-- No hardcoded values
-- Clear variable names and logic flow
-- Single responsibility: diff detection only
-
-## Files Modified
-- Created: `src/lib/board/diff-move.ts` (33 lines)
-- Created: `src/lib/board/diff-move.test.ts` (37 lines)
-
-## Commit
-```
-2138301 feat: add diffMove pure from/to detector for the slide animation
-```
-
-## Concerns
-None. Implementation matches specification exactly, all tests pass, code is clean and focused.
+None. The component was implemented exactly per the brief's final corrected code, tests pass 3/3 in isolation, and `pnpm run check` introduces no new errors attributable to these two files.

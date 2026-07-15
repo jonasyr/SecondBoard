@@ -1,205 +1,149 @@
-### Task 4: `buildBoardSquares()` — pure square-list builder
+## Task 4: `appState` screen/tab/ply transitions
 
 **Files:**
-- Create: `src/lib/board/build-squares.ts`
-- Create: `src/lib/board/build-squares.test.ts`
+- Modify: `src/lib/stores/app-state.svelte.ts`
+- Modify: `src/lib/stores/app-state.test.ts`
 
 **Interfaces:**
-- Consumes: `Position`, `Square` from `./types` (Task 2).
-- Produces: `BoardSquareVM` interface, `BuildBoardSquaresOptions` interface, `buildBoardSquares(position, opts)` — consumed by Task 8 (`Board.svelte`).
+- Consumes: `SAN_LIST` from `$lib/game/mock-data` (for the ply upper bound).
+- Produces (new exports alongside the existing `appState`):
+  ```ts
+  export const MAX_PLY: number; // SAN_LIST.length
+  export function goToPly(ply: number): void; // clamps to [0, MAX_PLY]
+  export function stepPly(delta: number): void; // clamps to [0, MAX_PLY]
+  export function startReview(): void; // gameLoaded=true, screen='review', ply=31, tab='analysis'
+  export function newGame(): void; // gameLoaded=false, pgnText='', screen='review'
+  export function handleReviewKeydown(e: KeyboardEvent): void; // ArrowLeft/ArrowRight, only when appState.screen==='review'; preventDefault
+  ```
 
-Ported from the reference's `buildBoard(pos, opts)` (README §6.3, LOGIC.md §2.2). Per the Global Constraints, `psize` is intentionally omitted.
-
-- [ ] **Step 1: Write the failing tests**
-
-Create `src/lib/board/build-squares.test.ts`:
+- [ ] **Step 1: Write the failing tests** (append to the existing `src/lib/stores/app-state.test.ts`, whose current contents you should read first to match its existing describe/it style and any `beforeEach` reset helper)
 
 ```ts
-import { describe, it, expect } from 'vitest';
-import { buildBoardSquares } from './build-squares';
-import type { Position } from './types';
+import { appState, MAX_PLY, goToPly, stepPly, startReview, newGame, handleReviewKeydown } from './app-state.svelte';
 
-const EMPTY: Position = {};
-const ONE_PAWN: Position = { e4: ['P', 'w'] };
-
-describe('buildBoardSquares', () => {
-	it('returns exactly 64 squares', () => {
-		expect(buildBoardSquares(EMPTY)).toHaveLength(64);
+// ... inside existing describe block or a new one:
+describe('screen/ply transitions', () => {
+	beforeEach(() => {
+		appState.screen = 'review';
+		appState.ply = 31;
+		appState.gameLoaded = true;
+		appState.tab = 'analysis';
+		appState.pgnText = 'x';
 	});
 
-	it('orders squares a8..h8, a7..h7, ... a1..h1 when unflipped (first square is a8)', () => {
-		const squares = buildBoardSquares(EMPTY);
-		expect(squares[0].id).toBe('a8');
-		expect(squares[7].id).toBe('h8');
-		expect(squares[63].id).toBe('h1');
+	it('MAX_PLY matches the mock game length (31)', () => {
+		expect(MAX_PLY).toBe(31);
 	});
 
-	it('reverses to h1..a1, h2..a2, ... h8..a8 when flipped (first square is h1)', () => {
-		const squares = buildBoardSquares(EMPTY, { flipped: true });
-		expect(squares[0].id).toBe('h1');
-		expect(squares[63].id).toBe('a8');
+	it('goToPly clamps to [0, MAX_PLY]', () => {
+		goToPly(-5);
+		expect(appState.ply).toBe(0);
+		goToPly(999);
+		expect(appState.ply).toBe(31);
+		goToPly(10);
+		expect(appState.ply).toBe(10);
 	});
 
-	it('marks a1 as a dark square and a8 as a light square (parity (f+r)%2===1 => dark)', () => {
-		const squares = buildBoardSquares(EMPTY);
-		const a1 = squares.find((s) => s.id === 'a1')!;
-		const a8 = squares.find((s) => s.id === 'a8')!;
-		expect(a1.isDark).toBe(true);
-		expect(a8.isDark).toBe(false);
+	it('stepPly moves by delta and clamps', () => {
+		appState.ply = 0;
+		stepPly(-1);
+		expect(appState.ply).toBe(0);
+		stepPly(1);
+		expect(appState.ply).toBe(1);
 	});
 
-	it('attaches the occupying piece to its square, and null elsewhere', () => {
-		const squares = buildBoardSquares(ONE_PAWN);
-		const e4 = squares.find((s) => s.id === 'e4')!;
-		const e5 = squares.find((s) => s.id === 'e5')!;
-		expect(e4.piece).toEqual(['P', 'w']);
-		expect(e5.piece).toBeNull();
+	it('startReview resets to the default review state regardless of pgnText', () => {
+		appState.gameLoaded = false;
+		appState.ply = 0;
+		appState.tab = 'details';
+		startReview();
+		expect(appState.gameLoaded).toBe(true);
+		expect(appState.screen).toBe('review');
+		expect(appState.ply).toBe(31);
+		expect(appState.tab).toBe('analysis');
 	});
 
-	it('flags both the from and to squares of the last move as isLast', () => {
-		const squares = buildBoardSquares(EMPTY, { lastSquares: ['e2', 'e4'] });
-		expect(squares.find((s) => s.id === 'e2')!.isLast).toBe(true);
-		expect(squares.find((s) => s.id === 'e4')!.isLast).toBe(true);
-		expect(squares.find((s) => s.id === 'd4')!.isLast).toBe(false);
+	it('newGame resets to onboarding', () => {
+		newGame();
+		expect(appState.gameLoaded).toBe(false);
+		expect(appState.pgnText).toBe('');
+		expect(appState.screen).toBe('review');
 	});
 
-	it('flags only the given square as brilliant', () => {
-		const squares = buildBoardSquares(EMPTY, { brilliantSquare: 'e5' });
-		expect(squares.find((s) => s.id === 'e5')!.isBrilliant).toBe(true);
-		expect(squares.find((s) => s.id === 'd5')!.isBrilliant).toBe(false);
-	});
+	it('handleReviewKeydown steps ply on ArrowLeft/ArrowRight only on the review screen', () => {
+		appState.ply = 5;
+		const right = new KeyboardEvent('keydown', { key: 'ArrowRight', cancelable: true });
+		handleReviewKeydown(right);
+		expect(appState.ply).toBe(6);
+		expect(right.defaultPrevented).toBe(true);
 
-	it('places the badge glyph/color only on the badge square', () => {
-		const squares = buildBoardSquares(EMPTY, {
-			badge: { square: 'g4', glyph: '★', color: '#4ADEA0' }
-		});
-		const g4 = squares.find((s) => s.id === 'g4')!;
-		expect(g4.hasBadge).toBe(true);
-		expect(g4.badgeGlyph).toBe('★');
-		expect(g4.badgeColor).toBe('#4ADEA0');
-		const other = squares.find((s) => s.id === 'g3')!;
-		expect(other.hasBadge).toBe(false);
-		expect(other.badgeGlyph).toBe('');
-	});
-
-	it('shows rank labels only on the left-most file (unflipped) and file labels only on the bottom-most rank', () => {
-		const squares = buildBoardSquares(EMPTY);
-		expect(squares.find((s) => s.id === 'a5')!.rankLabel).toBe('5');
-		expect(squares.find((s) => s.id === 'b5')!.rankLabel).toBe('');
-		expect(squares.find((s) => s.id === 'c1')!.fileLabel).toBe('c');
-		expect(squares.find((s) => s.id === 'c2')!.fileLabel).toBe('');
-	});
-
-	it('flips which edge shows coordinate labels when flipped', () => {
-		const squares = buildBoardSquares(EMPTY, { flipped: true });
-		expect(squares.find((s) => s.id === 'h5')!.rankLabel).toBe('5');
-		expect(squares.find((s) => s.id === 'a5')!.rankLabel).toBe('');
-		expect(squares.find((s) => s.id === 'c8')!.fileLabel).toBe('c');
-		expect(squares.find((s) => s.id === 'c1')!.fileLabel).toBe('');
+		appState.screen = 'home';
+		const left = new KeyboardEvent('keydown', { key: 'ArrowLeft', cancelable: true });
+		handleReviewKeydown(left);
+		expect(appState.ply).toBe(6); // unchanged — guarded on screen
 	});
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm run test -- --run src/lib/board/build-squares.test.ts`
-Expected: FAIL — `./build-squares` does not exist.
+Run: `npm run test -- --run src/lib/stores/app-state.test.ts`
+Expected: FAIL (new exports don't exist).
 
-- [ ] **Step 3: Write the implementation**
+- [ ] **Step 3: Implement the additions in `src/lib/stores/app-state.svelte.ts`**
 
-Create `src/lib/board/build-squares.ts`:
+Add near the bottom of the file (after the existing `appState` export):
 
 ```ts
-/**
- * Pure square-list builder, ported from the reference's buildBoard(pos, opts)
- * (design_handoff_secondboard/README.md §6.3, LOGIC.md §2.2). Returns a flat
- * 64-entry view-model list consumed by Board.svelte's {#each}. Note: the
- * reference's `psize` option is intentionally NOT ported — it is accepted
- * there but never wired into any generated style (verified against the
- * literal source); piece/square size is purely the grid cell size.
- */
-import type { Piece, Position, Square } from './types';
+import { SAN_LIST } from '$lib/game/mock-data';
 
-const FILES = 'abcdefgh';
+export const MAX_PLY = SAN_LIST.length;
 
-export interface BoardSquareVM {
-	id: Square;
-	file: number;
-	rank: number;
-	isDark: boolean;
-	piece: Piece | null;
-	isLast: boolean;
-	isBrilliant: boolean;
-	hasBadge: boolean;
-	badgeGlyph: string;
-	badgeColor: string;
-	rankLabel: string;
-	fileLabel: string;
+export function goToPly(ply: number): void {
+	appState.ply = Math.max(0, Math.min(MAX_PLY, ply));
 }
 
-export interface BuildBoardSquaresOptions {
-	flipped?: boolean;
-	/** [from, to] squares of the last move; both get the highlight tint. */
-	lastSquares?: [Square, Square] | null;
-	/** Destination square of a move classified 'brilliant'. */
-	brilliantSquare?: Square | null;
-	/** Classification badge, placed on its destination square only. */
-	badge?: { square: Square; glyph: string; color: string } | null;
+export function stepPly(delta: number): void {
+	goToPly(appState.ply + delta);
 }
 
-export function buildBoardSquares(
-	position: Position,
-	opts: BuildBoardSquaresOptions = {}
-): BoardSquareVM[] {
-	const flipped = !!opts.flipped;
-	const lastSquares = opts.lastSquares ?? null;
-	const brilliantSquare = opts.brilliantSquare ?? null;
-	const badge = opts.badge ?? null;
+/** Reference `startReview` handler: always loads the same mock game — pgnText is cosmetic (Global Constraints). */
+export function startReview(): void {
+	appState.gameLoaded = true;
+	appState.screen = 'review';
+	appState.ply = MAX_PLY;
+	appState.tab = 'analysis';
+}
 
-	const ranks = flipped ? [1, 2, 3, 4, 5, 6, 7, 8] : [8, 7, 6, 5, 4, 3, 2, 1];
-	const filesOrder = flipped ? [7, 6, 5, 4, 3, 2, 1, 0] : [0, 1, 2, 3, 4, 5, 6, 7];
+export function newGame(): void {
+	appState.gameLoaded = false;
+	appState.pgnText = '';
+	appState.screen = 'review';
+}
 
-	const squares: BoardSquareVM[] = [];
-	for (const r of ranks) {
-		for (const f of filesOrder) {
-			const id = FILES[f] + r;
-			const piece = position[id] ?? null;
-			const isDark = (f + r) % 2 === 1;
-			const isLast = !!lastSquares && (lastSquares[0] === id || lastSquares[1] === id);
-			const showRank = flipped ? f === 7 : f === 0;
-			const showFile = flipped ? r === 8 : r === 1;
-			const hasBadge = !!badge && badge.square === id;
-
-			squares.push({
-				id,
-				file: f,
-				rank: r,
-				isDark,
-				piece,
-				isLast,
-				isBrilliant: brilliantSquare === id,
-				hasBadge,
-				badgeGlyph: hasBadge ? badge!.glyph : '',
-				badgeColor: hasBadge ? badge!.color : '',
-				rankLabel: showRank ? String(r) : '',
-				fileLabel: showFile ? FILES[f] : ''
-			});
-		}
+/** LOGIC.md §1 keyboard rule: guarded on screen==='review' only (not gameLoaded). */
+export function handleReviewKeydown(e: KeyboardEvent): void {
+	if (appState.screen !== 'review') return;
+	if (e.key === 'ArrowLeft') {
+		e.preventDefault();
+		stepPly(-1);
+	} else if (e.key === 'ArrowRight') {
+		e.preventDefault();
+		stepPly(1);
 	}
-	return squares;
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [ ] **Step 4: Run test to verify it passes**
 
-Run: `npm run test -- --run src/lib/board/build-squares.test.ts`
-Expected: PASS (10 tests).
+Run: `npm run test -- --run src/lib/stores/app-state.test.ts`
+Expected: PASS (all, including pre-existing tests in the file).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/board/build-squares.ts src/lib/board/build-squares.test.ts
-git commit -m "feat: add buildBoardSquares pure square-list builder"
+git add src/lib/stores/app-state.svelte.ts src/lib/stores/app-state.test.ts
+git commit -m "feat: add screen/ply/tab transition helpers to appState"
 ```
 
 ---
