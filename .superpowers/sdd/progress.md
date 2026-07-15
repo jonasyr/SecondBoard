@@ -46,3 +46,4 @@ Task 3: complete (commits d9fb1b4..cb0f94e, review clean/Approved; getReviewPly/
 
 STOPPED HERE by user request (usage limit) after Task 3 review approval. NEXT: Task 4 (appState screen/tab/ply transitions). To resume: read this file, confirm HEAD matches cb0f94e-derived history via git log, then continue subagent-driven-development from Task 4 using task-brief script on docs/superpowers/plans/2026-07-15-iteration-04-game-review.md.
 Task 4: complete (commits f149d9e..99b165b, review clean/Approved)
+Task 5: complete (commits d2237b7..2643e3b, review clean/Approved; minor doc note: brief's Interfaces section lists TOKENS.review.moveTint as consumed but component doesn't use it — that's a separate move-list-row concern, not a badge defect)
