@@ -1,6 +1,18 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+const { loadRealAnalysis } = vi.hoisted(() => ({ loadRealAnalysis: vi.fn() }));
+vi.mock('$lib/game/engine-analysis', () => ({ loadRealAnalysis }));
+
 import { createAppState } from './app-state.svelte';
-import { appState, MAX_PLY, goToPly, stepPly, startReview, newGame, handleReviewKeydown } from './app-state.svelte';
+import {
+	appState,
+	MAX_PLY,
+	goToPly,
+	stepPly,
+	startReview,
+	newGame,
+	handleReviewKeydown
+} from './app-state.svelte';
 
 describe('createAppState', () => {
 	it('returns the exact default state from LOGIC.md §1', () => {
@@ -76,5 +88,46 @@ describe('screen/ply transitions', () => {
 		const left = new KeyboardEvent('keydown', { key: 'ArrowLeft', cancelable: true });
 		handleReviewKeydown(left);
 		expect(appState.ply).toBe(6); // unchanged — guarded on screen
+	});
+});
+
+describe('real analysis loading', () => {
+	beforeEach(() => {
+		loadRealAnalysis.mockReset();
+	});
+
+	it('starts in the idle status by default', () => {
+		const state = createAppState();
+		expect(state.analysisStatus).toBe('idle');
+		expect(state.evalPerPly.length).toBeGreaterThan(0);
+	});
+
+	it('goes loading -> ready and applies the real data on startReview success', async () => {
+		let resolveAnalysis!: (v: { evalPerPly: number[]; bestMoves: Record<number, never> }) => void;
+		loadRealAnalysis.mockReturnValue(
+			new Promise((resolve) => {
+				resolveAnalysis = resolve;
+			})
+		);
+
+		startReview();
+		expect(appState.analysisStatus).toBe('loading');
+
+		resolveAnalysis({ evalPerPly: [0, 0.3], bestMoves: {} });
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(appState.analysisStatus).toBe('ready');
+		expect(appState.evalPerPly).toEqual([0, 0.3]);
+	});
+
+	it('goes loading -> error when loadRealAnalysis rejects', async () => {
+		loadRealAnalysis.mockRejectedValue(new Error('engine offline'));
+
+		startReview();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(appState.analysisStatus).toBe('error');
 	});
 });
