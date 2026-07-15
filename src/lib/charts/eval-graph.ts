@@ -44,7 +44,7 @@ export function evalGraph(
 	ply: number
 ): EvalGraphResult {
 	const xOf = (i: number) => Number(((i / (evalPerPly.length - 1)) * W).toFixed(1));
-	const yOf = (v: number) => Math.trunc((MID - (Math.max(-5, Math.min(5, v)) / 5) * 34) * 10) / 10;
+	const yOf = (v: number) => Number((MID - (Math.max(-5, Math.min(5, v)) / 5) * 34).toFixed(1));
 
 	const line = evalPerPly.map((v, i) => (i ? 'L' : 'M') + xOf(i).toFixed(1) + ' ' + yOf(v).toFixed(1)).join(' ');
 	const area = line + ' L' + W + ' ' + H + ' L0 ' + H + ' Z';
@@ -53,7 +53,7 @@ export function evalGraph(
 	for (let i = 1; i < evalPerPly.length; i++) {
 		const code = classCodes[i - 1];
 		if (NOTABLE_CODES.has(code)) {
-			dots.push({ cx: Number(xOf(i - 1)), cy: Number(yOf(evalPerPly[i - 1])), color: TOKENS.classification[code].color });
+			dots.push({ cx: xOf(i), cy: yOf(evalPerPly[i]), color: TOKENS.classification[code].color });
 		}
 	}
 
@@ -61,8 +61,8 @@ export function evalGraph(
 		evalLine: line,
 		evalArea: area,
 		evalDots: dots,
-		markerX: Number(xOf(ply)),
-		markerCX: Number(xOf(ply)),
-		markerCY: Number(yOf(evalPerPly[ply]))
+		markerX: xOf(ply),
+		markerCX: xOf(ply),
+		markerCY: yOf(evalPerPly[ply])
 	};
 }

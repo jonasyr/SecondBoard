@@ -7,11 +7,11 @@ describe('evalGraph', () => {
 		const ev = [0, 0.3];
 		const codes: ClassCode[] = ['best'];
 		const result = evalGraph(ev, codes, 1);
-		expect(result.evalLine).toBe('M0.0 39.0 L660.0 36.9');
-		expect(result.evalArea).toBe('M0.0 39.0 L660.0 36.9 L660 78 L0 78 Z');
+		expect(result.evalLine).toBe('M0.0 39.0 L660.0 37.0');
+		expect(result.evalArea).toBe('M0.0 39.0 L660.0 37.0 L660 78 L0 78 Z');
 		expect(result.markerX).toBe(660);
 		expect(result.markerCX).toBe(660);
-		expect(result.markerCY).toBe(36.9);
+		expect(result.markerCY).toBe(37.0);
 	});
 
 	it('clamps eval values to +/-5 before mapping to y', () => {
@@ -25,6 +25,6 @@ describe('evalGraph', () => {
 		const codes: ClassCode[] = ['book', 'brilliant', 'good'];
 		const result = evalGraph(ev, codes, 0);
 		expect(result.evalDots).toHaveLength(1);
-		expect(result.evalDots[0]).toEqual({ cx: 220, cy: 36.9, color: '#2DE0CE' });
+		expect(result.evalDots[0]).toEqual({ cx: 440, cy: 37.6, color: '#2DE0CE' });
 	});
 });
