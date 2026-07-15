@@ -103,7 +103,48 @@ export const TOKENS = {
 		mistake: { name: 'Mistake', word: 'a mistake', color: '#F97A45', glyph: '?' },
 		miss: { name: 'Miss', word: 'a miss', color: '#C77DFF', glyph: '✕' },
 		blunder: { name: 'Blunder', word: 'a blunder', color: '#F26B6B', glyph: '??' }
-	} satisfies Record<ClassCode, { name: string; word: string; color: string; glyph: string }>
+	} satisfies Record<ClassCode, { name: string; word: string; color: string; glyph: string }>,
+	review: {
+		avatarWhiteBg: '#EDEFF6',
+		avatarWhiteBorder: 'rgba(255,255,255,.15)',
+		avatarWhiteText: '#14161F',
+		avatarBlackBg: 'linear-gradient(135deg,#3B4252,#20222E)',
+		avatarBlackBorder: 'rgba(255,255,255,.1)',
+		avatarBlackText: '#C7CCDA',
+		clockActiveBg: 'rgba(45,224,206,.12)',
+		clockActiveText: '#5EF0DE',
+		clockInactiveBg: '#14161F',
+		clockInactiveText: '#6B7180',
+		newGameBg: '#181A24',
+		newGameBorder: 'rgba(255,255,255,.08)',
+		newGameText: '#C7CCDA',
+		evalGraphBg: '#20222E',
+		evalGraphArea: '#EFF1F6',
+		evalGraphMidline: '#2DE0CE',
+		evalGraphLine: '#8A90A0',
+		chipNeutralBg: '#181A24',
+		chipNeutralBorder: 'rgba(255,255,255,.1)',
+		chipNeutralText: '#E3E6EE',
+		chipTintedBg: 'rgba(74,222,160,.06)',
+		chipTintedBorder: 'rgba(74,222,160,.4)',
+		chipTintedText: '#8FE9C2',
+		capturedSpriteShadow: 'drop-shadow(0 1px 1.5px rgba(0,0,0,.5))',
+		navBtnBg: '#14161F',
+		navBtnBorder: 'rgba(255,255,255,.07)',
+		navBtnStroke: '#9298A8',
+		moveTint: {
+			brilliant: '#5EF0DE',
+			great: '#8FC0FF',
+			best: '#C7CCDA',
+			excellent: '#C7CCDA',
+			good: '#C7CCDA',
+			book: '#C7B79E',
+			inaccuracy: '#F5B14C',
+			mistake: '#F97A45',
+			miss: '#C77DFF',
+			blunder: '#F26B6B'
+		} satisfies Record<ClassCode, string>
+	}
 } as const;
 
 export const DARK_FG_CODES: ClassCode[] = [
