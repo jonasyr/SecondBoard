@@ -39,10 +39,15 @@ async fn analyze_fen(fen: String) -> Result<AnalyzeFenResult, String> {
         .map_err(|e| e.to_string())?
 }
 
+#[tauri::command]
+fn parse_pgn(pgn: String) -> Result<pgn::ParsedGame, String> {
+    pgn::parse_pgn(&pgn)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
-    .invoke_handler(tauri::generate_handler![analyze_fen])
+    .invoke_handler(tauri::generate_handler![analyze_fen, parse_pgn])
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
@@ -75,5 +80,25 @@ mod analyze_fen_tests {
                 assert!(msg.contains("failed to spawn engine"), "unexpected error: {msg}");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod parse_pgn_tests {
+    use super::*;
+
+    #[test]
+    fn parse_pgn_command_delegates_to_the_pgn_module() {
+        let pgn = "1. e4 e5 2. Nf3 Nc6".to_string();
+        let result = parse_pgn(pgn).expect("valid PGN should parse successfully");
+        assert_eq!(result.san_list, vec!["e4", "e5", "Nf3", "Nc6"]);
+        assert_eq!(result.positions.len(), 5);
+    }
+
+    #[test]
+    fn parse_pgn_command_surfaces_parse_errors_as_strings() {
+        let bad_pgn = "1. e4 e5 2. Ke2 Ke7 3. Kf3 Kd8".to_string();
+        let result = parse_pgn(bad_pgn);
+        assert!(result.is_err());
     }
 }
