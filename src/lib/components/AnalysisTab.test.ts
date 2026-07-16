@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/svelte';
 import AnalysisTab from './AnalysisTab.svelte';
+import { appState } from '$lib/stores/app-state.svelte';
 
 describe('AnalysisTab', () => {
 	it('renders the coach card for the given ply and the move list', () => {
@@ -28,5 +29,21 @@ describe('AnalysisTab', () => {
 		});
 		expect(container.textContent).toContain('Start');
 		expect(container.textContent).toContain('a book move');
+	});
+
+	it('shows the analyzing note only while analysisStatus is loading', () => {
+		appState.analysisStatus = 'loading';
+		const { getByText, unmount } = render(AnalysisTab, {
+			props: { ply: 31, onSelectPly: () => {}, onNext: () => {} }
+		});
+		expect(getByText('Analyzing with Stockfish…')).toBeTruthy();
+		unmount();
+
+		appState.analysisStatus = 'ready';
+		const { queryByText } = render(AnalysisTab, {
+			props: { ply: 31, onSelectPly: () => {}, onNext: () => {} }
+		});
+		expect(queryByText('Analyzing with Stockfish…')).toBeNull();
+		appState.analysisStatus = 'idle'; // reset the singleton for later tests in this file
 	});
 });

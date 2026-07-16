@@ -1,5 +1,7 @@
+import type { Move } from '$lib/board/types';
 import type { Screen, Tab } from '$lib/types';
-import { SAN_LIST } from '$lib/game/mock-data';
+import { SAN_LIST, EVAL_PER_PLY, BEST_MOVES } from '$lib/game/mock-data';
+import { loadRealAnalysis } from '$lib/game/engine-analysis';
 
 export interface AppState {
 	screen: Screen;
@@ -11,6 +13,9 @@ export interface AppState {
 	pgnText: string;
 	showLines: boolean;
 	selfAnalysis: boolean;
+	evalPerPly: number[];
+	bestMoves: Record<number, Move & { san: string }>;
+	analysisStatus: 'idle' | 'loading' | 'ready' | 'error';
 }
 
 const defaultState: AppState = {
@@ -22,7 +27,10 @@ const defaultState: AppState = {
 	gameLoaded: false,
 	pgnText: '',
 	showLines: true,
-	selfAnalysis: false
+	selfAnalysis: false,
+	evalPerPly: [...EVAL_PER_PLY],
+	bestMoves: { ...BEST_MOVES },
+	analysisStatus: 'idle'
 };
 
 /**
@@ -57,6 +65,21 @@ export function startReview(): void {
 	appState.screen = 'review';
 	appState.ply = MAX_PLY;
 	appState.tab = 'analysis';
+	void refreshRealAnalysis();
+}
+
+/** Fires the Phase-0 engine spike (LOGIC.md §7): replaces the seeded mock
+ * evalPerPly/bestMoves with real Stockfish output once analysis completes. */
+async function refreshRealAnalysis(): Promise<void> {
+	appState.analysisStatus = 'loading';
+	try {
+		const { evalPerPly, bestMoves } = await loadRealAnalysis();
+		appState.evalPerPly = evalPerPly;
+		appState.bestMoves = bestMoves;
+		appState.analysisStatus = 'ready';
+	} catch {
+		appState.analysisStatus = 'error';
+	}
 }
 
 export function newGame(): void {

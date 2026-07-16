@@ -34,6 +34,12 @@ describe('getReviewPly', () => {
 		const r = getReviewPly(31); // eval 2.37
 		expect(r.whitePct).toBeCloseTo(50 + Math.min(44, (2.37 / 8) * 44), 5);
 	});
+
+	it('accepts explicit evalPerPly/bestMoves overrides instead of the static mock arrays', () => {
+		const r = getReviewPly(1, [0, 99], {});
+		expect(r.evalNum).toBe(99);
+		expect(r.evalStr).toBe('+99.00');
+	});
 });
 
 describe('getPlayerRows', () => {

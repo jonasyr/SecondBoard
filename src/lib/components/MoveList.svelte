@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { tick } from 'svelte';
 	import { SAN_LIST, CLASS_CODES } from '$lib/game/mock-data';
 	import { TOKENS } from '$lib/tokens';
 	import ClassBadge from './ClassBadge.svelte';

@@ -40,7 +40,7 @@
 				class="sbmono sbscroll"
 				bind:value={appState.pgnText}
 				spellcheck="false"
-				placeholder={'[Event "Live Rapid"]\n[White "Jonas"]\n[Black "DominikP"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. c3 Nf6 ...'}
+				placeholder="[Event &quot;Live Rapid&quot;]&#10;[White &quot;Jonas&quot;]&#10;[Black &quot;DominikP&quot;]&#10;&#10;1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. c3 Nf6 ..."
 			></textarea>
 			<div class="actions">
 				<button type="button" class="start" onclick={startReview}>
