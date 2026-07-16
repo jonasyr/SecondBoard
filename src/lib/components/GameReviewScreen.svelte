@@ -36,7 +36,7 @@
 					flipped={appState.flipped}
 					lastMove={data.lastMove}
 					classCode={data.classCode}
-					best={data.best}
+					nextBest={data.nextBest}
 				/>
 			</div>
 		</div>

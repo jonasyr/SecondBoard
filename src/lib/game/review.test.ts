@@ -87,6 +87,25 @@ describe('getReviewPly', () => {
 		);
 		expect(r.coachMove).toBe('1. d4'); // sanList is still real regardless of isSample
 	});
+
+	it('exposes `nextBest` as bestMoves[ply + 1], regardless of classCode/isSample', () => {
+		expect(getReviewPly(13, sampleGame).nextBest).toEqual({ from: 'c8', to: 'g4', san: 'Bg4' }); // BEST_MOVES[14]
+		expect(getReviewPly(29, sampleGame).nextBest).toEqual({ from: 'f6', to: 'g4', san: 'Ng4' }); // BEST_MOVES[30]
+
+		// Independent of classCode/isSample: same lookup on a non-sample game
+		// with an explicit bestMoves override, at a ply that isn't a NOT_BEST
+		// classification (so `best` would be null while `nextBest` is not).
+		const r = getReviewPly(0, notSampleGame, [0, 0, 0], {
+			1: { from: 'd2', to: 'd4', san: 'd4' }
+		});
+		expect(r.best).toBeNull();
+		expect(r.nextBest).toEqual({ from: 'd2', to: 'd4', san: 'd4' });
+	});
+
+	it('`nextBest` is null at the final ply (no next move to suggest) and when bestMoves has no entry', () => {
+		expect(getReviewPly(31, sampleGame).nextBest).toBeNull(); // final ply, bestMoves[32] never exists
+		expect(getReviewPly(5, sampleGame, undefined, {}).nextBest).toBeNull(); // empty bestMoves override
+	});
 });
 
 describe('getPlayerRows', () => {

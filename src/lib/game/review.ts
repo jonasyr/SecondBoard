@@ -32,6 +32,7 @@ export interface ReviewPly {
 	lastMove: Move | null;
 	classCode: ClassCode | null;
 	best: (Move & { san: string }) | null;
+	nextBest: (Move & { san: string }) | null;
 	evalNum: number;
 	evalStr: string;
 	whitePct: number;
@@ -68,10 +69,16 @@ export function getReviewPly(
 	const evalStr = (evalNum >= 0 ? '+' : '') + evalNum.toFixed(2);
 	const whitePct = evalBarPct(evalNum);
 
-	// Engine best-move arrow: only surfaced when the played move was one of
-	// the NOT_BEST classifications and mock data actually has an entry for it.
+	// Retrospective "best was" text (CoachCard): only surfaced when the played
+	// move was one of the NOT_BEST classifications and mock data has an entry.
 	const best =
 		ply > 0 && classCode && NOT_BEST_CODES.includes(classCode) ? (bestMoves[ply] ?? null) : null;
+
+	// Prospective board arrow: the engine's top suggestion computed FROM the
+	// position currently on screen, for whichever move comes next -- always
+	// shown when available, independent of classCode/isSample (real engine
+	// analysis applies to every loaded game, not just the sample one).
+	const nextBest = bestMoves[ply + 1] ?? null;
 
 	const moveNo = Math.ceil(ply / 2);
 	const coachMove =
@@ -84,6 +91,7 @@ export function getReviewPly(
 		lastMove,
 		classCode,
 		best,
+		nextBest,
 		evalNum,
 		evalStr,
 		whitePct,
