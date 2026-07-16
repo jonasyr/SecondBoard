@@ -20,12 +20,6 @@
 import type { ClassCode } from '$lib/types';
 import type { Move } from '$lib/board/types';
 
-export const SAN_LIST = [
-	'e4', 'e5', 'Nf3', 'Nc6', 'Bc4', 'Bc5', 'c3', 'Nf6', 'd3', 'd6', 'O-O', 'O-O',
-	'Re1', 'a6', 'Bb3', 'Ba7', 'h3', 'h6', 'Nbd2', 'Be6', 'Bxe6', 'fxe6', 'Nf1',
-	'Qe7', 'Ng3', 'Rad8', 'd4', 'exd4', 'cxd4', 'd5', 'Ne5'
-];
-
 export const CLASS_CODES: ClassCode[] = [
 	'book', 'book', 'book', 'book', 'book', 'book', 'best', 'good', 'good', 'good',
 	'best', 'best', 'good', 'inaccuracy', 'best', 'good', 'good', 'good', 'best',

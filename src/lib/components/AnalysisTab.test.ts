@@ -2,7 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, fireEvent } from '@testing-library/svelte';
 import AnalysisTab from './AnalysisTab.svelte';
 import { appState } from '$lib/stores/app-state.svelte';
-import { SAN_LIST } from '$lib/game/mock-data';
+
+// Italian Game move list (31 plies), matching this repo's other sample-game fixtures.
+const SAN_LIST = [
+	'e4', 'e5', 'Nf3', 'Nc6', 'Bc4', 'Bc5', 'c3', 'Nf6', 'd3', 'd6', 'O-O', 'O-O',
+	'Re1', 'a6', 'Bb3', 'Ba7', 'h3', 'h6', 'Nbd2', 'Be6', 'Bxe6', 'fxe6', 'Nf1',
+	'Qe7', 'Ng3', 'Rad8', 'd4', 'exd4', 'cxd4', 'd5', 'Ne5'
+];
 
 // Self-contained fixture: real sample SAN list (still legitimate mock content in
 // mock-data.ts) paired with placeholder positions/moveMeta — these tests assert
