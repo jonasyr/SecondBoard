@@ -146,8 +146,15 @@ pub fn analyze_position(
     wait_for(&mut reader, "uciok")?;
 
     // OVERVIEW §10.4 suggested defaults: Threads = max(1, logical_cpu_count - 1), Hash = 256MB.
+    // Divided by CONCURRENT_ENGINE_INSTANCES because src/lib/game/engine-analysis.ts runs up
+    // to that many analyze_position calls at once during a full-game analysis pass (its
+    // mapWithConcurrency batch size) — without dividing, N concurrent instances each grabbing
+    // cores-1 threads massively oversubscribes the CPU (e.g. 4 x 11 = 44 threads on a 12-core
+    // machine), starving the UI thread and causing dropped frames/lag while analysis runs.
+    // Keep this constant in sync with that batch size.
+    const CONCURRENT_ENGINE_INSTANCES: usize = 4;
     let threads = std::thread::available_parallelism()
-        .map(|n| n.get().saturating_sub(1).max(1))
+        .map(|n| (n.get().saturating_sub(1) / CONCURRENT_ENGINE_INSTANCES).max(1))
         .unwrap_or(1);
     write_line(&mut stdin, &format!("setoption name Threads value {threads}"))?;
     write_line(&mut stdin, "setoption name Hash value 256")?;
