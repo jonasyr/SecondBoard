@@ -1,4 +1,5 @@
 mod engine;
+mod pgn;
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
