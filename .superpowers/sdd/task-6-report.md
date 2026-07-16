@@ -193,3 +193,26 @@ Grepped `as any` across `src/lib/game`, `src/lib/components`, `src/lib/stores` �
 `425fde7` — "fix: remove resurrected mock engine, parameterize real per-game data through engine-analysis and MoveList"
 
 Note: this commit's diff also includes numerous `.superpowers/sdd/*` ledger files (task-1 through task-9 briefs/reports, `review-*.diff` files) that were already staged in the git index by the surrounding SDD pipeline (this fix runs as one task within a larger multi-task ledger) before this session's `git add`; committing staged-but-unrelated files without an explicit destructive unstage was judged the safer path per this session's git-safety constraints. The 12 files intentionally touched by this fix are exactly: `src/lib/game/mock-data.ts`, `src/lib/game/engine-analysis.ts`, `src/lib/game/engine-analysis.test.ts`, `src/lib/game/notation.test.ts`, `src/lib/stores/app-state.svelte.ts`, `src/lib/components/MoveList.svelte`, `src/lib/components/MoveList.test.ts`, `src/lib/components/AnalysisTab.svelte`, `src/lib/components/AnalysisTab.test.ts`, `src/lib/components/GameReviewScreen.test.ts`, `src/lib/components/ReviewPanel.test.ts`, `src/routes/page.test.ts` — confirmed via `git show --stat HEAD`.
+
+---
+
+## Fix: SAN_LIST export removal
+
+**Code-Review Finding:** `src/lib/game/mock-data.ts` still exported `SAN_LIST` (the 31-move Italian Game array), violating Task 6's Step 5 specification that nothing in `src/` should import it from mock-data.ts. Only test files imported it as a fixture.
+
+**Solution:** Removed `export const SAN_LIST = [...]` entirely from `mock-data.ts` (lines 23-27). Replaced the import in each of 4 test files with a local `const SAN_LIST` declaration using the exact same 31-move array literal (matching `MoveList.test.ts`'s local fixture), with the comment `// Italian Game move list (31 plies), matching this repo's other sample-game fixtures.` placed near the top of each file.
+
+**Files Modified:**
+- `src/lib/game/mock-data.ts` — removed export
+- `src/lib/components/AnalysisTab.test.ts` — local const added
+- `src/lib/components/GameReviewScreen.test.ts` — local const added
+- `src/lib/components/ReviewPanel.test.ts` — local const added
+- `src/routes/page.test.ts` — local const added
+
+**Verification:**
+- Grep confirmed no remaining `SAN_LIST` imports from mock-data in `src/`
+- Full test suite: `Test Files  1 failed | 45 passed (46)`, `Tests  1 failed | 185 passed (186)` — only pre-existing OnboardingScreen failure (Task 4 async regression, tracked separately)
+- `pnpm run check`: 0 new errors, pre-existing warnings only
+- `pnpm run lint`: No issues found (ESLint exit code 0)
+
+**Commit:** `62a7313` — "fix: remove SAN_LIST export from mock-data.ts per Task 6 spec (review finding)"
