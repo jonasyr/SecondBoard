@@ -13,7 +13,7 @@
 
 	let { ply, onSelectPly, onNext }: Props = $props();
 
-	const data = $derived(getReviewPly(ply, appState.evalPerPly, appState.bestMoves));
+	const data = $derived(getReviewPly(ply, appState.game!, appState.evalPerPly, appState.bestMoves));
 </script>
 
 <div class="analysis-tab">

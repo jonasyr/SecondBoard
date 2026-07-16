@@ -1,7 +1,17 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, fireEvent } from '@testing-library/svelte';
 import AnalysisTab from './AnalysisTab.svelte';
 import { appState } from '$lib/stores/app-state.svelte';
+import { SAN_LIST, MOCK_POSITIONS, MOCK_MOVE_META } from '$lib/game/mock-data';
+
+beforeEach(() => {
+	appState.game = {
+		sanList: SAN_LIST,
+		positions: MOCK_POSITIONS,
+		moveMeta: MOCK_MOVE_META,
+		isSample: true
+	};
+});
 
 describe('AnalysisTab', () => {
 	it('renders the coach card for the given ply and the move list', () => {

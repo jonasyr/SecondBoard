@@ -1,16 +1,10 @@
-import type { Move, Position } from '$lib/board/types';
+import type { Move } from '$lib/board/types';
 import type { Screen, Tab } from '$lib/types';
 import { EVAL_PER_PLY, BEST_MOVES } from '$lib/game/mock-data';
 import { loadRealAnalysis } from '$lib/game/engine-analysis';
 import { parsePgn } from '$lib/api/pgn';
 import { SAMPLE_PGN } from '$lib/game/sample-pgn';
-
-export interface GameData {
-	sanList: string[];
-	positions: Position[];
-	moveMeta: Move[];
-	isSample: boolean;
-}
+import type { GameData } from '$lib/game/review';
 
 export interface AppState {
 	screen: Screen;

@@ -2,10 +2,20 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { render } from '@testing-library/svelte';
 import Page from './+page.svelte';
 import { appState, createAppState } from '$lib/stores/app-state.svelte';
+import { SAN_LIST, MOCK_POSITIONS, MOCK_MOVE_META } from '$lib/game/mock-data';
 
 beforeEach(() => {
 	Object.assign(appState, createAppState());
 });
+
+function loadSampleGame(): void {
+	appState.game = {
+		sanList: SAN_LIST,
+		positions: MOCK_POSITIONS,
+		moveMeta: MOCK_MOVE_META,
+		isSample: true
+	};
+}
 
 describe('root page (screen switcher)', () => {
 	it('shows the OnboardingScreen by default (screen=review, gameLoaded=false)', () => {
@@ -15,6 +25,7 @@ describe('root page (screen switcher)', () => {
 
 	it('renders the GameReviewScreen board instead of onboarding once a game is loaded on review', () => {
 		appState.gameLoaded = true;
+		loadSampleGame();
 		const { queryByText, container } = render(Page);
 		expect(queryByText('Review your chess game')).toBeNull();
 		expect(container.querySelectorAll('[data-sq]')).toHaveLength(64);
@@ -35,6 +46,7 @@ describe('root page (screen switcher)', () => {
 	it('renders the GameReviewScreen (64 board squares) when a game is loaded on the review screen', () => {
 		appState.gameLoaded = true;
 		appState.screen = 'review';
+		loadSampleGame();
 		const { container } = render(Page);
 		expect(container.querySelectorAll('[data-sq]')).toHaveLength(64);
 	});

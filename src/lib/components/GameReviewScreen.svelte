@@ -7,8 +7,10 @@
 	import EvalBar from './EvalBar.svelte';
 	import ReviewPanel from './ReviewPanel.svelte';
 
-	const data = $derived(getReviewPly(appState.ply, appState.evalPerPly, appState.bestMoves));
-	const rows = $derived(getPlayerRows(appState.ply, appState.flipped));
+	const data = $derived(
+		getReviewPly(appState.ply, appState.game!, appState.evalPerPly, appState.bestMoves)
+	);
+	const rows = $derived(getPlayerRows(appState.ply, appState.flipped, appState.game!));
 
 	onMount(() => {
 		window.addEventListener('keydown', handleReviewKeydown);

@@ -2,11 +2,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, fireEvent } from '@testing-library/svelte';
 import ReviewPanel from './ReviewPanel.svelte';
 import { appState } from '$lib/stores/app-state.svelte';
+import { SAN_LIST, MOCK_POSITIONS, MOCK_MOVE_META } from '$lib/game/mock-data';
 
 beforeEach(() => {
 	appState.tab = 'analysis';
 	appState.ply = 31;
 	appState.flipped = false;
+	appState.game = {
+		sanList: SAN_LIST,
+		positions: MOCK_POSITIONS,
+		moveMeta: MOCK_MOVE_META,
+		isSample: true
+	};
 });
 
 describe('ReviewPanel', () => {
