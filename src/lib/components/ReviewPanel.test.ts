@@ -2,16 +2,23 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, fireEvent } from '@testing-library/svelte';
 import ReviewPanel from './ReviewPanel.svelte';
 import { appState } from '$lib/stores/app-state.svelte';
-import { SAMPLE_SAN_LIST_EXPORT, SAMPLE_POSITIONS, SAMPLE_MOVE_META } from '$lib/game/mock-data';
+import { SAN_LIST } from '$lib/game/mock-data';
+
+// Self-contained fixture: real sample SAN list (still legitimate mock content in
+// mock-data.ts) paired with placeholder positions/moveMeta — this panel-level
+// test only asserts on tab switching and move-list row presence, not on real
+// chess position content.
+const positions = Array.from({ length: SAN_LIST.length + 1 }, () => ({}));
+const moveMeta = Array.from({ length: SAN_LIST.length }, () => ({ from: 'a2', to: 'a3' }));
 
 beforeEach(() => {
 	appState.tab = 'analysis';
 	appState.ply = 31;
 	appState.flipped = false;
 	appState.game = {
-		sanList: SAMPLE_SAN_LIST_EXPORT,
-		positions: SAMPLE_POSITIONS,
-		moveMeta: SAMPLE_MOVE_META,
+		sanList: SAN_LIST,
+		positions,
+		moveMeta,
 		isSample: true
 	};
 });

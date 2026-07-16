@@ -1,0 +1,132 @@
+# Review package: 7781119fd68aee6649f04059f4bff4555ef7524a..HEAD
+
+## Commits
+c900eb5 fix: correct mate-score sign handling in toWhitePovEval
+02cadd4 feat: orchestrate per-ply real engine analysis for the mock game
+
+## Files changed
+ src/lib/game/engine-analysis.test.ts | 64 ++++++++++++++++++++++++++++++++++++
+ src/lib/game/engine-analysis.ts      | 44 +++++++++++++++++++++++++
+ 2 files changed, 108 insertions(+)
+
+## Diff
+diff --git a/src/lib/game/engine-analysis.test.ts b/src/lib/game/engine-analysis.test.ts
+new file mode 100644
+index 0000000..9bb58b2
+--- /dev/null
++++ b/src/lib/game/engine-analysis.test.ts
+@@ -0,0 +1,64 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest';
++
++const { analyzeFen } = vi.hoisted(() => ({ analyzeFen: vi.fn() }));
++vi.mock('$lib/api/engine', () => ({ analyzeFen }));
++
++import { loadRealAnalysis } from './engine-analysis';
++import { MOCK_POSITIONS } from './mock-data';
++
++describe('loadRealAnalysis', () => {
++	beforeEach(() => {
++		analyzeFen.mockReset();
++	});
++
++	it('produces one evalPerPly entry per mock position, normalized to White POV', async () => {
++		analyzeFen.mockImplementation(async () => ({
++			evalCp: 50,
++			isMate: false,
++			bestMoveUci: 'e2e4',
++			pv: []
++		}));
++
++		const { evalPerPly } = await loadRealAnalysis();
++
++		expect(evalPerPly).toHaveLength(MOCK_POSITIONS.length);
++		expect(evalPerPly[0]).toBeCloseTo(0.5); // ply 0: White to move, +50cp -> +0.50 White POV
++		expect(evalPerPly[1]).toBeCloseTo(-0.5); // ply 1: Black to move, +50cp for Black -> -0.50 White POV
++	});
++
++	it('maps each analyzed position\'s best move onto the following ply (matches BEST_MOVES[14] shape)', async () => {
++		analyzeFen.mockResolvedValue({ evalCp: 0, isMate: false, bestMoveUci: 'c8g4', pv: [] });
++
++		const { bestMoves } = await loadRealAnalysis();
++
++		expect(bestMoves[14]).toEqual({ from: 'c8', to: 'g4', san: 'Bg4' });
++	});
++
++	it('does not add a bestMoves entry for the position after the final ply', async () => {
++		analyzeFen.mockResolvedValue({ evalCp: 0, isMate: false, bestMoveUci: 'c8g4', pv: [] });
++
++		const { bestMoves } = await loadRealAnalysis();
++
++		expect(bestMoves[MOCK_POSITIONS.length]).toBeUndefined();
++	});
++
++	it('reports a large positive eval for a favorable mate for the mover (White to move, ply 0)', async () => {
++		analyzeFen.mockResolvedValue({ evalCp: 100_000, isMate: true, bestMoveUci: 'e2e4', pv: [] });
++
++		const { evalPerPly } = await loadRealAnalysis();
++
++		expect(evalPerPly[0]).toBeGreaterThan(50); // ply 0: White to move, mate FOR mover -> large positive
++	});
++
++	it('reports a large negative eval for a losing mate for the mover (White to move, ply 0)', async () => {
++		// Regression test: evalCp is already signed relative to the mover by the Rust
++		// side (positive = mate for the mover, negative = mover is being mated). If
++		// toWhitePovEval discards that sign and hardcodes a positive magnitude for any
++		// mate score, this case (mover is being mated) would incorrectly come out positive.
++		analyzeFen.mockResolvedValue({ evalCp: -100_000, isMate: true, bestMoveUci: 'e2e4', pv: [] });
++
++		const { evalPerPly } = await loadRealAnalysis();
++
++		expect(evalPerPly[0]).toBeLessThan(-50); // ply 0: White to move, mover IS being mated -> large negative
++	});
++});
+diff --git a/src/lib/game/engine-analysis.ts b/src/lib/game/engine-analysis.ts
+new file mode 100644
+index 0000000..4bbba1e
+--- /dev/null
++++ b/src/lib/game/engine-analysis.ts
+@@ -0,0 +1,44 @@
++/**
++ * Orchestrates the Phase-0 engine spike: analyzes every ply of the mock Italian
++ * Game with the real Stockfish-backed `analyze_fen` command and reshapes the
++ * results into the same evalPerPly/bestMoves shape the (now-replaced) mock
++ * EVAL_PER_PLY/BEST_MOVES arrays used. classCodes/coachText stay mocked — move
++ * classification is out of scope for this iteration (LOGIC.md §7).
++ */
++import type { Move } from '$lib/board/types';
++import { analyzeFen } from '$lib/api/engine';
++import { positionToFen, sideToMoveForPly, fullmoveNumberForPly, moveToSan } from './notation';
++import { MOCK_POSITIONS } from './mock-data';
++
++export interface RealAnalysis {
++	evalPerPly: number[];
++	bestMoves: Record<number, Move & { san: string }>;
++}
++
++/** Stockfish's score is relative to the side to move at the analyzed FEN — flip it
++ * to White's POV (positive = good for White) so it matches evalBarPct's convention. */
++function toWhitePovEval(evalCp: number, sideToMove: 'w' | 'b'): number {
++	return sideToMove === 'w' ? evalCp / 100 : -(evalCp / 100);
++}
++
++export async function loadRealAnalysis(): Promise<RealAnalysis> {
++	const results = await Promise.all(
++		MOCK_POSITIONS.map((position, ply) =>
++			analyzeFen(positionToFen(position, sideToMoveForPly(ply), fullmoveNumberForPly(ply)))
++		)
++	);
++
++	const evalPerPly = results.map((r, ply) =>
++		toWhitePovEval(r.evalCp, sideToMoveForPly(ply))
++	);
++
++	const bestMoves: Record<number, Move & { san: string }> = {};
++	results.forEach((r, ply) => {
++		if (ply === MOCK_POSITIONS.length - 1 || r.bestMoveUci.length < 4) return;
++		const from = r.bestMoveUci.slice(0, 2);
++		const to = r.bestMoveUci.slice(2, 4);
++		bestMoves[ply + 1] = { from, to, san: moveToSan(MOCK_POSITIONS[ply], { from, to }) };
++	});
++
++	return { evalPerPly, bestMoves };
++}

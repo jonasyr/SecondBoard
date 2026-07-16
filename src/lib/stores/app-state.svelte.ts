@@ -99,7 +99,7 @@ export async function startReview(): Promise<void> {
 async function refreshRealAnalysis(): Promise<void> {
 	appState.analysisStatus = 'loading';
 	try {
-		const { evalPerPly, bestMoves } = await loadRealAnalysis();
+		const { evalPerPly, bestMoves } = await loadRealAnalysis(appState.game!.positions);
 		appState.evalPerPly = evalPerPly;
 		appState.bestMoves = bestMoves;
 		appState.analysisStatus = 'ready';

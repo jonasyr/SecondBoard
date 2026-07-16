@@ -1,0 +1,73 @@
+# Review package: 310f7f596f83f89cea2cd26f3fed52f3e72d57ee..HEAD
+
+## Commits
+924bddc feat: add analyzeFen Tauri invoke wrapper
+
+## Files changed
+ src/lib/api/engine.test.ts | 26 ++++++++++++++++++++++++++
+ src/lib/api/engine.ts      | 13 +++++++++++++
+ src/lib/api/index.ts       |  4 ++--
+ 3 files changed, 41 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/src/lib/api/engine.test.ts b/src/lib/api/engine.test.ts
+new file mode 100644
+index 0000000..a4422a3
+--- /dev/null
++++ b/src/lib/api/engine.test.ts
+@@ -0,0 +1,26 @@
++import { describe, it, expect, vi } from 'vitest';
++
++const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
++
++vi.mock('@tauri-apps/api/core', () => ({ invoke }));
++
++import { analyzeFen } from './engine';
++
++describe('analyzeFen', () => {
++	it('invokes the analyze_fen command with the given FEN and returns its result', async () => {
++		invoke.mockResolvedValue({
++			evalCp: 34,
++			isMate: false,
++			bestMoveUci: 'e2e4',
++			pv: ['e2e4', 'e7e5']
++		});
++
++		const result = await analyzeFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1');
++
++		expect(invoke).toHaveBeenCalledWith('analyze_fen', {
++			fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1'
++		});
++		expect(result.bestMoveUci).toBe('e2e4');
++		expect(result.evalCp).toBe(34);
++	});
++});
+diff --git a/src/lib/api/engine.ts b/src/lib/api/engine.ts
+new file mode 100644
+index 0000000..41f15a6
+--- /dev/null
++++ b/src/lib/api/engine.ts
+@@ -0,0 +1,13 @@
++import { invoke } from '@tauri-apps/api/core';
++
++export interface AnalyzeFenResult {
++	evalCp: number;
++	isMate: boolean;
++	bestMoveUci: string;
++	pv: string[];
++}
++
++/** Invokes the Rust `analyze_fen` Tauri command (LOGIC.md §7 Phase-0 spike). */
++export function analyzeFen(fen: string): Promise<AnalyzeFenResult> {
++	return invoke<AnalyzeFenResult>('analyze_fen', { fen });
++}
+diff --git a/src/lib/api/index.ts b/src/lib/api/index.ts
+index 9092daa..a7fd46a 100644
+--- a/src/lib/api/index.ts
++++ b/src/lib/api/index.ts
+@@ -1,3 +1,3 @@
+ // Tauri invoke wrappers land here starting the iteration that wires the Rust backend
+-// (design_handoff_secondboard/README.md §11, step 5+). Empty on purpose for now.
+-export {};
++export * from './window';
++export * from './engine';

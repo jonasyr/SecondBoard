@@ -46,7 +46,12 @@
 		</button>
 	</div>
 
-	<MoveList selectedPly={ply} {onSelectPly} />
+	<MoveList
+		selectedPly={ply}
+		{onSelectPly}
+		sanList={appState.game!.sanList}
+		isSample={appState.game!.isSample}
+	/>
 </div>
 
 <style>

@@ -1,0 +1,76 @@
+# Review package: a568fe4fde6f91d906cbbd9cfd48d40e95bffd8e..HEAD
+
+## Commits
+440e3e6 feat: expose parse_pgn as a Tauri command
+
+## Files changed
+ src-tauri/src/lib.rs | 27 ++++++++++++++++++++++++++-
+ 1 file changed, 26 insertions(+), 1 deletion(-)
+
+## Diff
+diff --git a/src-tauri/src/lib.rs b/src-tauri/src/lib.rs
+index 8b9b591..e754b1b 100644
+--- a/src-tauri/src/lib.rs
++++ b/src-tauri/src/lib.rs
+@@ -32,24 +32,29 @@ fn analyze_fen_sync(fen: String) -> Result<AnalyzeFenResult, String> {
+ #[tauri::command]
+ async fn analyze_fen(fen: String) -> Result<AnalyzeFenResult, String> {
+     // Blocking process I/O — offload to a blocking-friendly task so it doesn't
+     // stall the async runtime (Tauri v2 docs: plain `fn` commands run on the main
+     // thread; `async fn` + spawn_blocking is the documented pattern for blocking work).
+     tauri::async_runtime::spawn_blocking(move || analyze_fen_sync(fen))
+         .await
+         .map_err(|e| e.to_string())?
+ }
+ 
++#[tauri::command]
++fn parse_pgn(pgn: String) -> Result<pgn::ParsedGame, String> {
++    pgn::parse_pgn(&pgn)
++}
++
+ #[cfg_attr(mobile, tauri::mobile_entry_point)]
+ pub fn run() {
+   tauri::Builder::default()
+-    .invoke_handler(tauri::generate_handler![analyze_fen])
++    .invoke_handler(tauri::generate_handler![analyze_fen, parse_pgn])
+     .setup(|app| {
+       if cfg!(debug_assertions) {
+         app.handle().plugin(
+           tauri_plugin_log::Builder::default()
+             .level(log::LevelFilter::Info)
+             .build(),
+         )?;
+       }
+       Ok(())
+     })
+@@ -70,10 +75,30 @@ mod analyze_fen_tests {
+             Ok(result) => {
+                 assert_eq!(result.best_move_uci.len(), 4);
+             }
+             Err(msg) => {
+                 // Only acceptable failure on a machine without stockfish on PATH.
+                 assert!(msg.contains("failed to spawn engine"), "unexpected error: {msg}");
+             }
+         }
+     }
+ }
++
++#[cfg(test)]
++mod parse_pgn_tests {
++    use super::*;
++
++    #[test]
++    fn parse_pgn_command_delegates_to_the_pgn_module() {
++        let pgn = "1. e4 e5 2. Nf3 Nc6".to_string();
++        let result = parse_pgn(pgn).expect("valid PGN should parse successfully");
++        assert_eq!(result.san_list, vec!["e4", "e5", "Nf3", "Nc6"]);
++        assert_eq!(result.positions.len(), 5);
++    }
++
++    #[test]
++    fn parse_pgn_command_surfaces_parse_errors_as_strings() {
++        let bad_pgn = "1. e4 e5 2. Ke2 Ke7 3. Kf3 Kd8".to_string();
++        let result = parse_pgn(bad_pgn);
++        assert!(result.is_err());
++    }
++}

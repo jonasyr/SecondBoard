@@ -2,13 +2,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, fireEvent } from '@testing-library/svelte';
 import AnalysisTab from './AnalysisTab.svelte';
 import { appState } from '$lib/stores/app-state.svelte';
-import { SAMPLE_SAN_LIST_EXPORT, SAMPLE_POSITIONS, SAMPLE_MOVE_META } from '$lib/game/mock-data';
+import { SAN_LIST } from '$lib/game/mock-data';
+
+// Self-contained fixture: real sample SAN list (still legitimate mock content in
+// mock-data.ts) paired with placeholder positions/moveMeta — these tests assert
+// on the coach card's move label/text and move-list row count derived from
+// sanList, not on real chess position content.
+const positions = Array.from({ length: SAN_LIST.length + 1 }, () => ({}));
+const moveMeta = Array.from({ length: SAN_LIST.length }, () => ({ from: 'a2', to: 'a3' }));
 
 beforeEach(() => {
 	appState.game = {
-		sanList: SAMPLE_SAN_LIST_EXPORT,
-		positions: SAMPLE_POSITIONS,
-		moveMeta: SAMPLE_MOVE_META,
+		sanList: SAN_LIST,
+		positions,
+		moveMeta,
 		isSample: true
 	};
 });
