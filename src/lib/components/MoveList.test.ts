@@ -51,4 +51,13 @@ describe('MoveList', () => {
 		});
 		expect(container.querySelectorAll('.badge')).toHaveLength(0);
 	});
+
+	it('still highlights the selected cell when isSample is false', () => {
+		const { container } = render(MoveList, {
+			props: { selectedPly: 1, onSelectPly: () => {}, sanList: ['e4', 'e5'], isSample: false }
+		});
+		const selected = container.querySelector('[data-sb-sel="1"]') as HTMLElement;
+		expect(selected).not.toBeNull();
+		expect(selected.getAttribute('style')).toContain('background: rgba(45, 224, 206, 0.14)');
+	});
 });

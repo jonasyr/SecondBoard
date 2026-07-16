@@ -78,7 +78,11 @@ export async function startReview(): Promise<void> {
 			sanList: parsed.sanList,
 			positions: parsed.positions,
 			moveMeta: parsed.moves,
-			isSample: pgnToParse.trim() === SAMPLE_PGN.trim()
+			isSample: pgnToParse.trim() === SAMPLE_PGN.trim(),
+			whiteName: parsed.whiteName,
+			blackName: parsed.blackName,
+			whiteRating: parsed.whiteRating,
+			blackRating: parsed.blackRating
 		};
 		appState.evalPerPly = new Array(parsed.sanList.length + 1).fill(0);
 		appState.bestMoves = {};

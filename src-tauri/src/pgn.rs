@@ -1,12 +1,13 @@
 //! Parses PGN move text into real per-ply board positions (OVERVIEW §6.5/§8.3
 //! `pgn` module). Replaces `src/lib/game/mock-engine.ts` — the JS mock LOGIC.md
 //! explicitly says must not ship. Only the mainline is parsed (RAV variations
-//! are skipped); no tag/metadata extraction this iteration (README §11 step 6
-//! scope — see the plan's Global Constraints).
+//! are skipped). Extracts the White/Black/WhiteElo/BlackElo tags only (player
+//! display info); no other tag/metadata extraction this iteration (README §11
+//! step 6 scope — see the plan's Global Constraints).
 
 use std::collections::HashMap;
 
-use pgn_reader::{BufferedReader, SanPlus, Skip, Visitor};
+use pgn_reader::{BufferedReader, RawTag, SanPlus, Skip, Visitor};
 use shakmaty::{Chess, Color, Move as ShakMove, Position, Role, Square};
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -15,6 +16,10 @@ pub struct ParsedGame {
     pub san_list: Vec<String>,
     pub positions: Vec<HashMap<String, (String, String)>>,
     pub moves: Vec<MoveDto>,
+    pub white_name: Option<String>,
+    pub black_name: Option<String>,
+    pub white_rating: Option<String>,
+    pub black_rating: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
@@ -81,12 +86,28 @@ fn move_dto(m: &ShakMove) -> MoveDto {
     }
 }
 
+/// Decodes a tag value, treating PGN's own "unknown value" placeholder (`"?"`,
+/// used by e.g. chess.com/lichess exports when a rating wasn't recorded) the
+/// same as absent -- callers should fall back rather than display a bare "?".
+fn decode_known_tag(value: RawTag<'_>) -> Option<String> {
+    let decoded = value.decode_utf8_lossy().into_owned();
+    if decoded.is_empty() || decoded == "?" {
+        None
+    } else {
+        Some(decoded)
+    }
+}
+
 struct GameVisitor {
     pos: Chess,
     san_list: Vec<String>,
     positions: Vec<HashMap<String, (String, String)>>,
     moves: Vec<MoveDto>,
     error: Option<String>,
+    white_name: Option<String>,
+    black_name: Option<String>,
+    white_rating: Option<String>,
+    black_rating: Option<String>,
 }
 
 impl GameVisitor {
@@ -98,12 +119,26 @@ impl GameVisitor {
             san_list: Vec::new(),
             moves: Vec::new(),
             error: None,
+            white_name: None,
+            black_name: None,
+            white_rating: None,
+            black_rating: None,
         }
     }
 }
 
 impl Visitor for GameVisitor {
     type Result = Result<ParsedGame, String>;
+
+    fn tag(&mut self, name: &[u8], value: RawTag<'_>) {
+        match name {
+            b"White" => self.white_name = decode_known_tag(value),
+            b"Black" => self.black_name = decode_known_tag(value),
+            b"WhiteElo" => self.white_rating = decode_known_tag(value),
+            b"BlackElo" => self.black_rating = decode_known_tag(value),
+            _ => {}
+        }
+    }
 
     fn begin_variation(&mut self) -> Skip {
         Skip(true) // stay in the mainline only; do not descend into RAV variations
@@ -136,6 +171,10 @@ impl Visitor for GameVisitor {
             san_list: std::mem::take(&mut self.san_list),
             positions: std::mem::take(&mut self.positions),
             moves: std::mem::take(&mut self.moves),
+            white_name: self.white_name.take(),
+            black_name: self.black_name.take(),
+            white_rating: self.white_rating.take(),
+            black_rating: self.black_rating.take(),
         })
     }
 }
@@ -181,6 +220,32 @@ mod tests {
         assert_eq!(game.san_list, SAMPLE_SAN_LIST.to_vec());
         assert_eq!(game.positions.len(), 32);
         assert_eq!(game.moves.len(), 31);
+    }
+
+    #[test]
+    fn extracts_player_names_and_ratings_from_tags() {
+        let game = parse_pgn(SAMPLE_PGN).expect("sample PGN should parse");
+        assert_eq!(game.white_name, Some("Jonas".to_string()));
+        assert_eq!(game.black_name, Some("DominikP".to_string()));
+        assert_eq!(game.white_rating, Some("1867".to_string()));
+        assert_eq!(game.black_rating, Some("2043".to_string()));
+    }
+
+    #[test]
+    fn treats_missing_or_unknown_rating_tags_as_none() {
+        let pgn = concat!(
+            "[Event \"Casual Game\"]\n",
+            "[White \"Alice\"]\n",
+            "[Black \"Bob\"]\n",
+            "[WhiteElo \"?\"]\n",
+            "\n",
+            "1. e4 e5"
+        );
+        let game = parse_pgn(pgn).expect("PGN with missing/unknown tags should still parse");
+        assert_eq!(game.white_name, Some("Alice".to_string()));
+        assert_eq!(game.black_name, Some("Bob".to_string()));
+        assert_eq!(game.white_rating, None); // "?" placeholder
+        assert_eq!(game.black_rating, None); // tag absent entirely
     }
 
     #[test]

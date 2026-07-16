@@ -36,13 +36,13 @@
 	<div class="label sbmono" style={whiteLabelStyle}>{whiteLabel}</div>
 	<div class="label sbmono" style={blackLabelStyle}>{blackLabel}</div>
 	{#if analyzing}
-		<div class="analyzing-dot" title="Analyzing with Stockfish…"></div>
+		<div class="analyzing-spinner" title="Analyzing with Stockfish…"></div>
 	{/if}
 </div>
 
 <style>
 	.eval-bar {
-		width: 20px;
+		width: 28px;
 		flex: none;
 		position: relative;
 		border-radius: 6px;
@@ -58,24 +58,21 @@
 		height: 1px;
 		background: var(--board-eval-midline);
 	}
-	.analyzing-dot {
+	.analyzing-spinner {
 		position: absolute;
 		top: 50%;
 		left: 50%;
-		width: 5px;
-		height: 5px;
+		width: 13px;
+		height: 13px;
+		margin: -6.5px 0 0 -6.5px;
 		border-radius: 50%;
-		background: var(--color-text-tertiary);
-		transform: translate(-50%, -50%);
-		animation: eval-bar-pulse 1.2s ease-in-out infinite;
+		border: 2px solid rgba(255, 255, 255, 0.25);
+		border-top-color: #e3e6ee;
+		animation: eval-bar-spin 0.7s linear infinite;
 	}
-	@keyframes eval-bar-pulse {
-		0%,
-		100% {
-			opacity: 0.25;
-		}
-		50% {
-			opacity: 1;
+	@keyframes eval-bar-spin {
+		to {
+			transform: rotate(360deg);
 		}
 	}
 </style>

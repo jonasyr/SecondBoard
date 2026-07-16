@@ -27,7 +27,11 @@ beforeEach(() => {
 		sanList: SAN_LIST,
 		positions,
 		moveMeta,
-		isSample: true
+		isSample: true,
+		whiteName: null,
+		blackName: null,
+		whiteRating: null,
+		blackRating: null
 	};
 });
 

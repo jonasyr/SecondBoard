@@ -17,7 +17,11 @@ const sampleGame: GameData = {
 	],
 	positions: Array.from({ length: 32 }, () => ({})), // content unused by these tests
 	moveMeta: sampleMoveMeta,
-	isSample: true
+	isSample: true,
+	whiteName: null,
+	blackName: null,
+	whiteRating: null,
+	blackRating: null
 };
 
 const notSampleGame: GameData = {
@@ -27,7 +31,11 @@ const notSampleGame: GameData = {
 		{ from: 'd2', to: 'd4' },
 		{ from: 'd7', to: 'd5' }
 	],
-	isSample: false
+	isSample: false,
+	whiteName: null,
+	blackName: null,
+	whiteRating: null,
+	blackRating: null
 };
 
 describe('getReviewPly', () => {
@@ -99,5 +107,23 @@ describe('getPlayerRows', () => {
 		expect(top.name).toBe('DominikP');
 		expect(top.clockActive).toBe(true);
 		expect(bottom.clockActive).toBe(false);
+	});
+
+	it('uses real PGN White/Black/*Elo tags over the mock PLAYERS fallback when present', () => {
+		const realGame: GameData = {
+			...notSampleGame,
+			whiteName: 'Donald Byrne',
+			blackName: 'Robert James Fischer',
+			whiteRating: '1800',
+			blackRating: null
+		};
+		const { top, bottom } = getPlayerRows(0, false, realGame);
+		expect(bottom.name).toBe('Donald Byrne');
+		expect(bottom.rating).toBe('1800');
+		expect(bottom.initial).toBe('D');
+		expect(top.name).toBe('Robert James Fischer');
+		expect(top.initial).toBe('R');
+		// blackRating is null (no BlackElo tag) -> falls back to the mock rating.
+		expect(top.rating).not.toBe('');
 	});
 });

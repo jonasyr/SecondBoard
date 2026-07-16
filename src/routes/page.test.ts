@@ -23,7 +23,11 @@ function loadSampleGame(): void {
 		sanList: SAN_LIST,
 		positions: Array.from({ length: SAN_LIST.length + 1 }, () => ({})),
 		moveMeta: Array.from({ length: SAN_LIST.length }, () => ({ from: 'a2', to: 'a3' })),
-		isSample: true
+		isSample: true,
+		whiteName: null,
+		blackName: null,
+		whiteRating: null,
+		blackRating: null
 	};
 }
 

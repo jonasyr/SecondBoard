@@ -40,13 +40,13 @@ describe('EvalBar', () => {
 		const { container } = render(EvalBar, {
 			props: { whitePct: 50, evalNum: 0, whiteAtBottom: true }
 		});
-		expect(container.querySelector('.analyzing-dot')).toBeNull();
+		expect(container.querySelector('.analyzing-spinner')).toBeNull();
 	});
 
 	it('renders an analyzing indicator when analyzing is true', () => {
 		const { container } = render(EvalBar, {
 			props: { whitePct: 50, evalNum: 0, whiteAtBottom: true, analyzing: true }
 		});
-		expect(container.querySelector('.analyzing-dot')).not.toBeNull();
+		expect(container.querySelector('.analyzing-spinner')).not.toBeNull();
 	});
 });

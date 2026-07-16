@@ -32,10 +32,11 @@
 		})
 	);
 
-	function cellStyle(sel: boolean, code: import('$lib/types').ClassCode): string {
-		return sel
-			? 'background:rgba(45,224,206,.14);color:#5EF0DE;font-weight:600;box-shadow:inset 0 0 0 1px rgba(45,224,206,.3);'
-			: `color:${TOKENS.review.moveTint[code]};`;
+	function cellStyle(sel: boolean, isSample: boolean, code: import('$lib/types').ClassCode | null): string {
+		if (sel) {
+			return 'background:rgba(45,224,206,.14);color:#5EF0DE;font-weight:600;box-shadow:inset 0 0 0 1px rgba(45,224,206,.3);';
+		}
+		return isSample && code ? `color:${TOKENS.review.moveTint[code]};` : '';
 	}
 
 	let listEl: HTMLDivElement | undefined = $state();
@@ -62,7 +63,7 @@
 			<div
 				class="cell"
 				data-sb-sel={selectedPly === row.wPly ? '1' : '0'}
-				style={isSample ? cellStyle(selectedPly === row.wPly, CLASS_CODES[row.wPly - 1]) : ''}
+				style={cellStyle(selectedPly === row.wPly, isSample, isSample ? CLASS_CODES[row.wPly - 1] : null)}
 				onclick={() => onSelectPly(row.wPly)}
 			>
 				{#if isSample}
@@ -74,7 +75,7 @@
 				<div
 					class="cell"
 					data-sb-sel={selectedPly === row.bPly ? '1' : '0'}
-					style={isSample ? cellStyle(selectedPly === row.bPly, CLASS_CODES[row.bPly - 1]) : ''}
+					style={cellStyle(selectedPly === row.bPly, isSample, isSample ? CLASS_CODES[row.bPly - 1] : null)}
 					onclick={() => onSelectPly(row.bPly!)}
 				>
 					{#if isSample}

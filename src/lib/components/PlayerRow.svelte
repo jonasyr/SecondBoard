@@ -36,7 +36,7 @@
 			{#each player.captured as piece, i (i)}
 				<span
 					class="captured-piece"
-					style={`background-image:url(${PIECE_SPRITES[(piece.color + piece.type) as PieceSpriteKey]});filter:${TOKENS.review.capturedSpriteShadow};`}
+					style={`background-image:url(${PIECE_SPRITES[(piece.color + piece.type) as PieceSpriteKey]});filter:${piece.color === 'b' ? TOKENS.review.capturedSpriteShadowBlack : TOKENS.review.capturedSpriteShadow};`}
 				></span>
 			{/each}
 			{#if player.adv}

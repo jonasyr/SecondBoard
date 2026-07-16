@@ -5,6 +5,10 @@ export interface ParsedGame {
 	sanList: string[];
 	positions: Position[];
 	moves: Move[];
+	whiteName: string | null;
+	blackName: string | null;
+	whiteRating: string | null;
+	blackRating: string | null;
 }
 
 /** Invokes the Rust `parse_pgn` Tauri command (LOGIC.md §7/§8; replaces the mock SAN engine). */

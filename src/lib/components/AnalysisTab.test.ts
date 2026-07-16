@@ -22,7 +22,11 @@ beforeEach(() => {
 		sanList: SAN_LIST,
 		positions,
 		moveMeta,
-		isSample: true
+		isSample: true,
+		whiteName: null,
+		blackName: null,
+		whiteRating: null,
+		blackRating: null
 	};
 });
 
@@ -55,15 +59,8 @@ describe('AnalysisTab', () => {
 		expect(container.querySelector('.coach-slot .badge')).toBeNull();
 	});
 
-	it('shows the analyzing note only while analysisStatus is loading', () => {
+	it('never shows an analyzing note itself even while analysisStatus is loading (that lives on the eval graph in BottomBar now)', () => {
 		appState.analysisStatus = 'loading';
-		const { getByText, unmount } = render(AnalysisTab, {
-			props: { ply: 31, onSelectPly: () => {}, onNext: () => {} }
-		});
-		expect(getByText('Analyzing with Stockfish…')).toBeTruthy();
-		unmount();
-
-		appState.analysisStatus = 'ready';
 		const { queryByText } = render(AnalysisTab, {
 			props: { ply: 31, onSelectPly: () => {}, onNext: () => {} }
 		});

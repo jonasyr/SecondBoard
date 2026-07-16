@@ -21,6 +21,10 @@ export interface GameData {
 	positions: Position[];
 	moveMeta: Move[];
 	isSample: boolean;
+	whiteName: string | null;
+	blackName: string | null;
+	whiteRating: string | null;
+	blackRating: string | null;
 }
 
 export interface ReviewPly {
@@ -103,8 +107,9 @@ export interface PlayerRowData {
  * Derives the two player-row descriptors (captured material, material
  * advantage chip, active clock) for a given ply, swapped top/bottom by the
  * `flipped` board orientation. Mirrors renderVals() lines 1244-1258. Player
- * name/rating/clock still come from the mocked `PLAYERS` (deliberately not
- * wired to real PGN tags this iteration — see the plan's Global Constraints).
+ * name/rating come from the real PGN White/Black/*Elo tags when present,
+ * falling back to the mocked `PLAYERS` fixture otherwise; clock remains mock
+ * (no live clock data exists for a completed game review).
  */
 export function getPlayerRows(
 	ply: number,
@@ -115,10 +120,18 @@ export function getPlayerRows(
 	const cap = capturedInfo(position);
 	const blackToMove = ply % 2 === 1;
 
+	// Real PGN White/Black/*Elo tags take priority; the mock PLAYERS fixture is
+	// only a fallback for games missing those tags (it also happens to match
+	// the built-in sample game's own real tags, so its display is unaffected).
+	const whiteName = game.whiteName ?? PLAYERS.white.name;
+	const blackName = game.blackName ?? PLAYERS.black.name;
+	const whiteRating = game.whiteRating ?? PLAYERS.white.rating;
+	const blackRating = game.blackRating ?? PLAYERS.black.rating;
+
 	const white: PlayerRowData = {
-		name: PLAYERS.white.name,
-		rating: PLAYERS.white.rating,
-		initial: PLAYERS.white.initial,
+		name: whiteName,
+		rating: whiteRating,
+		initial: whiteName.charAt(0).toUpperCase(),
 		isWhite: true,
 		clock: PLAYERS.white.clock,
 		clockActive: !blackToMove,
@@ -126,9 +139,9 @@ export function getPlayerRows(
 		adv: cap.adv > 0 ? '+' + cap.adv : null
 	};
 	const black: PlayerRowData = {
-		name: PLAYERS.black.name,
-		rating: PLAYERS.black.rating,
-		initial: PLAYERS.black.initial,
+		name: blackName,
+		rating: blackRating,
+		initial: blackName.charAt(0).toUpperCase(),
 		isWhite: false,
 		clock: PLAYERS.black.clock,
 		clockActive: blackToMove,

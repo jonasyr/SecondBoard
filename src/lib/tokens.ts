@@ -129,6 +129,12 @@ export const TOKENS = {
 		chipTintedBorder: 'rgba(74,222,160,.4)',
 		chipTintedText: '#8FE9C2',
 		capturedSpriteShadow: 'drop-shadow(0 1px 1.5px rgba(0,0,0,.5))',
+		// Black piece sprites are solid #000 with no light outline of their own,
+		// so the dark drop-shadow above (meant for white sprites) leaves them
+		// nearly invisible against the panel's dark background — this gives
+		// captured black pieces a light halo instead.
+		capturedSpriteShadowBlack:
+			'drop-shadow(0 0 1px rgba(255,255,255,.55)) drop-shadow(0 0 1px rgba(255,255,255,.55))',
 		navBtnBg: '#14161F',
 		navBtnBorder: 'rgba(255,255,255,.07)',
 		navBtnStroke: '#9298A8',
