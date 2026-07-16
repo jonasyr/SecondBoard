@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { render } from '@testing-library/svelte';
 import Page from './+page.svelte';
 import { appState, createAppState } from '$lib/stores/app-state.svelte';
-import { SAN_LIST, MOCK_POSITIONS, MOCK_MOVE_META } from '$lib/game/mock-data';
+import { SAMPLE_SAN_LIST_EXPORT, SAMPLE_POSITIONS, SAMPLE_MOVE_META } from '$lib/game/mock-data';
 
 beforeEach(() => {
 	Object.assign(appState, createAppState());
@@ -10,9 +10,9 @@ beforeEach(() => {
 
 function loadSampleGame(): void {
 	appState.game = {
-		sanList: SAN_LIST,
-		positions: MOCK_POSITIONS,
-		moveMeta: MOCK_MOVE_META,
+		sanList: SAMPLE_SAN_LIST_EXPORT,
+		positions: SAMPLE_POSITIONS,
+		moveMeta: SAMPLE_MOVE_META,
 		isSample: true
 	};
 }

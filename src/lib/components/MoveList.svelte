@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { SAN_LIST, CLASS_CODES } from '$lib/game/mock-data';
+	import { SAMPLE_SAN_LIST_EXPORT, CLASS_CODES } from '$lib/game/mock-data';
 	import { TOKENS } from '$lib/tokens';
 	import ClassBadge from './ClassBadge.svelte';
 
@@ -23,7 +23,7 @@
 		return {
 			num: i + 1 + '.',
 			wPly,
-			bPly: bPly <= SAN_LIST.length ? bPly : null,
+			bPly: bPly <= SAMPLE_SAN_LIST_EXPORT.length ? bPly : null,
 			striped: i % 2 === 1
 		};
 	});
@@ -62,7 +62,7 @@
 				onclick={() => onSelectPly(row.wPly)}
 			>
 				<ClassBadge classCode={CLASS_CODES[row.wPly - 1]} size={16} />
-				<span class="san sbmono">{SAN_LIST[row.wPly - 1]}</span>
+				<span class="san sbmono">{SAMPLE_SAN_LIST_EXPORT[row.wPly - 1]}</span>
 			</div>
 			{#if row.bPly !== null}
 				<div
@@ -72,7 +72,7 @@
 					onclick={() => onSelectPly(row.bPly!)}
 				>
 					<ClassBadge classCode={CLASS_CODES[row.bPly - 1]} size={16} />
-					<span class="san sbmono">{SAN_LIST[row.bPly - 1]}</span>
+					<span class="san sbmono">{SAMPLE_SAN_LIST_EXPORT[row.bPly - 1]}</span>
 				</div>
 			{:else}
 				<div></div>

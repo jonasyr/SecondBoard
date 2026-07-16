@@ -4,7 +4,7 @@ const { analyzeFen } = vi.hoisted(() => ({ analyzeFen: vi.fn() }));
 vi.mock('$lib/api/engine', () => ({ analyzeFen }));
 
 import { loadRealAnalysis } from './engine-analysis';
-import { MOCK_POSITIONS } from './mock-data';
+import { SAMPLE_POSITIONS } from './mock-data';
 import { fullmoveNumberForPly, sideToMoveForPly } from './notation';
 
 describe('loadRealAnalysis', () => {
@@ -22,7 +22,7 @@ describe('loadRealAnalysis', () => {
 
 		const { evalPerPly } = await loadRealAnalysis();
 
-		expect(evalPerPly).toHaveLength(MOCK_POSITIONS.length);
+		expect(evalPerPly).toHaveLength(SAMPLE_POSITIONS.length);
 		expect(evalPerPly[0]).toBeCloseTo(0.5); // ply 0: White to move, +50cp -> +0.50 White POV
 		expect(evalPerPly[1]).toBeCloseTo(-0.5); // ply 1: Black to move, +50cp for Black -> -0.50 White POV
 	});
@@ -40,7 +40,7 @@ describe('loadRealAnalysis', () => {
 
 		const { bestMoves } = await loadRealAnalysis();
 
-		expect(bestMoves[MOCK_POSITIONS.length]).toBeUndefined();
+		expect(bestMoves[SAMPLE_POSITIONS.length]).toBeUndefined();
 	});
 
 	it('reports a large positive eval for a favorable mate for the mover (White to move, ply 0)', async () => {
@@ -88,7 +88,7 @@ describe('loadRealAnalysis', () => {
 		expect(maxInFlight).toBeLessThanOrEqual(BATCH_SIZE);
 		expect(maxInFlight).toBeGreaterThan(1); // sanity check: calls really do overlap within a batch
 
-		// Ordering check: evalPerPly[ply] must reflect MOCK_POSITIONS[ply]'s own analysis
+		// Ordering check: evalPerPly[ply] must reflect SAMPLE_POSITIONS[ply]'s own analysis
 		// (fullmove number for that ply), not some other position's result.
 		evalPerPly.forEach((_, ply) => {
 			const expectedFullmove = fullmoveNumberForPly(ply);

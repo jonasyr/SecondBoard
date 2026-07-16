@@ -8,7 +8,7 @@
 import type { Move } from '$lib/board/types';
 import { analyzeFen } from '$lib/api/engine';
 import { positionToFen, sideToMoveForPly, fullmoveNumberForPly, moveToSan } from './notation';
-import { MOCK_POSITIONS } from './mock-data';
+import { SAMPLE_POSITIONS } from './mock-data';
 
 export interface RealAnalysis {
 	evalPerPly: number[];
@@ -17,7 +17,7 @@ export interface RealAnalysis {
 
 /** Number of `analyzeFen` calls (and thus real Stockfish processes) allowed to be
  * in flight simultaneously. Each call spawns a separate engine process configured
- * with a 256MB hash table, so an unbounded fan-out over MOCK_POSITIONS (31 plies)
+ * with a 256MB hash table, so an unbounded fan-out over SAMPLE_POSITIONS (31 plies)
  * risks OOM/thrashing on modest hardware. 4 keeps peak usage to ~1GB of hash. */
 const ANALYSIS_CONCURRENCY = 4;
 
@@ -49,7 +49,7 @@ function toWhitePovEval(evalCp: number, sideToMove: 'w' | 'b'): number {
 }
 
 export async function loadRealAnalysis(): Promise<RealAnalysis> {
-	const results = await mapWithConcurrency(MOCK_POSITIONS, ANALYSIS_CONCURRENCY, (position, ply) =>
+	const results = await mapWithConcurrency(SAMPLE_POSITIONS, ANALYSIS_CONCURRENCY, (position, ply) =>
 		analyzeFen(positionToFen(position, sideToMoveForPly(ply), fullmoveNumberForPly(ply)))
 	);
 
@@ -59,10 +59,10 @@ export async function loadRealAnalysis(): Promise<RealAnalysis> {
 
 	const bestMoves: Record<number, Move & { san: string }> = {};
 	results.forEach((r, ply) => {
-		if (ply === MOCK_POSITIONS.length - 1 || r.bestMoveUci.length < 4) return;
+		if (ply === SAMPLE_POSITIONS.length - 1 || r.bestMoveUci.length < 4) return;
 		const from = r.bestMoveUci.slice(0, 2);
 		const to = r.bestMoveUci.slice(2, 4);
-		bestMoves[ply + 1] = { from, to, san: moveToSan(MOCK_POSITIONS[ply], { from, to }) };
+		bestMoves[ply + 1] = { from, to, san: moveToSan(SAMPLE_POSITIONS[ply], { from, to }) };
 	});
 
 	return { evalPerPly, bestMoves };
