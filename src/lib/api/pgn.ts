@@ -1,9 +1,10 @@
 import { invoke } from '@tauri-apps/api/core';
+import type { Move, Position } from '$lib/board/types';
 
 export interface ParsedGame {
 	sanList: string[];
-	positions: Array<Record<string, [string, string]>>;
-	moves: Array<{ from: string; to: string }>;
+	positions: Position[];
+	moves: Move[];
 }
 
 /** Invokes the Rust `parse_pgn` Tauri command (LOGIC.md §7/§8; replaces the mock SAN engine). */
