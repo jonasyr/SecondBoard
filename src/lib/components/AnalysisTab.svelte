@@ -17,9 +17,6 @@
 </script>
 
 <div class="analysis-tab">
-	{#if appState.analysisStatus === 'loading'}
-		<div class="analyzing-note">Analyzing with Stockfish…</div>
-	{/if}
 	<div class="coach-slot">
 		<CoachCard
 			classCode={data.classCode}
@@ -64,13 +61,6 @@
 	.coach-slot {
 		flex: none;
 		padding: 13px 14px 0;
-	}
-	.analyzing-note {
-		flex: none;
-		padding: 10px 14px 0;
-		font-size: 11.5px;
-		font-weight: 600;
-		color: var(--color-text-tertiary);
 	}
 	.actions {
 		flex: none;

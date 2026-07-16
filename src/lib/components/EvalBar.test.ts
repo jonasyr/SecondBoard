@@ -36,17 +36,19 @@ describe('EvalBar', () => {
 		expect(labels).toEqual(['-1.5', '+1.5']);
 	});
 
-	it('renders no analyzing indicator by default', () => {
+	it('renders no analyzing spinner or blur by default', () => {
 		const { container } = render(EvalBar, {
 			props: { whitePct: 50, evalNum: 0, whiteAtBottom: true }
 		});
 		expect(container.querySelector('.analyzing-spinner')).toBeNull();
+		expect(container.querySelector('.bar-blur')?.classList.contains('analyzing')).toBe(false);
 	});
 
-	it('renders an analyzing indicator when analyzing is true', () => {
+	it('blurs the bar and renders a centered spinner when analyzing is true', () => {
 		const { container } = render(EvalBar, {
 			props: { whitePct: 50, evalNum: 0, whiteAtBottom: true, analyzing: true }
 		});
 		expect(container.querySelector('.analyzing-spinner')).not.toBeNull();
+		expect(container.querySelector('.bar-blur')?.classList.contains('analyzing')).toBe(true);
 	});
 });

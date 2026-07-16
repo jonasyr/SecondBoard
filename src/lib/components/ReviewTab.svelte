@@ -15,11 +15,13 @@
 </script>
 
 <div class="review-tab sbscroll">
-	{#if analyzing}
-		<div class="analyzing-note">Analyzing with Stockfish…</div>
-	{/if}
 	<div class="graph-slot">
-		<EvalGraph {evalPerPly} classCodes={CLASS_CODES} {ply} height={66} />
+		<div class="graph-blur" class:analyzing>
+			<EvalGraph {evalPerPly} classCodes={CLASS_CODES} {ply} height={66} />
+		</div>
+		{#if analyzing}
+			<div class="analyzing-overlay"><span>Analyzing with Stockfish…</span></div>
+		{/if}
 	</div>
 	<AccuracyBlock />
 	<div class="divider"></div>
@@ -35,13 +37,29 @@
 		padding: 16px 18px 18px;
 	}
 	.graph-slot {
+		position: relative;
 		margin-bottom: 16px;
 	}
-	.analyzing-note {
+	.graph-blur.analyzing {
+		filter: blur(2px);
+		opacity: 0.55;
+	}
+	.analyzing-overlay {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		pointer-events: none;
+	}
+	.analyzing-overlay span {
 		font-size: 11.5px;
 		font-weight: 600;
-		color: var(--color-text-tertiary);
-		margin-bottom: 8px;
+		color: var(--color-text-secondary);
+		background: var(--color-card-bg);
+		border: 1px solid var(--color-hairline-high);
+		padding: 5px 10px;
+		border-radius: 999px;
 	}
 	.divider {
 		border-top: 1px solid var(--color-hairline-high);

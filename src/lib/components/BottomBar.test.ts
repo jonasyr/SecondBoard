@@ -18,4 +18,35 @@ describe('BottomBar', () => {
 		expect(container.querySelector('svg')?.getAttribute('height')).toBe('62');
 		expect(container.querySelectorAll('button')).toHaveLength(5);
 	});
+
+	it('shows a centered analyzing overlay over the blurred graph when analyzing is true', () => {
+		const { getByText, container } = render(BottomBar, {
+			props: {
+				ply: 0,
+				evalPerPly: EVAL_PER_PLY,
+				onFirst: () => {},
+				onPrev: () => {},
+				onNext: () => {},
+				onLast: () => {},
+				analyzing: true
+			}
+		});
+		expect(getByText('Analyzing with Stockfish…')).toBeTruthy();
+		expect(container.querySelector('.graph-blur')?.classList.contains('analyzing')).toBe(true);
+	});
+
+	it('shows no analyzing overlay by default', () => {
+		const { queryByText, container } = render(BottomBar, {
+			props: {
+				ply: 0,
+				evalPerPly: EVAL_PER_PLY,
+				onFirst: () => {},
+				onPrev: () => {},
+				onNext: () => {},
+				onLast: () => {}
+			}
+		});
+		expect(queryByText('Analyzing with Stockfish…')).toBeNull();
+		expect(container.querySelector('.graph-blur')?.classList.contains('analyzing')).toBe(false);
+	});
 });

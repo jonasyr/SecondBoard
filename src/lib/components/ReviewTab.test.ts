@@ -14,17 +14,19 @@ describe('ReviewTab', () => {
 		expect(getByText('Opening')).toBeTruthy();
 	});
 
-	it('shows no analyzing note by default', () => {
-		const { queryByText } = render(ReviewTab, {
+	it('shows no analyzing overlay by default', () => {
+		const { queryByText, container } = render(ReviewTab, {
 			props: { ply: 31, evalPerPly: EVAL_PER_PLY }
 		});
 		expect(queryByText('Analyzing with Stockfish…')).toBeNull();
+		expect(container.querySelector('.graph-blur')?.classList.contains('analyzing')).toBe(false);
 	});
 
-	it('shows an analyzing note when analyzing is true', () => {
-		const { getByText } = render(ReviewTab, {
+	it('shows a centered analyzing overlay over the blurred graph when analyzing is true', () => {
+		const { getByText, container } = render(ReviewTab, {
 			props: { ply: 31, evalPerPly: EVAL_PER_PLY, analyzing: true }
 		});
 		expect(getByText('Analyzing with Stockfish…')).toBeTruthy();
+		expect(container.querySelector('.graph-blur')?.classList.contains('analyzing')).toBe(true);
 	});
 });

@@ -90,6 +90,7 @@
 			onPrev={() => stepPly(-1)}
 			onNext={() => stepPly(1)}
 			onLast={() => goToPly(getMaxPly())}
+			analyzing={appState.analysisStatus === 'loading'}
 		/>
 	{/if}
 </div>

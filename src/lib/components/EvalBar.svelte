@@ -31,12 +31,16 @@
 </script>
 
 <div class="eval-bar">
-	<div class="fill" style={fillStyle}></div>
-	<div class="midline"></div>
-	<div class="label sbmono" style={whiteLabelStyle}>{whiteLabel}</div>
-	<div class="label sbmono" style={blackLabelStyle}>{blackLabel}</div>
+	<div class="bar-blur" class:analyzing>
+		<div class="fill" style={fillStyle}></div>
+		<div class="midline"></div>
+		<div class="label sbmono" style={whiteLabelStyle}>{whiteLabel}</div>
+		<div class="label sbmono" style={blackLabelStyle}>{blackLabel}</div>
+	</div>
 	{#if analyzing}
-		<div class="analyzing-spinner" title="Analyzing with Stockfish…"></div>
+		<div class="analyzing-overlay" title="Analyzing with Stockfish…">
+			<div class="analyzing-spinner"></div>
+		</div>
 	{/if}
 </div>
 
@@ -58,13 +62,38 @@
 		height: 1px;
 		background: var(--board-eval-midline);
 	}
-	.analyzing-spinner {
+	.bar-blur {
 		position: absolute;
-		top: 50%;
-		left: 50%;
-		width: 13px;
-		height: 13px;
-		margin: -6.5px 0 0 -6.5px;
+		inset: 0;
+	}
+	.bar-blur.analyzing {
+		filter: blur(2px);
+		opacity: 0.55;
+	}
+	.analyzing-overlay {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		pointer-events: none;
+	}
+	/* Same chip language as the eval-graph overlay (var(--color-card-bg) +
+	   var(--color-hairline-high)), just circular instead of a text pill. */
+	.analyzing-spinner {
+		width: 20px;
+		height: 20px;
+		border-radius: 50%;
+		background: var(--color-card-bg);
+		border: 1px solid var(--color-hairline-high);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+	.analyzing-spinner::before {
+		content: '';
+		width: 11px;
+		height: 11px;
 		border-radius: 50%;
 		border: 2px solid rgba(255, 255, 255, 0.25);
 		border-top-color: #e3e6ee;
