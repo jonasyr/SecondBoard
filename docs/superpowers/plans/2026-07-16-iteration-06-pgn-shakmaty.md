@@ -11,11 +11,11 @@
 ## Global Constraints
 
 - **Scope boundary — this iteration replaces position/move generation ONLY.** It does NOT add: SQLite persistence (a later iteration), real move classification from centipawn-loss thresholds (OVERVIEW §11's formulas — a later iteration; classification stays mocked), opening/ECO detection, Chess.com sync, or real player names/ratings/event/date wired into the UI. `PlayerRow`/`AccuracyBlock`/`DetailsTab` keep showing the existing mocked `PLAYERS`/detail strings unchanged — this is a deliberate, documented deferral, not a bug or oversight to "fix."
-- **No new Rust dependencies beyond `pgn-reader` and `shakmaty`, both at the versions `cargo add` naturally resolves against this repo's existing `rust-version = "1.77.2"`** (`pgn-reader = "0.27"`, `shakmaty = "0.27"`) — do not bump `rust-version`, do not pull in newer major versions.
+- **No new Rust dependencies beyond `pgn-reader` and `shakmaty`, both at the versions `cargo add` naturally resolves against this repo's existing `rust-version = "1.77.2"`** — `pgn-reader = "0.27.0"`, and `shakmaty = "0.28.0"` (NOT `0.27.3`: `cargo add` initially picks `0.27.3` for our own direct dependency, but `pgn-reader 0.27.0` transitively requires `shakmaty 0.28.0`, so our own `Cargo.toml` entry must be bumped to `0.28.0` to collapse the graph to one version — see Task 1 Step 1). Do not bump `rust-version`, do not pull in a newer major of either crate beyond what this resolves to.
 - **`mock-engine.ts` and `mock-engine.test.ts` are deleted entirely** (LOGIC.md's explicit "must not ship" mock; README §1: "A tiny SAN → board-position engine... Replace with real move data from the Rust `pgn` module").
 - **`mock-data.ts`'s `CLASS_CODES`/`COACH_TEXT_MAP`/`BREAKDOWN_ROWS`/`PHASE_ROWS`/`PLAYERS`/`EVAL_PER_PLY`/`BEST_MOVES` are KEPT, not deleted** — they remain legitimate mock content describing the one known built-in sample game, and are applied only when the currently-loaded game is verified byte-identical (`isSample: true`) to the known sample PGN text. `SAN_LIST`, `MOCK_POSITIONS`, `MOCK_MOVE_META` (built from `mock-engine.ts`'s `buildGame`) ARE removed from `mock-data.ts` since real per-game data now supersedes them.
 - **Castling gotcha (binding on Task 1):** shakmaty's `Move::Castle { king, rook }` fields are both ORIGIN squares; `Move::to()` for a castle returns the ROOK's square, NOT the king's destination. The king's actual destination must be computed manually (g-file same rank if kingside — rook's file > king's file — else c-file). `MoveDto.from`/`to` for castling must be the KING's origin/destination (matching the existing, soon-deleted `mock-engine.ts`'s own convention verbatim — its `applySan`'s `O-O` case returns `{from:'e'+rank,to:'g'+rank}`, and the frontend's last-move highlight/coach-text only ever show the king's two squares for a castle, never the rook's).
-- **`shakmaty::Position::play_unchecked`'s exact signature (by-value `Move` vs `&Move`) may differ subtly from what's written here** — resolve any mismatch by trusting the Rust compiler's error message over this plan's prose; this is a version-detail, not a design decision.
+- **`shakmaty::Position::play_unchecked` in 0.28.0 takes `Move` BY VALUE** (`fn play_unchecked(&mut self, m: Move)`), not `&Move` — and `shakmaty::Move` is not `Copy` in this version, so a `match *m { ... }` pattern (dereferencing a `&Move`) will not compile; match on the reference directly instead (see Task 1's `move_dto` for the exact pattern). If a future crate update changes either of these, trust the compiler's error over this plan's prose.
 - **Serde boundary is camelCase**, matching every prior iteration's Rust↔TS contract (`#[serde(rename_all = "camelCase")]`).
 - **`getReviewPly`'s new `game: GameData` parameter is REQUIRED (no default)** — a deliberate signature-breaking change (unlike `evalPerPly`/`bestMoves`, which keep optional defaults), since there is no more static mock position data to fall back to. Every call site (components + tests) is updated in the same task that changes the signature.
 - **Svelte 5 runes only** (`$state`, `$derived`, `$props`, `$effect`); TypeScript strict mode; no `any`. A plain exported function (not a rune) is used for `getMaxPly()` — Svelte 5 does not support exporting a live-recomputing primitive `$derived` binding for cross-module reassignment purposes; a function reading the reactive `appState` singleton on each call is the correct, simple pattern here (every call site invokes it inside an event handler or another function, never renders it directly as reactive template text).
@@ -28,7 +28,7 @@
 ## Task 1: Rust `pgn` module — core parser (types, Visitor, `parse_pgn`)
 
 **Files:**
-- Modify: `src-tauri/Cargo.toml` (add `pgn-reader = "0.27"` and `shakmaty = "0.27"`)
+- Modify: `src-tauri/Cargo.toml` (add `pgn-reader = "0.27.0"` and `shakmaty = "0.28.0"` — see Global Constraints on why `shakmaty` is `0.28.0`, not the `0.27.3` `cargo add` initially suggests)
 - Create: `src-tauri/src/pgn.rs`
 - Modify: `src-tauri/src/lib.rs` (add `mod pgn;` near the top, above `#[cfg_attr(mobile, tauri::mobile_entry_point)]`)
 
@@ -59,6 +59,8 @@ Expected output includes:
       Adding pgn-reader v0.27.0 to dependencies
       Adding shakmaty v0.27.3 to dependencies
 ```
+
+`cargo add` picks `shakmaty v0.27.3` for our own direct dependency, but `pgn-reader v0.27.0` itself transitively depends on `shakmaty v0.28.0` — two different major-incompatible `shakmaty` versions in the graph causes real type mismatches (`shakmaty::Move` from one version isn't the same type as from the other) at every point this module passes a shakmaty type across the `pgn_reader` boundary. Fix it immediately: edit `Cargo.toml` so our own `shakmaty` entry reads `shakmaty = "0.28.0"` (matching what `pgn-reader` actually needs), then run `cargo update -p shakmaty` to collapse the graph to a single version. Confirm with `cargo tree -i shakmaty` — it should show exactly one `shakmaty v0.28.0` used by both our crate and `pgn-reader`, not two versions.
 
 - [ ] **Step 2: Write the failing tests**
 
@@ -156,11 +158,17 @@ mod tests {
 
     #[test]
     fn final_position_matches_the_last_move_ne5() {
+        // 16.Ne5 is played by the knight that's been on f3 since move 3 (Nf3);
+        // the OTHER white knight took b1->d2->f1->g3 and cannot reach e5 in one
+        // move (g3->e5 is not a valid knight move). The black knight from
+        // 8...Nf6 never moves again and is still on f6 at the end — a
+        // different, unrelated piece.
         let game = parse_pgn(SAMPLE_PGN).expect("sample PGN should parse");
         let final_pos = &game.positions[31];
         assert_eq!(final_pos.get("e5"), Some(&("N".to_string(), "w".to_string())));
-        assert_eq!(final_pos.get("f6"), None);
-        assert_eq!(game.moves[30], MoveDto { from: "f6".to_string(), to: "e5".to_string() });
+        assert_eq!(final_pos.get("f3"), None);
+        assert_eq!(final_pos.get("f6"), Some(&("N".to_string(), "b".to_string())));
+        assert_eq!(game.moves[30], MoveDto { from: "f3".to_string(), to: "e5".to_string() });
     }
 
     #[test]
@@ -199,9 +207,17 @@ mod tests {
 
     #[test]
     fn rejects_malformed_pgn_with_an_illegal_move() {
-        let pgn = "1. e4 e5 2. Qh5 Nf6 3. Qxf9"; // f9 doesn't exist on a chessboard
+        // Kd8 is syntactically valid SAN (a real square, "K" is a real piece
+        // letter) but chess-illegal here: Black's own queen still sits on d8
+        // (never moved), so the king cannot move onto it. A syntactically
+        // invalid square (e.g. rank 9) would never reach our Visitor's `san`
+        // callback at all — pgn-reader's tokenizer rejects it before that,
+        // silently truncating the game instead of erroring — so this test
+        // must use a move that tokenizes fine but fails shakmaty's legality
+        // check, to actually exercise `parse_pgn`'s error path.
+        let pgn = "1. e4 e5 2. Ke2 Ke7 3. Kf3 Kd8";
         let result = parse_pgn(pgn);
-        assert!(result.is_err(), "an illegal/malformed move should produce an error, not a panic");
+        assert!(result.is_err(), "an illegal move should produce an error, not a panic");
     }
 }
 ```
@@ -262,8 +278,11 @@ fn king_castle_destination(king_from: Square, rook_from: Square) -> Square {
 /// Castling reports the KING's origin/destination (matching the deleted
 /// mock-engine.ts's own convention) rather than the rook's.
 fn move_dto(m: &ShakMove) -> MoveDto {
-    match *m {
-        ShakMove::Castle { king, rook } => MoveDto {
+    // NOTE: `shakmaty::Move` is not `Copy` in 0.28.0, so `match *m { ... }`
+    // (moving out of a shared reference) will not compile — match on `m`
+    // directly instead (matching a reference binds by reference).
+    match m {
+        &ShakMove::Castle { king, rook } => MoveDto {
             from: king.to_string(),
             to: king_castle_destination(king, rook).to_string(),
         },
@@ -315,10 +334,10 @@ impl Visitor for GameVisitor {
         };
         self.san_list.push(san_plus.to_string());
         self.moves.push(move_dto(&m));
-        // NOTE: if `play_unchecked` does not accept `&m` here, the installed
-        // shakmaty version wants it by value — pass `m` instead and trust the
-        // compiler error over this comment.
-        self.pos.play_unchecked(&m);
+        // shakmaty 0.28.0's Position::play_unchecked takes Move BY VALUE
+        // (not &Move) — pass `m` directly (move_dto already took its &m
+        // borrow above and that borrow has ended by this point).
+        self.pos.play_unchecked(m);
         self.positions.push(board_to_position(&self.pos));
     }
 
@@ -359,7 +378,7 @@ pub struct MoveDto {
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run: `cd src-tauri && cargo test --lib pgn:: 2>&1 | tail -40`
-Expected: `test result: ok. 8 passed; 0 failed`. If `play_unchecked(&m)` doesn't compile, change the call to `self.pos.play_unchecked(m)` (by value) instead — whichever the compiler accepts is correct for the installed version; re-run until green.
+Expected: `test result: ok. 8 passed; 0 failed`.
 
 - [ ] **Step 6: Commit**
 
