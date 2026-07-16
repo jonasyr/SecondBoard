@@ -30,3 +30,6 @@ src-tauri/target
 
 # Sonarlint
 .sonarlint
+
+# Local debugging artifacts (WebKit inspector exports, etc.)
+/logs
