@@ -904,6 +904,140 @@ Add its style, alongside the existing `.card-header`/`textarea` rules:
 
 (Check `src/lib/tokens.ts`/`src/app.css` first for the exact existing CSS custom property name for the "blunder"/red classification color — reuse whatever already exists there, e.g. `--color-blunder` or `--color-red`, rather than introducing a new hardcoded `#F26B6B`. If no such CSS variable currently exists, use the raw `rgba(242, 107, 107, 1)` value matching `TOKENS.classification.blunder.color` from `src/lib/tokens.ts` exactly, since that's the design system's own red — do not invent a new color.)
 
+- [ ] **Step 6b: Fix pre-existing tests broken by `startReview` becoming async**
+
+Making `startReview` itself `async` (awaiting `parsePgn` before touching any state) breaks THREE pre-existing tests written for the OLD synchronous `startReview` (from Iterations 4/5), which call `startReview()` without `await` and assert state immediately afterward — that timing assumption no longer holds. Fix all three:
+
+1. In the `describe('screen/ply transitions', ...)` block, change:
+```ts
+it('startReview resets to the default review state regardless of pgnText', () => {
+	appState.gameLoaded = false;
+	appState.ply = 0;
+	appState.tab = 'details';
+	startReview();
+	expect(appState.gameLoaded).toBe(true);
+	expect(appState.screen).toBe('review');
+	expect(appState.ply).toBe(31);
+	expect(appState.tab).toBe('analysis');
+});
+```
+to:
+```ts
+it('startReview resets to the default review state regardless of pgnText', async () => {
+	appState.gameLoaded = false;
+	appState.ply = 0;
+	appState.tab = 'details';
+	parsePgn.mockResolvedValue({
+		sanList: Array.from({ length: 31 }, (_, i) => `move${i}`),
+		positions: Array.from({ length: 32 }, () => ({})),
+		moves: Array.from({ length: 31 }, () => ({ from: 'a1', to: 'a1' }))
+	});
+	loadRealAnalysis.mockResolvedValue({ evalPerPly: [], bestMoves: {} });
+
+	await startReview();
+
+	expect(appState.gameLoaded).toBe(true);
+	expect(appState.screen).toBe('review');
+	expect(appState.ply).toBe(31);
+	expect(appState.tab).toBe('analysis');
+});
+```
+(The explicit inline mock setup avoids relying on mock state bleeding over from an earlier test in file order — a real but fragile way this test would otherwise accidentally pass.)
+
+2. In the existing `describe('real analysis loading', ...)` block (added in Iteration 5's Task 7 — do not delete this block, fix it in place), add `parsePgn.mockResolvedValue(...)` to its `beforeEach`, and add `await`/`async` to the two tests that call `startReview()`. Change:
+```ts
+describe('real analysis loading', () => {
+	beforeEach(() => {
+		loadRealAnalysis.mockReset();
+	});
+
+	it('starts in the idle status by default', () => {
+		const state = createAppState();
+		expect(state.analysisStatus).toBe('idle');
+		expect(state.evalPerPly.length).toBeGreaterThan(0);
+	});
+
+	it('goes loading -> ready and applies the real data on startReview success', async () => {
+		let resolveAnalysis!: (v: { evalPerPly: number[]; bestMoves: Record<number, never> }) => void;
+		loadRealAnalysis.mockReturnValue(
+			new Promise((resolve) => {
+				resolveAnalysis = resolve;
+			})
+		);
+
+		startReview();
+		expect(appState.analysisStatus).toBe('loading');
+
+		resolveAnalysis({ evalPerPly: [0, 0.3], bestMoves: {} });
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(appState.analysisStatus).toBe('ready');
+		expect(appState.evalPerPly).toEqual([0, 0.3]);
+	});
+
+	it('goes loading -> error when loadRealAnalysis rejects', async () => {
+		loadRealAnalysis.mockRejectedValue(new Error('engine offline'));
+
+		startReview();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(appState.analysisStatus).toBe('error');
+	});
+});
+```
+to:
+```ts
+describe('real analysis loading', () => {
+	beforeEach(() => {
+		parsePgn.mockReset();
+		loadRealAnalysis.mockReset();
+		parsePgn.mockResolvedValue({
+			sanList: ['e4'],
+			positions: [{}, {}],
+			moves: [{ from: 'e2', to: 'e4' }]
+		});
+	});
+
+	it('starts in the idle status by default', () => {
+		const state = createAppState();
+		expect(state.analysisStatus).toBe('idle');
+		expect(state.evalPerPly.length).toBeGreaterThan(0);
+	});
+
+	it('goes loading -> ready and applies the real data once startReview resolves', async () => {
+		let resolveAnalysis!: (v: { evalPerPly: number[]; bestMoves: Record<number, never> }) => void;
+		loadRealAnalysis.mockReturnValue(
+			new Promise((resolve) => {
+				resolveAnalysis = resolve;
+			})
+		);
+
+		await startReview();
+		expect(appState.analysisStatus).toBe('loading');
+
+		resolveAnalysis({ evalPerPly: [0, 0.3], bestMoves: {} });
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(appState.analysisStatus).toBe('ready');
+		expect(appState.evalPerPly).toEqual([0, 0.3]);
+	});
+
+	it('goes loading -> error when loadRealAnalysis rejects', async () => {
+		loadRealAnalysis.mockRejectedValue(new Error('engine offline'));
+
+		await startReview();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(appState.analysisStatus).toBe('error');
+	});
+});
+```
+(This works because `startReview` calls `void refreshRealAnalysis()` as its last step after `parsePgn` resolves; `refreshRealAnalysis` is itself `async` and sets `analysisStatus = 'loading'` synchronously before its own first `await` — so by the time `await startReview()` settles, that synchronous prefix has already run and `analysisStatus` is reliably `'loading'`.)
+
 - [ ] **Step 7: Run tests to verify they pass**
 
 Run: `pnpm vitest run src/lib/stores/app-state.test.ts`
