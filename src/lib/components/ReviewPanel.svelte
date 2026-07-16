@@ -69,7 +69,11 @@
 	</div>
 
 	{#if appState.tab === 'review'}
-		<ReviewTab ply={appState.ply} evalPerPly={appState.evalPerPly} />
+		<ReviewTab
+	ply={appState.ply}
+	evalPerPly={appState.evalPerPly}
+	analyzing={appState.analysisStatus === 'loading'}
+/>
 	{:else if appState.tab === 'analysis'}
 		<AnalysisTab ply={appState.ply} onSelectPly={goToPly} onNext={() => stepPly(1)} />
 	{:else if appState.tab === 'details'}

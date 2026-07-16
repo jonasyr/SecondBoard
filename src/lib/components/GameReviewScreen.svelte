@@ -23,7 +23,12 @@
 		<PlayerRow player={rows.top} showNewGameButton onNewGame={newGame} />
 
 		<div class="board-row">
-			<EvalBar whitePct={data.whitePct} evalNum={data.evalNum} whiteAtBottom={!appState.flipped} />
+			<EvalBar
+				whitePct={data.whitePct}
+				evalNum={data.evalNum}
+				whiteAtBottom={!appState.flipped}
+				analyzing={appState.analysisStatus === 'loading'}
+			/>
 			<div class="board-sizer">
 				<Board
 					position={data.position}

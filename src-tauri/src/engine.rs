@@ -54,6 +54,19 @@ pub(crate) fn parse_bestmove_line(line: &str) -> Option<String> {
     tokens.get(1).map(|s| s.to_string())
 }
 
+/// Resolves a UCI `InfoLine`'s score into (eval_cp, is_mate) relative to the side to move.
+/// `score mate 0` is UCI's terminal marker for "side to move has no legal moves and is
+/// already checkmated" — NOT "side to move delivers mate in zero plies" — so it must map to
+/// a losing (negative) eval for the mover, unlike any `mate N` with N > 0 (mover delivers
+/// mate in N, winning/positive).
+pub(crate) fn resolve_score(info: &InfoLine) -> Result<(i32, bool), EngineError> {
+    match (info.score_cp, info.score_mate) {
+        (_, Some(mate)) => Ok((if mate > 0 { 100_000 } else { -100_000 }, true)),
+        (Some(cp), None) => Ok((cp, false)),
+        (None, None) => Err(EngineError::NoBestMove),
+    }
+}
+
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
 
@@ -189,11 +202,7 @@ pub fn analyze_position(
             let _ = write_line(&mut stdin, "quit");
             let _ = child.wait();
             let info = last_info.ok_or(EngineError::NoBestMove)?;
-            let (eval_cp, is_mate) = match (info.score_cp, info.score_mate) {
-                (_, Some(mate)) => (if mate >= 0 { 100_000 } else { -100_000 }, true),
-                (Some(cp), None) => (cp, false),
-                (None, None) => return Err(EngineError::NoBestMove),
-            };
+            let (eval_cp, is_mate) = resolve_score(&info)?;
             return Ok(EngineAnalysis {
                 eval_cp,
                 is_mate,
@@ -249,6 +258,60 @@ mod parse_tests {
     #[test]
     fn rejects_non_bestmove_lines() {
         assert_eq!(parse_bestmove_line("info depth 1"), None);
+    }
+
+    #[test]
+    fn resolve_score_treats_positive_mate_as_winning_for_the_mover() {
+        let info = InfoLine {
+            score_cp: None,
+            score_mate: Some(3),
+            pv: vec![],
+        };
+        assert_eq!(resolve_score(&info).unwrap(), (100_000, true));
+    }
+
+    #[test]
+    fn resolve_score_treats_negative_mate_as_losing_for_the_mover() {
+        let info = InfoLine {
+            score_cp: None,
+            score_mate: Some(-2),
+            pv: vec![],
+        };
+        assert_eq!(resolve_score(&info).unwrap(), (-100_000, true));
+    }
+
+    #[test]
+    fn resolve_score_treats_mate_zero_as_losing_for_the_mover() {
+        // UCI's "score mate 0" means the side to move has no legal moves and is
+        // ALREADY checkmated -- it is not "the mover delivers mate in zero plies".
+        // Regression test for the eval-bar-shows-wrong-side bug: a decisively
+        // finished game's final position must flip in favor of whoever mated.
+        let info = InfoLine {
+            score_cp: None,
+            score_mate: Some(0),
+            pv: vec![],
+        };
+        assert_eq!(resolve_score(&info).unwrap(), (-100_000, true));
+    }
+
+    #[test]
+    fn resolve_score_uses_cp_when_no_mate_reported() {
+        let info = InfoLine {
+            score_cp: Some(34),
+            score_mate: None,
+            pv: vec![],
+        };
+        assert_eq!(resolve_score(&info).unwrap(), (34, false));
+    }
+
+    #[test]
+    fn resolve_score_errors_when_neither_cp_nor_mate_present() {
+        let info = InfoLine {
+            score_cp: None,
+            score_mate: None,
+            pv: vec![],
+        };
+        assert!(matches!(resolve_score(&info), Err(EngineError::NoBestMove)));
     }
 }
 

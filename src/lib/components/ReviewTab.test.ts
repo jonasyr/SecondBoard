@@ -13,4 +13,18 @@ describe('ReviewTab', () => {
 		expect(getByText('Brilliant')).toBeTruthy();
 		expect(getByText('Opening')).toBeTruthy();
 	});
+
+	it('shows no analyzing note by default', () => {
+		const { queryByText } = render(ReviewTab, {
+			props: { ply: 31, evalPerPly: EVAL_PER_PLY }
+		});
+		expect(queryByText('Analyzing with Stockfish…')).toBeNull();
+	});
+
+	it('shows an analyzing note when analyzing is true', () => {
+		const { getByText } = render(ReviewTab, {
+			props: { ply: 31, evalPerPly: EVAL_PER_PLY, analyzing: true }
+		});
+		expect(getByText('Analyzing with Stockfish…')).toBeTruthy();
+	});
 });

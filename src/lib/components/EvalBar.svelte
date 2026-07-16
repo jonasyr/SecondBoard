@@ -5,26 +5,39 @@
 		whitePct: number;
 		evalNum: number;
 		whiteAtBottom: boolean;
+		analyzing?: boolean;
 	}
 
-	let { whitePct, evalNum, whiteAtBottom }: Props = $props();
+	let { whitePct, evalNum, whiteAtBottom, analyzing = false }: Props = $props();
 
-	const label = $derived((evalNum >= 0 ? evalNum : -evalNum).toFixed(1));
-	// Reference: label sits opposite the fill's growth edge, colored for contrast against
-	// whichever background (fill vs. track) it's drawn over there.
-	const labelOnFilledEdge = $derived(whiteAtBottom === evalNum >= 0);
+	// Signed white-POV value on the white edge, its negation (black's own POV) on the black
+	// edge -- so both sides always read their own advantage/disadvantage directly, not just
+	// whichever side currently has the edge.
+	const whiteLabel = $derived((evalNum >= 0 ? '+' : '') + evalNum.toFixed(1));
+	const blackLabel = $derived((evalNum <= 0 ? '+' : '-') + Math.abs(evalNum).toFixed(1));
 	const fillStyle = $derived(
 		`position:absolute;left:0;right:0;${whiteAtBottom ? 'bottom:0;' : 'top:0;'}height:${whitePct.toFixed(1)}%;background:linear-gradient(${whiteAtBottom ? '180deg' : '0deg'},${TOKENS.board.evalWhiteFillFrom},${TOKENS.board.evalWhiteFillTo});transition:height .25s ease;`
 	);
-	const labelStyle = $derived(
-		`position:absolute;left:0;right:0;${labelOnFilledEdge ? 'bottom:3px;color:#20222E;' : 'top:3px;color:#E3E6EE;'}text-align:center;font-size:9px;font-weight:700;`
+	// Each label is colored for contrast against whichever background (fill vs. track) sits
+	// behind its own edge, which flips depending on whitePct and board orientation.
+	const whiteOnFilledEdge = $derived(whiteAtBottom);
+	const blackOnFilledEdge = $derived(!whiteAtBottom);
+	const whiteLabelStyle = $derived(
+		`position:absolute;left:0;right:0;${whiteAtBottom ? 'bottom:3px;' : 'top:3px;'}color:${whiteOnFilledEdge ? '#20222E' : '#E3E6EE'};text-align:center;font-size:9px;font-weight:700;`
+	);
+	const blackLabelStyle = $derived(
+		`position:absolute;left:0;right:0;${whiteAtBottom ? 'top:3px;' : 'bottom:3px;'}color:${blackOnFilledEdge ? '#20222E' : '#E3E6EE'};text-align:center;font-size:9px;font-weight:700;`
 	);
 </script>
 
 <div class="eval-bar">
 	<div class="fill" style={fillStyle}></div>
 	<div class="midline"></div>
-	<div class="label sbmono" style={labelStyle}>{label}</div>
+	<div class="label sbmono" style={whiteLabelStyle}>{whiteLabel}</div>
+	<div class="label sbmono" style={blackLabelStyle}>{blackLabel}</div>
+	{#if analyzing}
+		<div class="analyzing-dot" title="Analyzing with Stockfish…"></div>
+	{/if}
 </div>
 
 <style>
@@ -44,5 +57,25 @@
 		top: 50%;
 		height: 1px;
 		background: var(--board-eval-midline);
+	}
+	.analyzing-dot {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		width: 5px;
+		height: 5px;
+		border-radius: 50%;
+		background: var(--color-text-tertiary);
+		transform: translate(-50%, -50%);
+		animation: eval-bar-pulse 1.2s ease-in-out infinite;
+	}
+	@keyframes eval-bar-pulse {
+		0%,
+		100% {
+			opacity: 0.25;
+		}
+		50% {
+			opacity: 1;
+		}
 	}
 </style>

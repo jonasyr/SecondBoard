@@ -8,12 +8,16 @@
 	interface Props {
 		ply: number;
 		evalPerPly: number[];
+		analyzing?: boolean;
 	}
 
-	let { ply, evalPerPly }: Props = $props();
+	let { ply, evalPerPly, analyzing = false }: Props = $props();
 </script>
 
 <div class="review-tab sbscroll">
+	{#if analyzing}
+		<div class="analyzing-note">Analyzing with Stockfish…</div>
+	{/if}
 	<div class="graph-slot">
 		<EvalGraph {evalPerPly} classCodes={CLASS_CODES} {ply} height={66} />
 	</div>
@@ -32,6 +36,12 @@
 	}
 	.graph-slot {
 		margin-bottom: 16px;
+	}
+	.analyzing-note {
+		font-size: 11.5px;
+		font-weight: 600;
+		color: var(--color-text-tertiary);
+		margin-bottom: 8px;
 	}
 	.divider {
 		border-top: 1px solid var(--color-hairline-high);
