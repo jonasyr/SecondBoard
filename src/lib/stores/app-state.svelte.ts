@@ -90,7 +90,8 @@ export async function startReview(): Promise<void> {
 		appState.tab = 'analysis';
 		void refreshRealAnalysis();
 	} catch (err) {
-		appState.parseError = err instanceof Error ? err.message : 'Failed to parse PGN.';
+		appState.parseError =
+			typeof err === 'string' ? err : err instanceof Error ? err.message : 'Failed to parse PGN.';
 	}
 }
 

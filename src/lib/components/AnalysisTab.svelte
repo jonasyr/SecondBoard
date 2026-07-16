@@ -22,7 +22,7 @@
 	{/if}
 	<div class="coach-slot">
 		<CoachCard
-			classCode={data.classCode ?? 'book'}
+			classCode={data.classCode}
 			coachMove={data.coachMove}
 			coachText={data.coachText}
 			evalStr={data.evalStr}

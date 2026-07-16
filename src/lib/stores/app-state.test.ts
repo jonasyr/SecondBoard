@@ -169,6 +169,17 @@ describe('startReview (real PGN parsing)', () => {
 		expect(appState.parseError).toBe('illegal move');
 		expect(appState.gameLoaded).toBe(false);
 	});
+
+	it('on parse failure with a plain-string rejection (Tauri v2 invoke behavior): surfaces the exact string', async () => {
+		appState.pgnText = 'not a real pgn';
+		appState.gameLoaded = false;
+		parsePgn.mockRejectedValue('illegal move: Kd8');
+
+		await startReview();
+
+		expect(appState.parseError).toBe('illegal move: Kd8');
+		expect(appState.gameLoaded).toBe(false);
+	});
 });
 
 describe('real analysis loading', () => {

@@ -5,7 +5,7 @@
 	import Icon from './Icon.svelte';
 
 	interface Props {
-		classCode: ClassCode;
+		classCode: ClassCode | null;
 		coachMove: string;
 		coachText: string;
 		evalStr: string;
@@ -14,23 +14,35 @@
 
 	let { classCode, coachMove, coachText, evalStr, best }: Props = $props();
 
-	const cls = $derived(TOKENS.classification[classCode]);
+	const cls = $derived(classCode ? TOKENS.classification[classCode] : null);
 	const cardStyle = $derived(
-		`background:radial-gradient(120% 130% at 12% 0%,${cls.color}1f,transparent 55%),${TOKENS.color.cardBg};border:1px solid ${cls.color}44;`
+		cls
+			? `background:radial-gradient(120% 130% at 12% 0%,${cls.color}1f,transparent 55%),${TOKENS.color.cardBg};border:1px solid ${cls.color}44;`
+			: `background:${TOKENS.color.cardBg};border:1px solid ${TOKENS.color.hairlineHigh};`
 	);
 	const badgeStyle = $derived(
-		`background:${cls.color}22;color:${cls.color};`
+		cls
+			? `background:${cls.color}22;color:${cls.color};`
+			: `background:${TOKENS.color.insetBg};color:${TOKENS.color.textTertiary};`
 	);
-	const evalChipStyle = $derived(`background:${cls.color}1a;color:${cls.color};`);
+	const evalChipStyle = $derived(
+		cls
+			? `background:${cls.color}1a;color:${cls.color};`
+			: `background:${TOKENS.color.insetBg};color:${TOKENS.color.textTertiary};`
+	);
 </script>
 
 <div class="coach-card" style={cardStyle}>
 	<div class="row">
-		<div class="badge" style={badgeStyle}>{cls.glyph}</div>
+		{#if cls}
+			<div class="badge" style={badgeStyle}>{cls.glyph}</div>
+		{/if}
 		<div class="body">
 			<div class="title">
 				<span class="move sbmono">{coachMove}</span>
-				<span class="word" style={`color:${cls.color};`}>is {cls.word}</span>
+				{#if cls}
+					<span class="word" style={`color:${cls.color};`}>is {cls.word}</span>
+				{/if}
 				<span class="fill"></span>
 				<span class="eval-chip" style={evalChipStyle}>{evalStr}</span>
 			</div>

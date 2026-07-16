@@ -46,12 +46,13 @@ describe('AnalysisTab', () => {
 		expect(onNext).toHaveBeenCalledOnce();
 	});
 
-	it('at ply 0 falls back to the book classification for the coach card', () => {
+	it('at ply 0 shows the intro coach text with no classification badge', () => {
 		const { container } = render(AnalysisTab, {
 			props: { ply: 0, onSelectPly: () => {}, onNext: () => {} }
 		});
 		expect(container.textContent).toContain('Start');
-		expect(container.textContent).toContain('a book move');
+		expect(container.textContent).not.toContain('a book move');
+		expect(container.querySelector('.coach-slot .badge')).toBeNull();
 	});
 
 	it('shows the analyzing note only while analysisStatus is loading', () => {
