@@ -86,10 +86,17 @@ pub struct EngineOptions {
 
 impl Default for EngineOptions {
     fn default() -> Self {
-        // OVERVIEW §10.3/§10.4 "Standard Review" defaults (Global Constraints).
+        // Matches chess.com's own default Game Review engine strength
+        // (Settings > Engine > Game Review): "Fast (~1 sec, 3270 Rating)" on
+        // Stockfish 16 -- a time-bounded search. depth is set high enough
+        // (Stockfish's own MAX_PLY is 246) that it never actually becomes
+        // the limiting factor in ~1s on real hardware; movetime_ms is what
+        // governs when the search stops, so results track chess.com's own
+        // reference setting as closely as possible using whatever real
+        // Stockfish build is installed locally (OVERVIEW §10.3/§10.4).
         EngineOptions {
-            depth: 16,
-            movetime_ms: Some(2000),
+            depth: 60,
+            movetime_ms: Some(1000),
         }
     }
 }
@@ -357,6 +364,23 @@ mod analyze_tests {
         );
         assert_eq!(result.best_move_uci.len(), 4);
         assert!(!result.is_mate);
+    }
+
+    #[test]
+    fn default_options_match_chess_coms_fast_game_review_preset() {
+        // chess.com's own default Game Review engine strength (Settings >
+        // Engine > Game Review) is "Fast (~1 sec, 3270 Rating)" -- a
+        // time-bounded search, not a shallow fixed-depth cap. depth is set
+        // high enough that Stockfish never reaches it in ~1s on real
+        // hardware, so movetime is what actually governs when the search
+        // stops (matching "Fast (~1 sec)" literally), tracking chess.com's
+        // own Accuracy/Game Rating numbers as closely as possible using
+        // whatever real Stockfish build is installed locally (no separate
+        // "lite" build -- that's chess.com's own client-side interactive
+        // Analysis-board engine, unrelated to Game Review scoring).
+        let opts = EngineOptions::default();
+        assert_eq!(opts.movetime_ms, Some(1000));
+        assert!(opts.depth >= 60, "depth should be a practical no-op ceiling so movetime governs");
     }
 
     #[test]
