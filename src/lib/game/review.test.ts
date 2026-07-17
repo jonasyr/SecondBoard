@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getReviewPly, getPlayerRows, type GameData } from './review';
+import { getReviewPly, getPlayerRows, getAccuracySummary, type GameData } from './review';
 
 // moveMeta has 31 entries (index i = the move that produced ply i+1). Only
 // plies 1, 2, and 31 are ever asserted on below, so every other entry is an
@@ -146,5 +146,53 @@ describe('getPlayerRows', () => {
 		expect(top.initial).toBe('R');
 		// blackRating is null (no BlackElo tag) -> falls back to the mock rating.
 		expect(top.rating).not.toBe('');
+	});
+});
+
+describe('getAccuracySummary', () => {
+	it('falls back to the mock PLAYERS names when the PGN has no name tags, and resolves the real winner', () => {
+		const game: GameData = { ...sampleGame, result: '0-1' };
+		const summary = getAccuracySummary(game, [0, 1, 0.5]);
+
+		expect(summary.white.name).toBe('Jonas');
+		expect(summary.black.name).toBe('DominikP');
+		expect(summary.white.isWinner).toBe(false);
+		expect(summary.black.isWinner).toBe(true);
+		expect(summary.resultLabel).toBe('0–1');
+	});
+
+	it('uses real PGN names when present', () => {
+		const game: GameData = {
+			...notSampleGame,
+			whiteName: 'Donald Byrne',
+			blackName: 'Robert James Fischer',
+			result: '1-0'
+		};
+		const summary = getAccuracySummary(game, [0, 1]);
+
+		expect(summary.white.name).toBe('Donald Byrne');
+		expect(summary.white.initial).toBe('D');
+		expect(summary.black.name).toBe('Robert James Fischer');
+		expect(summary.black.initial).toBe('R');
+		expect(summary.white.isWinner).toBe(true);
+		expect(summary.black.isWinner).toBe(false);
+	});
+
+	it('reports accuracy as null (not a fabricated number) when there is not enough eval data yet', () => {
+		const game: GameData = { ...sampleGame, result: null };
+		const summary = getAccuracySummary(game, [0]);
+
+		expect(summary.white.accuracy).toBeNull();
+		expect(summary.black.accuracy).toBeNull();
+		expect(summary.resultLabel).toBe('—');
+	});
+
+	it('formats a draw result and marks neither side as the winner', () => {
+		const game: GameData = { ...sampleGame, result: '1/2-1/2' };
+		const summary = getAccuracySummary(game, [0, 0]);
+
+		expect(summary.resultLabel).toBe('½–½');
+		expect(summary.white.isWinner).toBe(false);
+		expect(summary.black.isWinner).toBe(false);
 	});
 });
