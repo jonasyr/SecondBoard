@@ -25,6 +25,7 @@ export interface GameData {
 	blackName: string | null;
 	whiteRating: string | null;
 	blackRating: string | null;
+	result: string | null;
 }
 
 export interface ReviewPly {

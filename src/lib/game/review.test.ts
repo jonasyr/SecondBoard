@@ -21,7 +21,8 @@ const sampleGame: GameData = {
 	whiteName: null,
 	blackName: null,
 	whiteRating: null,
-	blackRating: null
+	blackRating: null,
+	result: null
 };
 
 const notSampleGame: GameData = {
@@ -35,7 +36,8 @@ const notSampleGame: GameData = {
 	whiteName: null,
 	blackName: null,
 	whiteRating: null,
-	blackRating: null
+	blackRating: null,
+	result: null
 };
 
 describe('getReviewPly', () => {
