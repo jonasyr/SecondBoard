@@ -1,86 +1,81 @@
-# Task 3 Report: TS `api/pgn.ts` — `parsePgn` invoke wrapper
+# Task 3 Report: `src/lib/game/accuracy.ts` — win%, per-move accuracy, game accuracy, winner
 
-## Summary
-Successfully implemented the `parsePgn` Tauri invoke wrapper following the exact specification in the task brief, using TDD methodology (test first, then implementation).
+## Implementation Summary
 
-## Implementation Details
+Implemented a pure-function module for computing real per-side game accuracy from Stockfish evaluations and resolving PGN `Result` tags to winner strings. The module replaces mock accuracy fixtures with actual computed values using the public lichess/chess.com-style sigmoid approximation.
 
-### Files Created
-1. **src/lib/api/pgn.ts** - Main implementation file
-   - Exports `ParsedGame` interface with fields: `sanList`, `positions`, `moves`
-   - Exports `parsePgn(pgn: string)` function that invokes the Rust `parse_pgn` command
-   - Follows the identical pattern as existing `engine.ts` wrapper
+**Files created:**
+- `src/lib/game/accuracy.ts` (76 lines)
+- `src/lib/game/accuracy.test.ts` (65 lines)
 
-2. **src/lib/api/pgn.test.ts** - Test suite
-   - Mocks `@tauri-apps/api/core` using `vi.hoisted()` pattern (mirrors `engine.test.ts`)
-   - Tests that `invoke` is called with correct arguments: `'parse_pgn'` command and `{ pgn: string }`
-   - Verifies returned `ParsedGame` object structure with `sanList` and `moves` properties
+**Exported functions:**
+1. `winPercentFromEval(evalPawns: number): number` — Maps White-POV eval in pawns to win% (0-100)
+2. `computeGameAccuracy(evalPerPly: number[]): GameAccuracy` — Derives per-side accuracy from eval sequence
+3. `resolveWinner(result: string | null): Winner` — Parses PGN Result tag to winner
 
-### Files Modified
-1. **src/lib/api/index.ts**
-   - Added re-export: `export * from './pgn';`
-   - Maintains consistency with existing `window` and `engine` re-exports
+## TDD Evidence
 
-## Test Results
+### RED Phase
+Test file created and run before implementation:
+```bash
+$ pnpm exec vitest run src/lib/game/accuracy.test.ts
+Failed to resolve import "./accuracy" from "src/lib/game/accuracy.test.ts". Does the file exist?
+```
+✓ Confirmed: Tests fail with module-not-found error
 
-### Test Execution (RED → GREEN)
-1. **Initial test run (RED)** - Failed with expected error:
-   ```
-   Failed to resolve import "./pgn" from "src/lib/api/pgn.test.ts". Does the file exist?
-   ```
-   This was the expected failure before implementation.
+### GREEN Phase
+After implementation:
+```bash
+$ pnpm exec vitest run src/lib/game/accuracy.test.ts
+PASS (10) FAIL (0)
+```
+✓ Confirmed: All 10 test cases pass
 
-2. **Final test run (GREEN)** - After implementation:
-   ```
-   PASS (1) FAIL (0)
-   ```
-   The single test passes successfully.
+**Test coverage breakdown:**
+- `winPercentFromEval`: 5 tests (boundary, symmetry, monotonicity, saturation, spec value)
+- `computeGameAccuracy`: 3 tests (insufficient data, perfect play, accuracy averaging)
+- `resolveWinner`: 2 tests (standard PGN tags, edge cases)
 
-## Verification
+## Code Quality Self-Review
 
-✅ **Interface Implementation** - `ParsedGame` interface matches specification exactly:
-- `sanList: string[]` - Standard Algebraic Notation moves
-- `positions: Array<Record<string, [string, string]>>` - Board positions with piece info
-- `moves: Array<{ from: string; to: string }>` - Move list
+✓ **Constants exactly as specified:**
+  - `winPercentFromEval`: sigmoid constant `-0.00368208` ✓
+  - `moveAccuracy`: coefficients `103.1668`, `-0.04354`, `-3.1669` ✓
 
-✅ **Function Implementation** - `parsePgn(pgn: string): Promise<ParsedGame>`
-- Correctly invokes Tauri command with proper typing
-- Returns `Promise<ParsedGame>` as required
+✓ **Module-level comment:** Clearly states this is a public approximation (not chess.com's proprietary algorithm), with reference to design doc
 
-✅ **Test Mocking** - Follows established pattern from `engine.test.ts`:
-- Uses `vi.hoisted()` for mock creation
-- Mocks `@tauri-apps/api/core` module
-- Verifies `invoke` call signature
+✓ **Function signatures match spec exactly:**
+  - `winPercentFromEval(evalPawns: number): number` ✓
+  - `computeGameAccuracy(evalPerPly: number[]): GameAccuracy` ✓
+  - `resolveWinner(result: string | null): Winner` ✓
 
-✅ **Index Re-export** - Added to `src/lib/api/index.ts` correctly
-- No existing code removed or affected
-- Follows existing pattern for `window` and `engine` modules
+✓ **Immutability:** No mutations; pure functions throughout
 
-## Self-Review Findings
+✓ **Error handling:** Null returns for insufficient data; clamping in moveAccuracy
 
-- Implementation matches brief specification character-for-character
-- No deviations from established patterns (mirrors `engine.ts/engine.test.ts`)
-- Test correctly validates both invoke call and result structure
-- All files created in correct locations with proper naming
-- Re-export added without any issues
+✓ **Test assertions:** All numeric values match expected spec output
+  - winPercentFromEval(1) = 59.102589719161294 ✓
+  - computeGameAccuracy([0, 1, 0.5]) → white/black ≈ 99.9999 ✓
+  - computeGameAccuracy([0, -3, -3.2, -8, -8.5]) → white ≈ 37.126083891942, black ≈ 99.9999 ✓
 
-## Commit Information
+✓ **Test output:** Pristine; no warnings or errors
 
-**Commit SHA:** `5401883`
-**Commit Message:** `feat: add parsePgn Tauri invoke wrapper`
-**Files Changed:** 3 files
-- Created: `src/lib/api/pgn.ts`
-- Created: `src/lib/api/pgn.test.ts`
-- Modified: `src/lib/api/index.ts`
+## Files Changed
 
-## Dependencies & Integration
+```
+A  src/lib/game/accuracy.ts
+A  src/lib/game/accuracy.test.ts
+```
 
-This implementation:
-- ✅ Consumes: `invoke` from `@tauri-apps/api/core` (already a dependency)
-- ✅ Produces: `ParsedGame` interface and `parsePgn` function for Task 4 consumption
-- ✅ Integrates cleanly with existing API module structure
-- ✅ Ready for Task 4 (game review derivation) to import and use
+## Commit
 
-## Issues or Concerns
+- **SHA:** `cb5ccea`
+- **Message:** `feat: add real win%-based game accuracy and winner resolution`
 
-None. Task completed successfully per specification.
+## Concerns
+
+None. All test cases pass with exact numeric assertions. Code is self-contained, has no external dependencies beyond the two existing imports (`PieceColor` and `sideToMoveForPly`). Module documentation clearly disclaims this as an approximation per design constraints.
+
+## Next Steps
+
+Task 4 will wire `computeGameAccuracy()` and `resolveWinner()` output into the UI to display real accuracy and game result (currently hardcoded/mocked).
