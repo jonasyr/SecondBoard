@@ -20,15 +20,35 @@ describe('EvalBar', () => {
 		expect(fill.getAttribute('style')).toContain('top: 0px');
 	});
 
-	it('shows the absolute eval magnitude as the label, positive or negative eval', () => {
-		const { container: pos } = render(EvalBar, {
+	it('shows the signed white-POV eval on one label and its negation on the other, for a positive eval', () => {
+		const { container } = render(EvalBar, {
 			props: { whitePct: 62.5, evalNum: 2.37, whiteAtBottom: true }
 		});
-		expect(pos.querySelector('.label')?.textContent).toBe('2.4');
+		const labels = Array.from(container.querySelectorAll('.label')).map((el) => el.textContent);
+		expect(labels).toEqual(['+2.4', '-2.4']);
+	});
 
-		const { container: neg } = render(EvalBar, {
+	it('shows the signed white-POV eval on one label and its negation on the other, for a negative eval', () => {
+		const { container } = render(EvalBar, {
 			props: { whitePct: 20, evalNum: -1.5, whiteAtBottom: true }
 		});
-		expect(neg.querySelector('.label')?.textContent).toBe('1.5');
+		const labels = Array.from(container.querySelectorAll('.label')).map((el) => el.textContent);
+		expect(labels).toEqual(['-1.5', '+1.5']);
+	});
+
+	it('renders no analyzing spinner or blur by default', () => {
+		const { container } = render(EvalBar, {
+			props: { whitePct: 50, evalNum: 0, whiteAtBottom: true }
+		});
+		expect(container.querySelector('.analyzing-spinner')).toBeNull();
+		expect(container.querySelector('.bar-blur')?.classList.contains('analyzing')).toBe(false);
+	});
+
+	it('blurs the bar and renders a centered spinner when analyzing is true', () => {
+		const { container } = render(EvalBar, {
+			props: { whitePct: 50, evalNum: 0, whiteAtBottom: true, analyzing: true }
+		});
+		expect(container.querySelector('.analyzing-spinner')).not.toBeNull();
+		expect(container.querySelector('.bar-blur')?.classList.contains('analyzing')).toBe(true);
 	});
 });

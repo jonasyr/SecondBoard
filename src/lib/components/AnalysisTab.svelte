@@ -13,16 +13,13 @@
 
 	let { ply, onSelectPly, onNext }: Props = $props();
 
-	const data = $derived(getReviewPly(ply, appState.evalPerPly, appState.bestMoves));
+	const data = $derived(getReviewPly(ply, appState.game!, appState.evalPerPly, appState.bestMoves));
 </script>
 
 <div class="analysis-tab">
-	{#if appState.analysisStatus === 'loading'}
-		<div class="analyzing-note">Analyzing with Stockfish…</div>
-	{/if}
 	<div class="coach-slot">
 		<CoachCard
-			classCode={data.classCode ?? 'book'}
+			classCode={data.classCode}
 			coachMove={data.coachMove}
 			coachText={data.coachText}
 			evalStr={data.evalStr}
@@ -46,7 +43,12 @@
 		</button>
 	</div>
 
-	<MoveList selectedPly={ply} {onSelectPly} />
+	<MoveList
+		selectedPly={ply}
+		{onSelectPly}
+		sanList={appState.game!.sanList}
+		isSample={appState.game!.isSample}
+	/>
 </div>
 
 <style>
@@ -59,13 +61,6 @@
 	.coach-slot {
 		flex: none;
 		padding: 13px 14px 0;
-	}
-	.analyzing-note {
-		flex: none;
-		padding: 10px 14px 0;
-		font-size: 11.5px;
-		font-weight: 600;
-		color: var(--color-text-tertiary);
 	}
 	.actions {
 		flex: none;

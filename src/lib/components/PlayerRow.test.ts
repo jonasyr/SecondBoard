@@ -28,6 +28,20 @@ describe('PlayerRow', () => {
 		expect(getByText('+3')).toBeTruthy();
 	});
 
+	it('gives black captured pieces a light outline instead of the dark shadow used for white', () => {
+		const mixed: PlayerRowData = {
+			...base,
+			captured: [
+				{ color: 'w', type: 'P' },
+				{ color: 'b', type: 'Q' }
+			]
+		};
+		const { container } = render(PlayerRow, { props: { player: mixed } });
+		const sprites = container.querySelectorAll('.captured-piece');
+		expect(sprites[0].getAttribute('style')).toContain('rgba(0,0,0,.5)');
+		expect(sprites[1].getAttribute('style')).toContain('rgba(255,255,255,.55)');
+	});
+
 	it('omits the advantage span when adv is null', () => {
 		const { container } = render(PlayerRow, { props: { player: { ...base, adv: null } } });
 		expect(container.querySelector('.adv')).toBeNull();

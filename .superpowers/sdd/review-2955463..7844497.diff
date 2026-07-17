@@ -1,0 +1,83 @@
+# Review package: 295546341e741b6560120e55c9362f20d15b61f5..HEAD
+
+## Commits
+7844497 fix: resolve lint errors found in iteration 5 verification sweep
+
+## Files changed
+ eslint.config.js                           | 2 ++
+ src/lib/components/MoveList.svelte         | 1 -
+ src/lib/components/OnboardingScreen.svelte | 2 +-
+ 3 files changed, 3 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/eslint.config.js b/eslint.config.js
+index 2f5ecbc..da39ead 100644
+--- a/eslint.config.js
++++ b/eslint.config.js
+@@ -49,20 +49,22 @@ export default [
+ 				parser: tsParser,
+ 				projectService: true,
+ 				tsconfigRootDir: import.meta.dirname,
+ 				extraFileExtensions: ['.svelte']
+ 			}
+ 		},
+ 		plugins: {
+ 			'@typescript-eslint': tsPlugin
+ 		},
+ 		rules: {
++			'no-unused-vars': 'off',
++			'@typescript-eslint/no-unused-vars': 'error',
+ 			'@typescript-eslint/no-explicit-any': 'error'
+ 		}
+ 	},
+ 	{
+ 		files: ['**/*.svelte.ts'],
+ 		languageOptions: {
+ 			parser: svelteParser,
+ 			parserOptions: {
+ 				parser: tsParser,
+ 				projectService: true,
+diff --git a/src/lib/components/MoveList.svelte b/src/lib/components/MoveList.svelte
+index 99b624b..7ee719f 100644
+--- a/src/lib/components/MoveList.svelte
++++ b/src/lib/components/MoveList.svelte
+@@ -1,12 +1,11 @@
+ <script lang="ts">
+-	import { tick } from 'svelte';
+ 	import { SAN_LIST, CLASS_CODES } from '$lib/game/mock-data';
+ 	import { TOKENS } from '$lib/tokens';
+ 	import ClassBadge from './ClassBadge.svelte';
+ 
+ 	interface Props {
+ 		selectedPly: number;
+ 		onSelectPly: (ply: number) => void;
+ 	}
+ 
+ 	let { selectedPly, onSelectPly }: Props = $props();
+diff --git a/src/lib/components/OnboardingScreen.svelte b/src/lib/components/OnboardingScreen.svelte
+index 5ad6351..795fd22 100644
+--- a/src/lib/components/OnboardingScreen.svelte
++++ b/src/lib/components/OnboardingScreen.svelte
+@@ -33,21 +33,21 @@
+ 						stroke="#4ADEA0"
+ 						strokeWidth={2}
+ 					/>
+ 					Paste sample game
+ 				</span>
+ 			</div>
+ 			<textarea
+ 				class="sbmono sbscroll"
+ 				bind:value={appState.pgnText}
+ 				spellcheck="false"
+-				placeholder={'[Event "Live Rapid"]\n[White "Jonas"]\n[Black "DominikP"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. c3 Nf6 ...'}
++				placeholder="[Event &quot;Live Rapid&quot;]&#10;[White &quot;Jonas&quot;]&#10;[Black &quot;DominikP&quot;]&#10;&#10;1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. c3 Nf6 ..."
+ 			></textarea>
+ 			<div class="actions">
+ 				<button type="button" class="start" onclick={startReview}>
+ 					Start Review
+ 					<Icon d="M5 12h13M12 5l7 7-7 7" size={16} stroke="#062018" strokeWidth={2.4} />
+ 				</button>
+ 				<button type="button" class="upload">
+ 					<Icon d="M12 3v12M7 10l5 5 5-5M5 21h14" size={15} stroke="#8A90A0" strokeWidth={2} />
+ 					Upload .pgn
+ 				</button>

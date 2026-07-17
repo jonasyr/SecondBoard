@@ -1,24 +1,24 @@
 /**
  * ============================================================================
- * MOCK CONTENT — the sample Italian Game shown by the Game Review screen.
+ * MOCK CONTENT — describes ONLY the built-in sample game (the Italian Game
+ * shown by "Paste sample game"), applied by review.ts ONLY when the currently
+ * loaded game is verified byte-identical to that sample PGN (`GameData.isSample`,
+ * Iteration 6). A genuinely different real pasted/typed PGN gets real positions
+ * and moves (src-tauri/src/pgn.rs via shakmaty) but none of this classification/
+ * coach-text/breakdown/phase/player content, since none of it can honestly
+ * apply to a game these arrays were never computed from.
  * ============================================================================
- * Ported verbatim from design_handoff_secondboard/reference/logic/data.js.
- * sanList/classCodes/evalPerPly/bestMoves stand in for Rust pgn+analysis+
- * engine output (README §8 mapping table). coachTextMap/breakdown/phases/
- * players stand in for backend-computed screen content (same table). Replace
- * piece by piece as each real data source lands (README §11 steps 5-8);
- * CLS itself (name/word/color/glyph) is NOT mock — that already lives in
- * TOKENS.classification (src/lib/tokens.ts) and must not be redeclared here.
+ * classCodes/evalPerPly/bestMoves/coachTextMap/breakdown/phases stand in for
+ * Rust analysis+engine output (README §8 mapping table) — real move
+ * classification is a later iteration (OVERVIEW §11's centipawn-loss/accuracy
+ * formulas are not implemented yet). players stands in for backend-computed
+ * screen content (same table) — real player names/ratings from PGN tags are
+ * also a later iteration. CLS itself (name/word/color/glyph) is NOT mock —
+ * that already lives in TOKENS.classification (src/lib/tokens.ts) and must
+ * not be redeclared here.
  */
 import type { ClassCode } from '$lib/types';
 import type { Move } from '$lib/board/types';
-import { buildGame } from './mock-engine';
-
-export const SAN_LIST = [
-	'e4', 'e5', 'Nf3', 'Nc6', 'Bc4', 'Bc5', 'c3', 'Nf6', 'd3', 'd6', 'O-O', 'O-O',
-	'Re1', 'a6', 'Bb3', 'Ba7', 'h3', 'h6', 'Nbd2', 'Be6', 'Bxe6', 'fxe6', 'Nf1',
-	'Qe7', 'Ng3', 'Rad8', 'd4', 'exd4', 'cxd4', 'd5', 'Ne5'
-];
 
 export const CLASS_CODES: ClassCode[] = [
 	'book', 'book', 'book', 'book', 'book', 'book', 'best', 'good', 'good', 'good',
@@ -98,7 +98,3 @@ export const PLAYERS: { white: PlayerInfo; black: PlayerInfo } = {
 		gameRating: '1994'
 	}
 };
-
-const built = buildGame(SAN_LIST);
-export const MOCK_POSITIONS = built.positions;
-export const MOCK_MOVE_META = built.meta;

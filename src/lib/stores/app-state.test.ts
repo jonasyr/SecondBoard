@@ -3,10 +3,13 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 const { loadRealAnalysis } = vi.hoisted(() => ({ loadRealAnalysis: vi.fn() }));
 vi.mock('$lib/game/engine-analysis', () => ({ loadRealAnalysis }));
 
+const { parsePgn } = vi.hoisted(() => ({ parsePgn: vi.fn() }));
+vi.mock('$lib/api/pgn', () => ({ parsePgn }));
+
 import { createAppState } from './app-state.svelte';
 import {
 	appState,
-	MAX_PLY,
+	getMaxPly,
 	goToPly,
 	stepPly,
 	startReview,
@@ -38,15 +41,26 @@ describe('screen/ply transitions', () => {
 		appState.pgnText = 'x';
 	});
 
-	it('MAX_PLY matches the mock game length (31)', () => {
-		expect(MAX_PLY).toBe(31);
+	it('getMaxPly returns 0 before any game is loaded, and the real length after startReview', async () => {
+		expect(getMaxPly()).toBe(0);
+
+		parsePgn.mockResolvedValue({
+			sanList: Array.from({ length: 31 }, (_, i) => `move${i}`),
+			positions: Array.from({ length: 32 }, () => ({})),
+			moves: Array.from({ length: 31 }, () => ({ from: 'a1', to: 'a1' }))
+		});
+		loadRealAnalysis.mockResolvedValue({ evalPerPly: [], bestMoves: {} });
+
+		await startReview();
+
+		expect(getMaxPly()).toBe(31);
 	});
 
 	it('goToPly clamps to [0, MAX_PLY]', () => {
 		goToPly(-5);
 		expect(appState.ply).toBe(0);
 		goToPly(999);
-		expect(appState.ply).toBe(31);
+		expect(appState.ply).toBe(getMaxPly());
 		goToPly(10);
 		expect(appState.ply).toBe(10);
 	});
@@ -59,11 +73,19 @@ describe('screen/ply transitions', () => {
 		expect(appState.ply).toBe(1);
 	});
 
-	it('startReview resets to the default review state regardless of pgnText', () => {
+	it('startReview resets to the default review state regardless of pgnText', async () => {
 		appState.gameLoaded = false;
 		appState.ply = 0;
 		appState.tab = 'details';
-		startReview();
+		parsePgn.mockResolvedValue({
+			sanList: Array.from({ length: 31 }, (_, i) => `move${i}`),
+			positions: Array.from({ length: 32 }, () => ({})),
+			moves: Array.from({ length: 31 }, () => ({ from: 'a1', to: 'a1' }))
+		});
+		loadRealAnalysis.mockResolvedValue({ evalPerPly: [], bestMoves: {} });
+
+		await startReview();
+
 		expect(appState.gameLoaded).toBe(true);
 		expect(appState.screen).toBe('review');
 		expect(appState.ply).toBe(31);
@@ -91,9 +113,84 @@ describe('screen/ply transitions', () => {
 	});
 });
 
+describe('startReview (real PGN parsing)', () => {
+	beforeEach(() => {
+		parsePgn.mockReset();
+		loadRealAnalysis.mockReset();
+		loadRealAnalysis.mockResolvedValue({ evalPerPly: [], bestMoves: {} });
+	});
+
+	it('on successful parse: populates game, resets parseError, and loads the review screen', async () => {
+		appState.pgnText = '1. e4 e5';
+		appState.parseError = 'stale error from a previous attempt';
+		parsePgn.mockResolvedValue({
+			sanList: ['e4', 'e5'],
+			positions: [{}, {}, {}],
+			moves: [
+				{ from: 'e2', to: 'e4' },
+				{ from: 'e7', to: 'e5' }
+			]
+		});
+
+		await startReview();
+
+		expect(parsePgn).toHaveBeenCalledWith('1. e4 e5');
+		expect(appState.parseError).toBeNull();
+		expect(appState.game?.sanList).toEqual(['e4', 'e5']);
+		expect(appState.game?.isSample).toBe(false);
+		expect(appState.gameLoaded).toBe(true);
+		expect(appState.screen).toBe('review');
+		expect(appState.ply).toBe(2);
+		expect(appState.evalPerPly).toEqual([0, 0, 0]);
+	});
+
+	it('falls back to the sample PGN when pgnText is blank, and flags isSample true', async () => {
+		appState.pgnText = '   ';
+		parsePgn.mockResolvedValue({
+			sanList: ['e4'],
+			positions: [{}, {}],
+			moves: [{ from: 'e2', to: 'e4' }]
+		});
+
+		await startReview();
+
+		const { SAMPLE_PGN } = await import('$lib/game/sample-pgn');
+		expect(parsePgn).toHaveBeenCalledWith(SAMPLE_PGN);
+		expect(appState.game?.isSample).toBe(true);
+	});
+
+	it('on parse failure: sets parseError and does not load the review screen', async () => {
+		appState.pgnText = 'not a real pgn';
+		appState.gameLoaded = false;
+		parsePgn.mockRejectedValue(new Error('illegal move'));
+
+		await startReview();
+
+		expect(appState.parseError).toBe('illegal move');
+		expect(appState.gameLoaded).toBe(false);
+	});
+
+	it('on parse failure with a plain-string rejection (Tauri v2 invoke behavior): surfaces the exact string', async () => {
+		appState.pgnText = 'not a real pgn';
+		appState.gameLoaded = false;
+		parsePgn.mockRejectedValue('illegal move: Kd8');
+
+		await startReview();
+
+		expect(appState.parseError).toBe('illegal move: Kd8');
+		expect(appState.gameLoaded).toBe(false);
+	});
+});
+
 describe('real analysis loading', () => {
 	beforeEach(() => {
+		parsePgn.mockReset();
 		loadRealAnalysis.mockReset();
+		parsePgn.mockResolvedValue({
+			sanList: ['e4'],
+			positions: [{}, {}],
+			moves: [{ from: 'e2', to: 'e4' }]
+		});
 	});
 
 	it('starts in the idle status by default', () => {
@@ -102,7 +199,7 @@ describe('real analysis loading', () => {
 		expect(state.evalPerPly.length).toBeGreaterThan(0);
 	});
 
-	it('goes loading -> ready and applies the real data on startReview success', async () => {
+	it('goes loading -> ready and applies the real data once startReview resolves', async () => {
 		let resolveAnalysis!: (v: { evalPerPly: number[]; bestMoves: Record<number, never> }) => void;
 		loadRealAnalysis.mockReturnValue(
 			new Promise((resolve) => {
@@ -110,7 +207,7 @@ describe('real analysis loading', () => {
 			})
 		);
 
-		startReview();
+		await startReview();
 		expect(appState.analysisStatus).toBe('loading');
 
 		resolveAnalysis({ evalPerPly: [0, 0.3], bestMoves: {} });
@@ -124,7 +221,7 @@ describe('real analysis loading', () => {
 	it('goes loading -> error when loadRealAnalysis rejects', async () => {
 		loadRealAnalysis.mockRejectedValue(new Error('engine offline'));
 
-		startReview();
+		await startReview();
 		await Promise.resolve();
 		await Promise.resolve();
 

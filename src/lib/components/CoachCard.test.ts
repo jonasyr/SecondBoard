@@ -43,4 +43,23 @@ describe('CoachCard', () => {
 		});
 		expect(q2('Best was')).toBeNull();
 	});
+
+	it('renders a neutral state with no badge/word when classCode is null', () => {
+		const { container, queryByText, getByText } = render(CoachCard, {
+			props: {
+				classCode: null,
+				coachMove: '1. e4',
+				coachText: "Move classification isn't available yet for pasted games.",
+				evalStr: '+0.00',
+				best: null
+			}
+		});
+		expect(container.querySelector('.badge')).toBeNull();
+		expect(container.querySelector('.word')).toBeNull();
+		expect(queryByText(/book move/)).toBeNull();
+		expect(queryByText('◈')).toBeNull();
+		expect(getByText('1. e4')).toBeTruthy();
+		expect(getByText("Move classification isn't available yet for pasted games.")).toBeTruthy();
+		expect(getByText('+0.00')).toBeTruthy();
+	});
 });

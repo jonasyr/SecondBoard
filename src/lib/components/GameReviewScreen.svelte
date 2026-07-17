@@ -7,8 +7,10 @@
 	import EvalBar from './EvalBar.svelte';
 	import ReviewPanel from './ReviewPanel.svelte';
 
-	const data = $derived(getReviewPly(appState.ply, appState.evalPerPly, appState.bestMoves));
-	const rows = $derived(getPlayerRows(appState.ply, appState.flipped));
+	const data = $derived(
+		getReviewPly(appState.ply, appState.game!, appState.evalPerPly, appState.bestMoves)
+	);
+	const rows = $derived(getPlayerRows(appState.ply, appState.flipped, appState.game!));
 
 	onMount(() => {
 		window.addEventListener('keydown', handleReviewKeydown);
@@ -21,7 +23,12 @@
 		<PlayerRow player={rows.top} showNewGameButton onNewGame={newGame} />
 
 		<div class="board-row">
-			<EvalBar whitePct={data.whitePct} evalNum={data.evalNum} whiteAtBottom={!appState.flipped} />
+			<EvalBar
+				whitePct={data.whitePct}
+				evalNum={data.evalNum}
+				whiteAtBottom={!appState.flipped}
+				analyzing={appState.analysisStatus === 'loading'}
+			/>
 			<div class="board-sizer">
 				<Board
 					position={data.position}
@@ -29,7 +36,7 @@
 					flipped={appState.flipped}
 					lastMove={data.lastMove}
 					classCode={data.classCode}
-					best={data.best}
+					nextBest={data.nextBest}
 				/>
 			</div>
 		</div>

@@ -40,39 +40,39 @@ describe('Board', () => {
 		expect(dest.querySelector('.badge')).not.toBeNull();
 	});
 
-	it('renders the best-move arrow only when the classification is a NOT_BEST code and a best move is given', () => {
+	it('renders the prospective best-move arrow whenever nextBest is given, regardless of classification', () => {
 		const { container: withArrow } = render(Board, {
 			props: {
 				position: POS_1,
 				ply: 1,
 				lastMove: { from: 'e2', to: 'e4' },
 				classCode: 'mistake',
-				best: { from: 'g8', to: 'f6', san: 'Nf6' }
+				nextBest: { from: 'g8', to: 'f6', san: 'Nf6' }
 			}
 		});
 		expect(withArrow.querySelector('svg.arrow-overlay')).not.toBeNull();
 
-		const { container: noArrowBestMove } = render(Board, {
+		const { container: withArrowNoClass } = render(Board, {
+			props: {
+				position: POS_1,
+				ply: 1,
+				lastMove: { from: 'e2', to: 'e4' },
+				classCode: null,
+				nextBest: { from: 'g8', to: 'f6', san: 'Nf6' }
+			}
+		});
+		expect(withArrowNoClass.querySelector('svg.arrow-overlay')).not.toBeNull();
+
+		const { container: noArrow } = render(Board, {
 			props: {
 				position: POS_1,
 				ply: 1,
 				lastMove: { from: 'e2', to: 'e4' },
 				classCode: 'best',
-				best: null
+				nextBest: null
 			}
 		});
-		expect(noArrowBestMove.querySelector('svg.arrow-overlay')).toBeNull();
-
-		const { container: noArrowGoodClass } = render(Board, {
-			props: {
-				position: POS_1,
-				ply: 1,
-				lastMove: { from: 'e2', to: 'e4' },
-				classCode: 'excellent',
-				best: { from: 'g8', to: 'f6', san: 'Nf6' }
-			}
-		});
-		expect(noArrowGoodClass.querySelector('svg.arrow-overlay')).toBeNull();
+		expect(noArrow.querySelector('svg.arrow-overlay')).toBeNull();
 	});
 
 	it('triggers the slide animation on a single-step ply change with the same flip state', async () => {

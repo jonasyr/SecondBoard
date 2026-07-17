@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-	SAN_LIST,
 	CLASS_CODES,
 	EVAL_PER_PLY,
 	BEST_MOVES,
@@ -11,9 +10,9 @@ import {
 } from './mock-data';
 
 describe('mock-data', () => {
-	it('keeps classCodes/evalPerPly aligned in length with sanList', () => {
-		expect(CLASS_CODES).toHaveLength(SAN_LIST.length);
-		expect(EVAL_PER_PLY).toHaveLength(SAN_LIST.length + 1); // includes ply 0
+	it('CLASS_CODES/EVAL_PER_PLY have the sample game\'s known fixed lengths (31 plies)', () => {
+		expect(CLASS_CODES).toHaveLength(31);
+		expect(EVAL_PER_PLY).toHaveLength(32); // includes ply 0
 	});
 
 	it('has a coach text entry for every classification code', () => {

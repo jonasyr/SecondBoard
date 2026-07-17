@@ -5,7 +5,7 @@
 	import { animateSlide } from '$lib/board/animate-slide';
 	import type { Move, Position } from '$lib/board/types';
 	import type { ClassCode } from '$lib/types';
-	import { TOKENS, NOT_BEST_CODES } from '$lib/tokens';
+	import { TOKENS } from '$lib/tokens';
 	import BoardSquare from './BoardSquare.svelte';
 
 	interface Props {
@@ -15,7 +15,8 @@
 		flipped?: boolean;
 		lastMove?: Move | null;
 		classCode?: ClassCode | null;
-		best?: (Move & { san: string }) | null;
+		/** Engine's top suggestion for the move about to be played from `position`. */
+		nextBest?: (Move & { san: string }) | null;
 		showCoords?: boolean;
 	}
 
@@ -25,7 +26,7 @@
 		flipped = false,
 		lastMove = null,
 		classCode = null,
-		best = null,
+		nextBest = null,
 		showCoords = true
 	}: Props = $props();
 
@@ -51,8 +52,7 @@
 		})
 	);
 
-	const showArrow = $derived(!!best && !!classCode && NOT_BEST_CODES.includes(classCode));
-	const arrow = $derived(showArrow && best ? arrowGeom(best.from, best.to, 11, flipped) : null);
+	const arrow = $derived(nextBest ? arrowGeom(nextBest.from, nextBest.to, 11, flipped) : null);
 
 	// Single-step slide-animation trigger, ported from the reference's
 	// componentDidUpdate guards (LOGIC.md §2.4): only animate when |Δply|===1

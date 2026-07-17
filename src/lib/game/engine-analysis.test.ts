@@ -4,15 +4,23 @@ const { analyzeFen } = vi.hoisted(() => ({ analyzeFen: vi.fn() }));
 vi.mock('$lib/api/engine', () => ({ analyzeFen }));
 
 import { loadRealAnalysis } from './engine-analysis';
-import { MOCK_POSITIONS } from './mock-data';
 import { fullmoveNumberForPly, sideToMoveForPly } from './notation';
+import type { Position } from '$lib/board/types';
+
+// Self-contained fixture, independent of any "sample game" data: 32 mostly-empty
+// placeholder positions (analyzeFen is mocked out entirely below, so these tests
+// only care about array length/count), except index 13 which carries a black
+// bishop on c8 so the "maps each analyzed position's best move..." test below can
+// exercise moveToSan's real (non-mocked) SAN-labeling logic for a bishop move.
+const testPositions: Position[] = Array.from({ length: 32 }, () => ({}));
+testPositions[13] = { c8: ['B', 'b'] };
 
 describe('loadRealAnalysis', () => {
 	beforeEach(() => {
 		analyzeFen.mockReset();
 	});
 
-	it('produces one evalPerPly entry per mock position, normalized to White POV', async () => {
+	it('produces one evalPerPly entry per position, normalized to White POV', async () => {
 		analyzeFen.mockImplementation(async () => ({
 			evalCp: 50,
 			isMate: false,
@@ -20,9 +28,9 @@ describe('loadRealAnalysis', () => {
 			pv: []
 		}));
 
-		const { evalPerPly } = await loadRealAnalysis();
+		const { evalPerPly } = await loadRealAnalysis(testPositions);
 
-		expect(evalPerPly).toHaveLength(MOCK_POSITIONS.length);
+		expect(evalPerPly).toHaveLength(testPositions.length);
 		expect(evalPerPly[0]).toBeCloseTo(0.5); // ply 0: White to move, +50cp -> +0.50 White POV
 		expect(evalPerPly[1]).toBeCloseTo(-0.5); // ply 1: Black to move, +50cp for Black -> -0.50 White POV
 	});
@@ -30,7 +38,7 @@ describe('loadRealAnalysis', () => {
 	it('maps each analyzed position\'s best move onto the following ply (matches BEST_MOVES[14] shape)', async () => {
 		analyzeFen.mockResolvedValue({ evalCp: 0, isMate: false, bestMoveUci: 'c8g4', pv: [] });
 
-		const { bestMoves } = await loadRealAnalysis();
+		const { bestMoves } = await loadRealAnalysis(testPositions);
 
 		expect(bestMoves[14]).toEqual({ from: 'c8', to: 'g4', san: 'Bg4' });
 	});
@@ -38,15 +46,15 @@ describe('loadRealAnalysis', () => {
 	it('does not add a bestMoves entry for the position after the final ply', async () => {
 		analyzeFen.mockResolvedValue({ evalCp: 0, isMate: false, bestMoveUci: 'c8g4', pv: [] });
 
-		const { bestMoves } = await loadRealAnalysis();
+		const { bestMoves } = await loadRealAnalysis(testPositions);
 
-		expect(bestMoves[MOCK_POSITIONS.length]).toBeUndefined();
+		expect(bestMoves[testPositions.length]).toBeUndefined();
 	});
 
 	it('reports a large positive eval for a favorable mate for the mover (White to move, ply 0)', async () => {
 		analyzeFen.mockResolvedValue({ evalCp: 100_000, isMate: true, bestMoveUci: 'e2e4', pv: [] });
 
-		const { evalPerPly } = await loadRealAnalysis();
+		const { evalPerPly } = await loadRealAnalysis(testPositions);
 
 		expect(evalPerPly[0]).toBeGreaterThan(50); // ply 0: White to move, mate FOR mover -> large positive
 	});
@@ -58,7 +66,7 @@ describe('loadRealAnalysis', () => {
 		// mate score, this case (mover is being mated) would incorrectly come out positive.
 		analyzeFen.mockResolvedValue({ evalCp: -100_000, isMate: true, bestMoveUci: 'e2e4', pv: [] });
 
-		const { evalPerPly } = await loadRealAnalysis();
+		const { evalPerPly } = await loadRealAnalysis(testPositions);
 
 		expect(evalPerPly[0]).toBeLessThan(-50); // ply 0: White to move, mover IS being mated -> large negative
 	});
@@ -83,12 +91,12 @@ describe('loadRealAnalysis', () => {
 			return { evalCp: Number(ply), isMate: false, bestMoveUci: 'e2e4', pv: [] };
 		});
 
-		const { evalPerPly } = await loadRealAnalysis();
+		const { evalPerPly } = await loadRealAnalysis(testPositions);
 
 		expect(maxInFlight).toBeLessThanOrEqual(BATCH_SIZE);
 		expect(maxInFlight).toBeGreaterThan(1); // sanity check: calls really do overlap within a batch
 
-		// Ordering check: evalPerPly[ply] must reflect MOCK_POSITIONS[ply]'s own analysis
+		// Ordering check: evalPerPly[ply] must reflect testPositions[ply]'s own analysis
 		// (fullmove number for that ply), not some other position's result.
 		evalPerPly.forEach((_, ply) => {
 			const expectedFullmove = fullmoveNumberForPly(ply);

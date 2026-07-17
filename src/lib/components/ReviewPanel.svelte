@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { appState, goToPly, stepPly, MAX_PLY } from '$lib/stores/app-state.svelte';
+	import { appState, goToPly, stepPly, getMaxPly } from '$lib/stores/app-state.svelte';
 	import Icon from './Icon.svelte';
 	import AnalysisTab from './AnalysisTab.svelte';
 	import ReviewTab from './ReviewTab.svelte';
@@ -69,7 +69,11 @@
 	</div>
 
 	{#if appState.tab === 'review'}
-		<ReviewTab ply={appState.ply} evalPerPly={appState.evalPerPly} />
+		<ReviewTab
+	ply={appState.ply}
+	evalPerPly={appState.evalPerPly}
+	analyzing={appState.analysisStatus === 'loading'}
+/>
 	{:else if appState.tab === 'analysis'}
 		<AnalysisTab ply={appState.ply} onSelectPly={goToPly} onNext={() => stepPly(1)} />
 	{:else if appState.tab === 'details'}
@@ -85,7 +89,8 @@
 			onFirst={() => goToPly(0)}
 			onPrev={() => stepPly(-1)}
 			onNext={() => stepPly(1)}
-			onLast={() => goToPly(MAX_PLY)}
+			onLast={() => goToPly(getMaxPly())}
+			analyzing={appState.analysisStatus === 'loading'}
 		/>
 	{/if}
 </div>

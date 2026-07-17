@@ -1,14 +1,16 @@
 <script lang="ts">
-	import { SAN_LIST, CLASS_CODES } from '$lib/game/mock-data';
+	import { CLASS_CODES } from '$lib/game/mock-data';
 	import { TOKENS } from '$lib/tokens';
 	import ClassBadge from './ClassBadge.svelte';
 
 	interface Props {
 		selectedPly: number;
 		onSelectPly: (ply: number) => void;
+		sanList: string[];
+		isSample: boolean;
 	}
 
-	let { selectedPly, onSelectPly }: Props = $props();
+	let { selectedPly, onSelectPly, sanList, isSample }: Props = $props();
 
 	interface Row {
 		num: string;
@@ -17,21 +19,24 @@
 		striped: boolean;
 	}
 
-	const rows: Row[] = Array.from({ length: 16 }, (_, i) => {
-		const wPly = 2 * i + 1;
-		const bPly = 2 * i + 2;
-		return {
-			num: i + 1 + '.',
-			wPly,
-			bPly: bPly <= SAN_LIST.length ? bPly : null,
-			striped: i % 2 === 1
-		};
-	});
+	const rows: Row[] = $derived(
+		Array.from({ length: Math.ceil(sanList.length / 2) }, (_, i) => {
+			const wPly = 2 * i + 1;
+			const bPly = 2 * i + 2;
+			return {
+				num: i + 1 + '.',
+				wPly,
+				bPly: bPly <= sanList.length ? bPly : null,
+				striped: i % 2 === 1
+			};
+		})
+	);
 
-	function cellStyle(sel: boolean, code: import('$lib/types').ClassCode): string {
-		return sel
-			? 'background:rgba(45,224,206,.14);color:#5EF0DE;font-weight:600;box-shadow:inset 0 0 0 1px rgba(45,224,206,.3);'
-			: `color:${TOKENS.review.moveTint[code]};`;
+	function cellStyle(sel: boolean, isSample: boolean, code: import('$lib/types').ClassCode | null): string {
+		if (sel) {
+			return 'background:rgba(45,224,206,.14);color:#5EF0DE;font-weight:600;box-shadow:inset 0 0 0 1px rgba(45,224,206,.3);';
+		}
+		return isSample && code ? `color:${TOKENS.review.moveTint[code]};` : '';
 	}
 
 	let listEl: HTMLDivElement | undefined = $state();
@@ -58,21 +63,25 @@
 			<div
 				class="cell"
 				data-sb-sel={selectedPly === row.wPly ? '1' : '0'}
-				style={cellStyle(selectedPly === row.wPly, CLASS_CODES[row.wPly - 1])}
+				style={cellStyle(selectedPly === row.wPly, isSample, isSample ? CLASS_CODES[row.wPly - 1] : null)}
 				onclick={() => onSelectPly(row.wPly)}
 			>
-				<ClassBadge classCode={CLASS_CODES[row.wPly - 1]} size={16} />
-				<span class="san sbmono">{SAN_LIST[row.wPly - 1]}</span>
+				{#if isSample}
+					<ClassBadge classCode={CLASS_CODES[row.wPly - 1]} size={16} />
+				{/if}
+				<span class="san sbmono">{sanList[row.wPly - 1]}</span>
 			</div>
 			{#if row.bPly !== null}
 				<div
 					class="cell"
 					data-sb-sel={selectedPly === row.bPly ? '1' : '0'}
-					style={cellStyle(selectedPly === row.bPly, CLASS_CODES[row.bPly - 1])}
+					style={cellStyle(selectedPly === row.bPly, isSample, isSample ? CLASS_CODES[row.bPly - 1] : null)}
 					onclick={() => onSelectPly(row.bPly!)}
 				>
-					<ClassBadge classCode={CLASS_CODES[row.bPly - 1]} size={16} />
-					<span class="san sbmono">{SAN_LIST[row.bPly - 1]}</span>
+					{#if isSample}
+						<ClassBadge classCode={CLASS_CODES[row.bPly - 1]} size={16} />
+					{/if}
+					<span class="san sbmono">{sanList[row.bPly - 1]}</span>
 				</div>
 			{:else}
 				<div></div>

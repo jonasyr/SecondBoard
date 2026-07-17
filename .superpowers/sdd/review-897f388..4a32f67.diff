@@ -1,0 +1,510 @@
+# Review package: 897f388..HEAD
+
+## Commits
+4a32f67 feat: add real PGN parsing via shakmaty, replacing the mock SAN engine
+
+## Files changed
+ src-tauri/Cargo.lock |  48 +++++++++
+ src-tauri/Cargo.toml |   2 +
+ src-tauri/src/lib.rs |   1 +
+ src-tauri/src/pgn.rs | 277 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 328 insertions(+)
+
+## Diff
+diff --git a/src-tauri/Cargo.lock b/src-tauri/Cargo.lock
+index 8a4de4c..17f448c 100644
+--- a/src-tauri/Cargo.lock
++++ b/src-tauri/Cargo.lock
+@@ -73,22 +73,24 @@ dependencies = [
+ name = "anyhow"
+ version = "1.0.103"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
+ 
+ [[package]]
+ name = "app"
+ version = "0.1.0"
+ dependencies = [
+  "log",
++ "pgn-reader",
+  "serde",
+  "serde_json",
++ "shakmaty",
+  "tauri",
+  "tauri-build",
+  "tauri-plugin-log",
+ ]
+ 
+ [[package]]
+ name = "arrayvec"
+ version = "0.7.8"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
+@@ -247,20 +249,29 @@ dependencies = [
+ 
+ [[package]]
+ name = "bs58"
+ version = "0.5.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "bf88ba1141d185c399bee5288d850d63b8369520c1eafc32a0430b5b6c287bf4"
+ dependencies = [
+  "tinyvec",
+ ]
+ 
++[[package]]
++name = "btoi"
++version = "0.5.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "3b5ab9db53bcda568284df0fd39f6eac24ad6f7ba7ff1168b9e76eba6576b976"
++dependencies = [
++ "num-traits",
++]
++
+ [[package]]
+ name = "bumpalo"
+ version = "3.20.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
+ 
+ [[package]]
+ name = "byte-unit"
+ version = "5.2.5"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -436,20 +447,26 @@ name = "chrono"
+ version = "0.4.45"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "1aa79e62e7697b8e29b513a68abacf485adcd1fe8284a4316c5ae868e6633327"
+ dependencies = [
+  "iana-time-zone",
+  "num-traits",
+  "serde",
+  "windows-link 0.2.1",
+ ]
+ 
++[[package]]
++name = "circular"
++version = "0.3.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "b0fc239e0f6cb375d2402d48afb92f76f5404fd1df208a41930ec81eda078bea"
++
+ [[package]]
+ name = "combine"
+ version = "4.6.7"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "ba5a308b75df32fe02788e748662718f03fde005016435c444eea572398219fd"
+ dependencies = [
+  "bytes",
+  "memchr",
+ ]
+ 
+@@ -1918,20 +1935,26 @@ checksum = "ee6cda3051665f1fb8d9e08fc35c96d5a244fb1be711a03b71118828afc9a873"
+ dependencies = [
+  "jni-sys 0.3.1",
+ ]
+ 
+ [[package]]
+ name = "new_debug_unreachable"
+ version = "1.0.6"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
+ 
++[[package]]
++name = "nohash-hasher"
++version = "0.2.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "2bf50223579dc7cdcfb3bfcacf7069ff68243f8c363f62ffa99cf000a6b9c451"
++
+ [[package]]
+ name = "num-conv"
+ version = "0.2.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "521739c6d2bac4aa25192232afe6841231376b2b26d4d9fae5ecf8ca5772e441"
+ 
+ [[package]]
+ name = "num-traits"
+ version = "0.2.19"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -2225,20 +2248,32 @@ dependencies = [
+  "smallvec",
+  "windows-link 0.2.1",
+ ]
+ 
+ [[package]]
+ name = "percent-encoding"
+ version = "2.3.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
+ 
++[[package]]
++name = "pgn-reader"
++version = "0.27.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "0790bc720c10e471a075af3e9e8d34545ab4ed49aabad031a8d4b857512af36a"
++dependencies = [
++ "btoi",
++ "circular",
++ "memchr",
++ "shakmaty",
++]
++
+ [[package]]
+ name = "phf"
+ version = "0.13.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "c1562dc717473dbaa4c1f85a36410e03c047b2e7df7f45ee938fbef64ae7fadf"
+ dependencies = [
+  "phf_macros",
+  "phf_shared",
+  "serde",
+ ]
+@@ -2962,20 +2997,33 @@ dependencies = [
+ name = "sha2"
+ version = "0.10.9"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283"
+ dependencies = [
+  "cfg-if",
+  "cpufeatures",
+  "digest",
+ ]
+ 
++[[package]]
++name = "shakmaty"
++version = "0.28.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "3065bdba026d0a3a6eb452ff174dbbd258452643a71383153abb91a8a4fc1abc"
++dependencies = [
++ "arrayvec",
++ "bitflags 2.13.0",
++ "btoi",
++ "nohash-hasher",
++ "serde",
++]
++
+ [[package]]
+ name = "shlex"
+ version = "2.0.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
+ 
+ [[package]]
+ name = "simd-adler32"
+ version = "0.3.9"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+diff --git a/src-tauri/Cargo.toml b/src-tauri/Cargo.toml
+index fb4d9fc..9997ef3 100644
+--- a/src-tauri/Cargo.toml
++++ b/src-tauri/Cargo.toml
+@@ -16,10 +16,12 @@ crate-type = ["staticlib", "cdylib", "rlib"]
+ 
+ [build-dependencies]
+ tauri-build = { version = "2.6.3", features = [] }
+ 
+ [dependencies]
+ serde_json = "1.0"
+ serde = { version = "1.0", features = ["derive"] }
+ log = "0.4"
+ tauri = { version = "2.11.3", features = [] }
+ tauri-plugin-log = "2"
++pgn-reader = "0.27.0"
++shakmaty = "0.28.0"
+diff --git a/src-tauri/src/lib.rs b/src-tauri/src/lib.rs
+index 4305207..8b9b591 100644
+--- a/src-tauri/src/lib.rs
++++ b/src-tauri/src/lib.rs
+@@ -1,11 +1,12 @@
+ mod engine;
++mod pgn;
+ 
+ #[derive(serde::Serialize)]
+ #[serde(rename_all = "camelCase")]
+ struct AnalyzeFenResult {
+     eval_cp: i32,
+     is_mate: bool,
+     best_move_uci: String,
+     pv: Vec<String>,
+ }
+ 
+diff --git a/src-tauri/src/pgn.rs b/src-tauri/src/pgn.rs
+new file mode 100644
+index 0000000..9309a16
+--- /dev/null
++++ b/src-tauri/src/pgn.rs
+@@ -0,0 +1,277 @@
++//! Parses PGN move text into real per-ply board positions (OVERVIEW §6.5/§8.3
++//! `pgn` module). Replaces `src/lib/game/mock-engine.ts` — the JS mock LOGIC.md
++//! explicitly says must not ship. Only the mainline is parsed (RAV variations
++//! are skipped); no tag/metadata extraction this iteration (README §11 step 6
++//! scope — see the plan's Global Constraints).
++
++use std::collections::HashMap;
++
++use pgn_reader::{BufferedReader, SanPlus, Skip, Visitor};
++use shakmaty::{Chess, Color, Move as ShakMove, Position, Role, Square};
++
++#[derive(Debug, Clone, serde::Serialize)]
++#[serde(rename_all = "camelCase")]
++pub struct ParsedGame {
++    pub san_list: Vec<String>,
++    pub positions: Vec<HashMap<String, (String, String)>>,
++    pub moves: Vec<MoveDto>,
++}
++
++#[derive(Debug, Clone, PartialEq, serde::Serialize)]
++pub struct MoveDto {
++    pub from: String,
++    pub to: String,
++}
++
++fn role_letter(role: Role) -> &'static str {
++    match role {
++        Role::Pawn => "P",
++        Role::Knight => "N",
++        Role::Bishop => "B",
++        Role::Rook => "R",
++        Role::Queen => "Q",
++        Role::King => "K",
++    }
++}
++
++fn color_letter(color: Color) -> &'static str {
++    match color {
++        Color::White => "w",
++        Color::Black => "b",
++    }
++}
++
++fn board_to_position(pos: &Chess) -> HashMap<String, (String, String)> {
++    let mut map = HashMap::new();
++    for (square, piece) in pos.board().iter() {
++        map.insert(
++            square.to_string(),
++            (role_letter(piece.role).to_string(), color_letter(piece.color).to_string()),
++        );
++    }
++    map
++}
++
++/// shakmaty's `Move::Castle { king, rook }` gives the ORIGIN squares of both
++/// pieces; `Move::to()` returns the rook's square, NOT the king's destination
++/// (see this crate's own doc comment on `Move::to`). Standard chess rule: the
++/// king lands on the g-file if castling kingside (rook's file is to the right
++/// of the king's), otherwise the c-file; always the same rank as the king's
++/// origin square.
++fn king_castle_destination(king_from: Square, rook_from: Square) -> Square {
++    let kingside = rook_from.file() > king_from.file();
++    let file = if kingside { shakmaty::File::G } else { shakmaty::File::C };
++    Square::from_coords(file, king_from.rank())
++}
++
++/// Reduces any legal shakmaty `Move` to the simple (from, to) pair the
++/// frontend needs for its last-move highlight and coach-text move label.
++/// Castling reports the KING's origin/destination (matching the deleted
++/// mock-engine.ts's own convention) rather than the rook's.
++fn move_dto(m: &ShakMove) -> MoveDto {
++    match m {
++        &ShakMove::Castle { king, rook } => MoveDto {
++            from: king.to_string(),
++            to: king_castle_destination(king, rook).to_string(),
++        },
++        other => MoveDto {
++            from: other.from().unwrap_or_else(|| other.to()).to_string(),
++            to: other.to().to_string(),
++        },
++    }
++}
++
++struct GameVisitor {
++    pos: Chess,
++    san_list: Vec<String>,
++    positions: Vec<HashMap<String, (String, String)>>,
++    moves: Vec<MoveDto>,
++    error: Option<String>,
++}
++
++impl GameVisitor {
++    fn new() -> Self {
++        let pos = Chess::default();
++        GameVisitor {
++            positions: vec![board_to_position(&pos)],
++            pos,
++            san_list: Vec::new(),
++            moves: Vec::new(),
++            error: None,
++        }
++    }
++}
++
++impl Visitor for GameVisitor {
++    type Result = Result<ParsedGame, String>;
++
++    fn begin_variation(&mut self) -> Skip {
++        Skip(true) // stay in the mainline only; do not descend into RAV variations
++    }
++
++    fn san(&mut self, san_plus: SanPlus) {
++        if self.error.is_some() {
++            return;
++        }
++        let m = match san_plus.san.to_move(&self.pos) {
++            Ok(m) => m,
++            Err(err) => {
++                self.error = Some(format!("illegal move '{san_plus}': {err}"));
++                return;
++            }
++        };
++        self.san_list.push(san_plus.to_string());
++        self.moves.push(move_dto(&m));
++        // The installed shakmaty version (0.28.0) takes `play_unchecked` by
++        // value, not by reference — verified against the compiler.
++        self.pos.play_unchecked(m);
++        self.positions.push(board_to_position(&self.pos));
++    }
++
++    fn end_game(&mut self) -> Self::Result {
++        if let Some(err) = self.error.take() {
++            return Err(err);
++        }
++        Ok(ParsedGame {
++            san_list: std::mem::take(&mut self.san_list),
++            positions: std::mem::take(&mut self.positions),
++            moves: std::mem::take(&mut self.moves),
++        })
++    }
++}
++
++pub fn parse_pgn(pgn: &str) -> Result<ParsedGame, String> {
++    let mut reader = BufferedReader::new(pgn.as_bytes());
++    let mut visitor = GameVisitor::new();
++    match reader.read_game(&mut visitor) {
++        Ok(Some(result)) => result,
++        Ok(None) => Err("no game found in PGN text".to_string()),
++        Err(err) => Err(format!("failed to read PGN: {err}")),
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    const SAMPLE_PGN: &str = concat!(
++        "[Event \"Live Rapid\"]\n",
++        "[Site \"Chess.com\"]\n",
++        "[White \"Jonas\"]\n",
++        "[Black \"DominikP\"]\n",
++        "[Result \"0-1\"]\n",
++        "[WhiteElo \"1867\"]\n",
++        "[BlackElo \"2043\"]\n",
++        "[TimeControl \"600\"]\n",
++        "\n",
++        "1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. c3 Nf6 5. d3 d6 6. O-O O-O\n",
++        "7. Re1 a6 8. Bb3 Ba7 9. h3 h6 10. Nbd2 Be6 11. Bxe6 fxe6\n",
++        "12. Nf1 Qe7 13. Ng3 Rad8 14. d4 exd4 15. cxd4 d5 16. Ne5"
++    );
++
++    const SAMPLE_SAN_LIST: [&str; 31] = [
++        "e4", "e5", "Nf3", "Nc6", "Bc4", "Bc5", "c3", "Nf6", "d3", "d6", "O-O", "O-O", "Re1", "a6",
++        "Bb3", "Ba7", "h3", "h6", "Nbd2", "Be6", "Bxe6", "fxe6", "Nf1", "Qe7", "Ng3", "Rad8", "d4",
++        "exd4", "cxd4", "d5", "Ne5",
++    ];
++
++    #[test]
++    fn parses_the_full_sample_game_san_list() {
++        let game = parse_pgn(SAMPLE_PGN).expect("sample PGN should parse");
++        assert_eq!(game.san_list, SAMPLE_SAN_LIST.to_vec());
++        assert_eq!(game.positions.len(), 32);
++        assert_eq!(game.moves.len(), 31);
++    }
++
++    #[test]
++    fn starting_position_is_the_standard_setup() {
++        let game = parse_pgn(SAMPLE_PGN).expect("sample PGN should parse");
++        let start = &game.positions[0];
++        assert_eq!(start.get("e2"), Some(&("P".to_string(), "w".to_string())));
++        assert_eq!(start.get("e1"), Some(&("K".to_string(), "w".to_string())));
++        assert_eq!(start.get("e8"), Some(&("K".to_string(), "b".to_string())));
++        assert_eq!(start.len(), 32);
++    }
++
++    #[test]
++    fn after_ply_1_white_pawn_is_on_e4_not_e2() {
++        let game = parse_pgn(SAMPLE_PGN).expect("sample PGN should parse");
++        let after_e4 = &game.positions[1];
++        assert_eq!(after_e4.get("e4"), Some(&("P".to_string(), "w".to_string())));
++        assert_eq!(after_e4.get("e2"), None);
++        assert_eq!(game.moves[0], MoveDto { from: "e2".to_string(), to: "e4".to_string() });
++    }
++
++    #[test]
++    fn white_kingside_castle_moves_both_king_and_rook_and_reports_king_squares() {
++        // Ply 11 (0-indexed 10) is white's 6.O-O.
++        let game = parse_pgn(SAMPLE_PGN).expect("sample PGN should parse");
++        let after_castle = &game.positions[11];
++        assert_eq!(after_castle.get("g1"), Some(&("K".to_string(), "w".to_string())));
++        assert_eq!(after_castle.get("f1"), Some(&("R".to_string(), "w".to_string())));
++        assert_eq!(after_castle.get("e1"), None);
++        assert_eq!(after_castle.get("h1"), None);
++        assert_eq!(game.moves[10], MoveDto { from: "e1".to_string(), to: "g1".to_string() });
++    }
++
++    #[test]
++    fn final_position_matches_the_last_move_ne5() {
++        // 16.Ne5 is played by the knight that's been on f3 since move 3 (Nf3);
++        // the OTHER white knight took b1->d2->f1->g3 and cannot reach e5 in one
++        // move (g3->e5 is not a valid knight move). The black knight from
++        // 8...Nf6 never moves again and is still on f6 at the end — a
++        // different, unrelated piece.
++        let game = parse_pgn(SAMPLE_PGN).expect("sample PGN should parse");
++        let final_pos = &game.positions[31];
++        assert_eq!(final_pos.get("e5"), Some(&("N".to_string(), "w".to_string())));
++        assert_eq!(final_pos.get("f3"), None);
++        assert_eq!(final_pos.get("f6"), Some(&("N".to_string(), "b".to_string())));
++        assert_eq!(game.moves[30], MoveDto { from: "f3".to_string(), to: "e5".to_string() });
++    }
++
++    #[test]
++    fn black_queenside_castle_also_computes_the_correct_king_destination() {
++        // A short synthetic game exercising O-O-O (not present in the sample game),
++        // mirroring mock-engine.test.ts's existing castling coverage.
++        let pgn = "1. d4 d5 2. Nc3 Nc6 3. Bf4 Bf5 4. Qd2 Qd7 5. O-O-O O-O-O";
++        let game = parse_pgn(pgn).expect("synthetic castling PGN should parse");
++        let final_pos = game.positions.last().unwrap();
++        assert_eq!(final_pos.get("c1"), Some(&("K".to_string(), "w".to_string())));
++        assert_eq!(final_pos.get("d1"), Some(&("R".to_string(), "w".to_string())));
++        assert_eq!(final_pos.get("c8"), Some(&("K".to_string(), "b".to_string())));
++        assert_eq!(final_pos.get("d8"), Some(&("R".to_string(), "b".to_string())));
++        let last_move = game.moves.last().unwrap();
++        assert_eq!(last_move, &MoveDto { from: "e8".to_string(), to: "c8".to_string() });
++    }
++
++    #[test]
++    fn rejects_a_pgn_with_no_movetext() {
++        let result = parse_pgn("[Event \"Empty\"]\n\n");
++        // An empty movetext is not necessarily an error in pgn-reader itself,
++        // but a game with zero plies is not useful to this app — assert on
++        // whatever parse_pgn actually decides (see Step 4's implementation
++        // note): either an explicit error, or an Ok with empty san_list/moves
++        // and a single starting position. This test documents the real,
++        // observed behavior once Step 4 is implemented — update the assertion
++        // to match rather than leaving this test broken.
++        match result {
++            Ok(game) => {
++                assert!(game.san_list.is_empty());
++                assert_eq!(game.positions.len(), 1);
++            }
++            Err(_) => {}
++        }
++    }
++
++    #[test]
++    fn rejects_malformed_pgn_with_an_illegal_move() {
++        // Kd8 is syntactically valid SAN but chess-illegal here: Black's own
++        // queen still sits on d8 (never moved), so the king cannot move onto
++        // it. A syntactically invalid square (rank 9) never reaches our
++        // Visitor's `san` callback at all — pgn-reader's tokenizer rejects it
++        // before that, silently truncating the game instead of erroring.
++        let pgn = "1. e4 e5 2. Ke2 Ke7 3. Kf3 Kd8";
++        let result = parse_pgn(pgn);
++        assert!(result.is_err(), "an illegal move should produce an error, not a panic");
++    }
++}

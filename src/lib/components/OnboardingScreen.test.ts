@@ -1,5 +1,12 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/svelte';
+
+const { parsePgn } = vi.hoisted(() => ({ parsePgn: vi.fn() }));
+vi.mock('$lib/api/pgn', () => ({ parsePgn }));
+
+const { loadRealAnalysis } = vi.hoisted(() => ({ loadRealAnalysis: vi.fn() }));
+vi.mock('$lib/game/engine-analysis', () => ({ loadRealAnalysis }));
+
 import OnboardingScreen from './OnboardingScreen.svelte';
 import { appState } from '$lib/stores/app-state.svelte';
 
@@ -7,6 +14,13 @@ beforeEach(() => {
 	appState.gameLoaded = false;
 	appState.pgnText = '';
 	appState.screen = 'review';
+
+	parsePgn.mockResolvedValue({
+		sanList: Array.from({ length: 31 }, (_, i) => `move${i}`),
+		positions: Array.from({ length: 32 }, () => ({})),
+		moves: Array.from({ length: 31 }, () => ({ from: 'a1', to: 'a1' }))
+	});
+	loadRealAnalysis.mockResolvedValue({ evalPerPly: [], bestMoves: {} });
 });
 
 describe('OnboardingScreen', () => {

@@ -5,31 +5,48 @@
 		whitePct: number;
 		evalNum: number;
 		whiteAtBottom: boolean;
+		analyzing?: boolean;
 	}
 
-	let { whitePct, evalNum, whiteAtBottom }: Props = $props();
+	let { whitePct, evalNum, whiteAtBottom, analyzing = false }: Props = $props();
 
-	const label = $derived((evalNum >= 0 ? evalNum : -evalNum).toFixed(1));
-	// Reference: label sits opposite the fill's growth edge, colored for contrast against
-	// whichever background (fill vs. track) it's drawn over there.
-	const labelOnFilledEdge = $derived(whiteAtBottom === evalNum >= 0);
+	// Signed white-POV value on the white edge, its negation (black's own POV) on the black
+	// edge -- so both sides always read their own advantage/disadvantage directly, not just
+	// whichever side currently has the edge.
+	const whiteLabel = $derived((evalNum >= 0 ? '+' : '') + evalNum.toFixed(1));
+	const blackLabel = $derived((evalNum <= 0 ? '+' : '-') + Math.abs(evalNum).toFixed(1));
 	const fillStyle = $derived(
 		`position:absolute;left:0;right:0;${whiteAtBottom ? 'bottom:0;' : 'top:0;'}height:${whitePct.toFixed(1)}%;background:linear-gradient(${whiteAtBottom ? '180deg' : '0deg'},${TOKENS.board.evalWhiteFillFrom},${TOKENS.board.evalWhiteFillTo});transition:height .25s ease;`
 	);
-	const labelStyle = $derived(
-		`position:absolute;left:0;right:0;${labelOnFilledEdge ? 'bottom:3px;color:#20222E;' : 'top:3px;color:#E3E6EE;'}text-align:center;font-size:9px;font-weight:700;`
+	// Each label is colored for contrast against whichever background (fill vs. track) sits
+	// behind its own edge, which flips depending on whitePct and board orientation.
+	const whiteOnFilledEdge = $derived(whiteAtBottom);
+	const blackOnFilledEdge = $derived(!whiteAtBottom);
+	const whiteLabelStyle = $derived(
+		`position:absolute;left:0;right:0;${whiteAtBottom ? 'bottom:3px;' : 'top:3px;'}color:${whiteOnFilledEdge ? '#20222E' : '#E3E6EE'};text-align:center;font-size:9px;font-weight:700;`
+	);
+	const blackLabelStyle = $derived(
+		`position:absolute;left:0;right:0;${whiteAtBottom ? 'top:3px;' : 'bottom:3px;'}color:${blackOnFilledEdge ? '#20222E' : '#E3E6EE'};text-align:center;font-size:9px;font-weight:700;`
 	);
 </script>
 
 <div class="eval-bar">
-	<div class="fill" style={fillStyle}></div>
-	<div class="midline"></div>
-	<div class="label sbmono" style={labelStyle}>{label}</div>
+	<div class="bar-blur" class:analyzing>
+		<div class="fill" style={fillStyle}></div>
+		<div class="midline"></div>
+		<div class="label sbmono" style={whiteLabelStyle}>{whiteLabel}</div>
+		<div class="label sbmono" style={blackLabelStyle}>{blackLabel}</div>
+	</div>
+	{#if analyzing}
+		<div class="analyzing-overlay" title="Analyzing with Stockfish…">
+			<div class="analyzing-spinner"></div>
+		</div>
+	{/if}
 </div>
 
 <style>
 	.eval-bar {
-		width: 20px;
+		width: 28px;
 		flex: none;
 		position: relative;
 		border-radius: 6px;
@@ -44,5 +61,47 @@
 		top: 50%;
 		height: 1px;
 		background: var(--board-eval-midline);
+	}
+	.bar-blur {
+		position: absolute;
+		inset: 0;
+	}
+	.bar-blur.analyzing {
+		filter: blur(2px);
+		opacity: 0.55;
+	}
+	.analyzing-overlay {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		pointer-events: none;
+	}
+	/* Same chip language as the eval-graph overlay (var(--color-card-bg) +
+	   var(--color-hairline-high)), just circular instead of a text pill. */
+	.analyzing-spinner {
+		width: 20px;
+		height: 20px;
+		border-radius: 50%;
+		background: var(--color-card-bg);
+		border: 1px solid var(--color-hairline-high);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+	.analyzing-spinner::before {
+		content: '';
+		width: 11px;
+		height: 11px;
+		border-radius: 50%;
+		border: 2px solid rgba(255, 255, 255, 0.25);
+		border-top-color: #e3e6ee;
+		animation: eval-bar-spin 0.7s linear infinite;
+	}
+	@keyframes eval-bar-spin {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 </style>

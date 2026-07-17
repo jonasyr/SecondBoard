@@ -1,0 +1,650 @@
+# Review package: 38040b4021b3484b1906df5d47b9dc472b1a6772..HEAD
+
+## Commits
+751ad54 feat: wire startReview to real PGN parsing via the Rust pgn module
+c11a267 docs: fix iteration 6 plan Task 4 - account for startReview becoming async breaking 3 pre-existing sync tests
+
+## Files changed
+ .../plans/2026-07-16-iteration-06-pgn-shakmaty.md  | 134 +++++++++++++++++++++
+ src/lib/components/OnboardingScreen.svelte         |  17 ++-
+ src/lib/components/ReviewPanel.svelte              |   4 +-
+ src/lib/game/sample-pgn.ts                         |   6 +
+ src/lib/stores/app-state.svelte.ts                 |  56 +++++++--
+ src/lib/stores/app-state.test.ts                   | 104 ++++++++++++++--
+ 6 files changed, 295 insertions(+), 26 deletions(-)
+
+## Diff
+diff --git a/docs/superpowers/plans/2026-07-16-iteration-06-pgn-shakmaty.md b/docs/superpowers/plans/2026-07-16-iteration-06-pgn-shakmaty.md
+index 62bd8a4..8e25c0f 100644
+--- a/docs/superpowers/plans/2026-07-16-iteration-06-pgn-shakmaty.md
++++ b/docs/superpowers/plans/2026-07-16-iteration-06-pgn-shakmaty.md
+@@ -897,20 +897,154 @@ Add its style, alongside the existing `.card-header`/`textarea` rules:
+ 		background: rgba(242, 107, 107, 0.08);
+ 		border: 1px solid rgba(242, 107, 107, 0.3);
+ 		color: var(--color-blunder);
+ 		font-size: 12px;
+ 		line-height: 1.4;
+ 	}
+ ```
+ 
+ (Check `src/lib/tokens.ts`/`src/app.css` first for the exact existing CSS custom property name for the "blunder"/red classification color — reuse whatever already exists there, e.g. `--color-blunder` or `--color-red`, rather than introducing a new hardcoded `#F26B6B`. If no such CSS variable currently exists, use the raw `rgba(242, 107, 107, 1)` value matching `TOKENS.classification.blunder.color` from `src/lib/tokens.ts` exactly, since that's the design system's own red — do not invent a new color.)
+ 
++- [ ] **Step 6b: Fix pre-existing tests broken by `startReview` becoming async**
++
++Making `startReview` itself `async` (awaiting `parsePgn` before touching any state) breaks THREE pre-existing tests written for the OLD synchronous `startReview` (from Iterations 4/5), which call `startReview()` without `await` and assert state immediately afterward — that timing assumption no longer holds. Fix all three:
++
++1. In the `describe('screen/ply transitions', ...)` block, change:
++```ts
++it('startReview resets to the default review state regardless of pgnText', () => {
++	appState.gameLoaded = false;
++	appState.ply = 0;
++	appState.tab = 'details';
++	startReview();
++	expect(appState.gameLoaded).toBe(true);
++	expect(appState.screen).toBe('review');
++	expect(appState.ply).toBe(31);
++	expect(appState.tab).toBe('analysis');
++});
++```
++to:
++```ts
++it('startReview resets to the default review state regardless of pgnText', async () => {
++	appState.gameLoaded = false;
++	appState.ply = 0;
++	appState.tab = 'details';
++	parsePgn.mockResolvedValue({
++		sanList: Array.from({ length: 31 }, (_, i) => `move${i}`),
++		positions: Array.from({ length: 32 }, () => ({})),
++		moves: Array.from({ length: 31 }, () => ({ from: 'a1', to: 'a1' }))
++	});
++	loadRealAnalysis.mockResolvedValue({ evalPerPly: [], bestMoves: {} });
++
++	await startReview();
++
++	expect(appState.gameLoaded).toBe(true);
++	expect(appState.screen).toBe('review');
++	expect(appState.ply).toBe(31);
++	expect(appState.tab).toBe('analysis');
++});
++```
++(The explicit inline mock setup avoids relying on mock state bleeding over from an earlier test in file order — a real but fragile way this test would otherwise accidentally pass.)
++
++2. In the existing `describe('real analysis loading', ...)` block (added in Iteration 5's Task 7 — do not delete this block, fix it in place), add `parsePgn.mockResolvedValue(...)` to its `beforeEach`, and add `await`/`async` to the two tests that call `startReview()`. Change:
++```ts
++describe('real analysis loading', () => {
++	beforeEach(() => {
++		loadRealAnalysis.mockReset();
++	});
++
++	it('starts in the idle status by default', () => {
++		const state = createAppState();
++		expect(state.analysisStatus).toBe('idle');
++		expect(state.evalPerPly.length).toBeGreaterThan(0);
++	});
++
++	it('goes loading -> ready and applies the real data on startReview success', async () => {
++		let resolveAnalysis!: (v: { evalPerPly: number[]; bestMoves: Record<number, never> }) => void;
++		loadRealAnalysis.mockReturnValue(
++			new Promise((resolve) => {
++				resolveAnalysis = resolve;
++			})
++		);
++
++		startReview();
++		expect(appState.analysisStatus).toBe('loading');
++
++		resolveAnalysis({ evalPerPly: [0, 0.3], bestMoves: {} });
++		await Promise.resolve();
++		await Promise.resolve();
++
++		expect(appState.analysisStatus).toBe('ready');
++		expect(appState.evalPerPly).toEqual([0, 0.3]);
++	});
++
++	it('goes loading -> error when loadRealAnalysis rejects', async () => {
++		loadRealAnalysis.mockRejectedValue(new Error('engine offline'));
++
++		startReview();
++		await Promise.resolve();
++		await Promise.resolve();
++
++		expect(appState.analysisStatus).toBe('error');
++	});
++});
++```
++to:
++```ts
++describe('real analysis loading', () => {
++	beforeEach(() => {
++		parsePgn.mockReset();
++		loadRealAnalysis.mockReset();
++		parsePgn.mockResolvedValue({
++			sanList: ['e4'],
++			positions: [{}, {}],
++			moves: [{ from: 'e2', to: 'e4' }]
++		});
++	});
++
++	it('starts in the idle status by default', () => {
++		const state = createAppState();
++		expect(state.analysisStatus).toBe('idle');
++		expect(state.evalPerPly.length).toBeGreaterThan(0);
++	});
++
++	it('goes loading -> ready and applies the real data once startReview resolves', async () => {
++		let resolveAnalysis!: (v: { evalPerPly: number[]; bestMoves: Record<number, never> }) => void;
++		loadRealAnalysis.mockReturnValue(
++			new Promise((resolve) => {
++				resolveAnalysis = resolve;
++			})
++		);
++
++		await startReview();
++		expect(appState.analysisStatus).toBe('loading');
++
++		resolveAnalysis({ evalPerPly: [0, 0.3], bestMoves: {} });
++		await Promise.resolve();
++		await Promise.resolve();
++
++		expect(appState.analysisStatus).toBe('ready');
++		expect(appState.evalPerPly).toEqual([0, 0.3]);
++	});
++
++	it('goes loading -> error when loadRealAnalysis rejects', async () => {
++		loadRealAnalysis.mockRejectedValue(new Error('engine offline'));
++
++		await startReview();
++		await Promise.resolve();
++		await Promise.resolve();
++
++		expect(appState.analysisStatus).toBe('error');
++	});
++});
++```
++(This works because `startReview` calls `void refreshRealAnalysis()` as its last step after `parsePgn` resolves; `refreshRealAnalysis` is itself `async` and sets `analysisStatus = 'loading'` synchronously before its own first `await` — so by the time `await startReview()` settles, that synchronous prefix has already run and `analysisStatus` is reliably `'loading'`.)
++
+ - [ ] **Step 7: Run tests to verify they pass**
+ 
+ Run: `pnpm vitest run src/lib/stores/app-state.test.ts`
+ Expected: all tests pass (existing tests + new ones).
+ 
+ Run: `pnpm run test -- --run`
+ Expected: other test files will still fail at this point (Tasks 5/6 haven't updated `review.ts`/`review.test.ts`/`mock-data.ts` yet, and `GameReviewScreen.svelte`/`AnalysisTab.svelte` still call the old `getReviewPly` signature) — this is expected; only confirm `app-state.test.ts` and `api/pgn.test.ts` pass cleanly at this point. Do not attempt to fix unrelated failing files in this task.
+ 
+ - [ ] **Step 8: Commit**
+ 
+diff --git a/src/lib/components/OnboardingScreen.svelte b/src/lib/components/OnboardingScreen.svelte
+index 795fd22..1beef8a 100644
+--- a/src/lib/components/OnboardingScreen.svelte
++++ b/src/lib/components/OnboardingScreen.svelte
+@@ -1,17 +1,15 @@
+ <script lang="ts">
+ 	import { appState, startReview } from '$lib/stores/app-state.svelte';
++	import { SAMPLE_PGN } from '$lib/game/sample-pgn';
+ 	import Icon from './Icon.svelte';
+ 
+-	const SAMPLE_PGN =
+-		'[Event "Live Rapid"]\n[Site "Chess.com"]\n[White "Jonas"]\n[Black "DominikP"]\n[Result "0-1"]\n[WhiteElo "1867"]\n[BlackElo "2043"]\n[TimeControl "600"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. c3 Nf6 5. d3 d6 6. O-O O-O\n7. Re1 a6 8. Bb3 Ba7 9. h3 h6 10. Nbd2 Be6 11. Bxe6 fxe6\n12. Nf1 Qe7 13. Ng3 Rad8 14. d4 exd4 15. cxd4 d5 16. Ne5';
+-
+ 	function pasteSample() {
+ 		appState.pgnText = SAMPLE_PGN;
+ 	}
+ </script>
+ 
+ <div class="onboarding">
+ 	<div class="content">
+ 		<div class="logo">
+ 			<div class="cutout"></div>
+ 			<div class="square teal"></div>
+@@ -29,20 +27,23 @@
+ 				<span class="paste-sample" onclick={pasteSample}>
+ 					<Icon
+ 						d="M9 5h6M9 5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2M9 5V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"
+ 						size={13}
+ 						stroke="#4ADEA0"
+ 						strokeWidth={2}
+ 					/>
+ 					Paste sample game
+ 				</span>
+ 			</div>
++			{#if appState.parseError}
++				<div class="parse-error">{appState.parseError}</div>
++			{/if}
+ 			<textarea
+ 				class="sbmono sbscroll"
+ 				bind:value={appState.pgnText}
+ 				spellcheck="false"
+ 				placeholder="[Event &quot;Live Rapid&quot;]&#10;[White &quot;Jonas&quot;]&#10;[Black &quot;DominikP&quot;]&#10;&#10;1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. c3 Nf6 ..."
+ 			></textarea>
+ 			<div class="actions">
+ 				<button type="button" class="start" onclick={startReview}>
+ 					Start Review
+ 					<Icon d="M5 12h13M12 5l7 7-7 7" size={16} stroke="#062018" strokeWidth={2.4} />
+@@ -143,20 +144,30 @@
+ 		letter-spacing: 0.02em;
+ 	}
+ 	.paste-sample {
+ 		font-size: 11.5px;
+ 		color: var(--color-accent-green);
+ 		cursor: pointer;
+ 		display: flex;
+ 		align-items: center;
+ 		gap: 5px;
+ 	}
++	.parse-error {
++		margin-bottom: 10px;
++		padding: 10px 12px;
++		border-radius: var(--radius-inset);
++		background: rgba(242, 107, 107, 0.08);
++		border: 1px solid rgba(242, 107, 107, 0.3);
++		color: var(--color-accent-red);
++		font-size: 12px;
++		line-height: 1.4;
++	}
+ 	textarea {
+ 		width: 100%;
+ 		height: 190px;
+ 		resize: none;
+ 		background: var(--color-deep-inset-bg);
+ 		border: 1px solid var(--color-hairline-high);
+ 		border-radius: var(--radius-inset);
+ 		padding: 13px 14px;
+ 		color: #d7dbe6;
+ 		font-size: 13px;
+diff --git a/src/lib/components/ReviewPanel.svelte b/src/lib/components/ReviewPanel.svelte
+index dac1394..018e943 100644
+--- a/src/lib/components/ReviewPanel.svelte
++++ b/src/lib/components/ReviewPanel.svelte
+@@ -1,12 +1,12 @@
+ <script lang="ts">
+-	import { appState, goToPly, stepPly, MAX_PLY } from '$lib/stores/app-state.svelte';
++	import { appState, goToPly, stepPly, getMaxPly } from '$lib/stores/app-state.svelte';
+ 	import Icon from './Icon.svelte';
+ 	import AnalysisTab from './AnalysisTab.svelte';
+ 	import ReviewTab from './ReviewTab.svelte';
+ 	import DetailsTab from './DetailsTab.svelte';
+ 	import ExploreTab from './ExploreTab.svelte';
+ 	import BottomBar from './BottomBar.svelte';
+ 	import type { Tab } from '$lib/types';
+ 
+ 	interface Props {
+ 		onToggleFlip: () => void;
+@@ -78,21 +78,21 @@
+ 		<ExploreTab {onOpenOpenings} />
+ 	{/if}
+ 
+ 	{#if appState.tab !== 'review'}
+ 		<BottomBar
+ 			ply={appState.ply}
+ 			evalPerPly={appState.evalPerPly}
+ 			onFirst={() => goToPly(0)}
+ 			onPrev={() => stepPly(-1)}
+ 			onNext={() => stepPly(1)}
+-			onLast={() => goToPly(MAX_PLY)}
++			onLast={() => goToPly(getMaxPly())}
+ 		/>
+ 	{/if}
+ </div>
+ 
+ <style>
+ 	.review-panel {
+ 		width: var(--layout-review-panel-width);
+ 		flex: none;
+ 		min-width: 0;
+ 		display: flex;
+diff --git a/src/lib/game/sample-pgn.ts b/src/lib/game/sample-pgn.ts
+new file mode 100644
+index 0000000..d96c85a
+--- /dev/null
++++ b/src/lib/game/sample-pgn.ts
+@@ -0,0 +1,6 @@
++/** The one built-in sample game (Italian Game) — the only PGN with matching
++ * mock classification/coach-text/breakdown data in mock-data.ts. Shared
++ * between OnboardingScreen.svelte (the "Paste sample game" button) and
++ * app-state.svelte.ts (to detect isSample via exact-text comparison). */
++export const SAMPLE_PGN =
++	'[Event "Live Rapid"]\n[Site "Chess.com"]\n[White "Jonas"]\n[Black "DominikP"]\n[Result "0-1"]\n[WhiteElo "1867"]\n[BlackElo "2043"]\n[TimeControl "600"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. c3 Nf6 5. d3 d6 6. O-O O-O\n7. Re1 a6 8. Bb3 Ba7 9. h3 h6 10. Nbd2 Be6 11. Bxe6 fxe6\n12. Nf1 Qe7 13. Ng3 Rad8 14. d4 exd4 15. cxd4 d5 16. Ne5';
+diff --git a/src/lib/stores/app-state.svelte.ts b/src/lib/stores/app-state.svelte.ts
+index b160c18..5e54a76 100644
+--- a/src/lib/stores/app-state.svelte.ts
++++ b/src/lib/stores/app-state.svelte.ts
+@@ -1,78 +1,110 @@
+-import type { Move } from '$lib/board/types';
++import type { Move, Position } from '$lib/board/types';
+ import type { Screen, Tab } from '$lib/types';
+-import { SAN_LIST, EVAL_PER_PLY, BEST_MOVES } from '$lib/game/mock-data';
++import { EVAL_PER_PLY, BEST_MOVES } from '$lib/game/mock-data';
+ import { loadRealAnalysis } from '$lib/game/engine-analysis';
++import { parsePgn } from '$lib/api/pgn';
++import { SAMPLE_PGN } from '$lib/game/sample-pgn';
++
++export interface GameData {
++	sanList: string[];
++	positions: Position[];
++	moveMeta: Move[];
++	isSample: boolean;
++}
+ 
+ export interface AppState {
+ 	screen: Screen;
+ 	ply: number;
+ 	tab: Tab;
+ 	flipped: boolean;
+ 	sidebarCollapsed: boolean;
+ 	gameLoaded: boolean;
+ 	pgnText: string;
+ 	showLines: boolean;
+ 	selfAnalysis: boolean;
+ 	evalPerPly: number[];
+ 	bestMoves: Record<number, Move & { san: string }>;
+ 	analysisStatus: 'idle' | 'loading' | 'ready' | 'error';
++	game: GameData | null;
++	parseError: string | null;
+ }
+ 
+ const defaultState: AppState = {
+ 	screen: 'review',
+ 	ply: 31,
+ 	tab: 'analysis',
+ 	flipped: false,
+ 	sidebarCollapsed: false,
+ 	gameLoaded: false,
+ 	pgnText: '',
+ 	showLines: true,
+ 	selfAnalysis: false,
+ 	evalPerPly: [...EVAL_PER_PLY],
+ 	bestMoves: { ...BEST_MOVES },
+-	analysisStatus: 'idle'
++	analysisStatus: 'idle',
++	game: null,
++	parseError: null
+ };
+ 
+ /**
+  * Creates a non-reactive snapshot of the default application state.
+  * This function is primarily used for testing default values.
+  *
+  * Note: Application code should import and use the module-level `appState` export
+  * instead, which is the reactive singleton that tracks state changes.
+  *
+  * @returns A plain object copy of the default state (not reactive)
+  */
+ export function createAppState(): AppState {
+ 	return { ...defaultState };
+ }
+ 
+ /** The reactive singleton store that tracks application state. Consumers should import and use this export. */
+ export const appState = $state(defaultState);
+ 
+-export const MAX_PLY = SAN_LIST.length;
++export function getMaxPly(): number {
++	return appState.game ? appState.game.sanList.length : 0;
++}
+ 
+ export function goToPly(ply: number): void {
+-	appState.ply = Math.max(0, Math.min(MAX_PLY, ply));
++	appState.ply = Math.max(0, Math.min(getMaxPly(), ply));
+ }
+ 
+ export function stepPly(delta: number): void {
+ 	goToPly(appState.ply + delta);
+ }
+ 
+-/** Reference `startReview` handler: always loads the same mock game — pgnText is cosmetic (Global Constraints). */
+-export function startReview(): void {
+-	appState.gameLoaded = true;
+-	appState.screen = 'review';
+-	appState.ply = MAX_PLY;
+-	appState.tab = 'analysis';
+-	void refreshRealAnalysis();
++/** Parses the pasted/typed PGN (or the built-in sample if blank) via the real
++ * Rust pgn module, replacing the mock SAN engine (LOGIC.md §7/§8). */
++export async function startReview(): Promise<void> {
++	const pgnToParse = appState.pgnText.trim() || SAMPLE_PGN;
++	try {
++		const parsed = await parsePgn(pgnToParse);
++		appState.game = {
++			sanList: parsed.sanList,
++			positions: parsed.positions,
++			moveMeta: parsed.moves,
++			isSample: pgnToParse.trim() === SAMPLE_PGN.trim()
++		};
++		appState.evalPerPly = new Array(parsed.sanList.length + 1).fill(0);
++		appState.bestMoves = {};
++		appState.analysisStatus = 'idle';
++		appState.parseError = null;
++		appState.gameLoaded = true;
++		appState.screen = 'review';
++		appState.ply = parsed.sanList.length;
++		appState.tab = 'analysis';
++		void refreshRealAnalysis();
++	} catch (err) {
++		appState.parseError = err instanceof Error ? err.message : 'Failed to parse PGN.';
++	}
+ }
+ 
+ /** Fires the Phase-0 engine spike (LOGIC.md §7): replaces the seeded mock
+  * evalPerPly/bestMoves with real Stockfish output once analysis completes. */
+ async function refreshRealAnalysis(): Promise<void> {
+ 	appState.analysisStatus = 'loading';
+ 	try {
+ 		const { evalPerPly, bestMoves } = await loadRealAnalysis();
+ 		appState.evalPerPly = evalPerPly;
+ 		appState.bestMoves = bestMoves;
+diff --git a/src/lib/stores/app-state.test.ts b/src/lib/stores/app-state.test.ts
+index 20c5f96..9ede66d 100644
+--- a/src/lib/stores/app-state.test.ts
++++ b/src/lib/stores/app-state.test.ts
+@@ -1,19 +1,22 @@
+ import { describe, it, expect, beforeEach, vi } from 'vitest';
+ 
+ const { loadRealAnalysis } = vi.hoisted(() => ({ loadRealAnalysis: vi.fn() }));
+ vi.mock('$lib/game/engine-analysis', () => ({ loadRealAnalysis }));
+ 
++const { parsePgn } = vi.hoisted(() => ({ parsePgn: vi.fn() }));
++vi.mock('$lib/api/pgn', () => ({ parsePgn }));
++
+ import { createAppState } from './app-state.svelte';
+ import {
+ 	appState,
+-	MAX_PLY,
++	getMaxPly,
+ 	goToPly,
+ 	stepPly,
+ 	startReview,
+ 	newGame,
+ 	handleReviewKeydown
+ } from './app-state.svelte';
+ 
+ describe('createAppState', () => {
+ 	it('returns the exact default state from LOGIC.md §1', () => {
+ 		const state = createAppState();
+@@ -31,46 +34,65 @@ describe('createAppState', () => {
+ 
+ describe('screen/ply transitions', () => {
+ 	beforeEach(() => {
+ 		appState.screen = 'review';
+ 		appState.ply = 31;
+ 		appState.gameLoaded = true;
+ 		appState.tab = 'analysis';
+ 		appState.pgnText = 'x';
+ 	});
+ 
+-	it('MAX_PLY matches the mock game length (31)', () => {
+-		expect(MAX_PLY).toBe(31);
++	it('getMaxPly returns 0 before any game is loaded, and the real length after startReview', async () => {
++		expect(getMaxPly()).toBe(0);
++
++		parsePgn.mockResolvedValue({
++			sanList: Array.from({ length: 31 }, (_, i) => `move${i}`),
++			positions: Array.from({ length: 32 }, () => ({})),
++			moves: Array.from({ length: 31 }, () => ({ from: 'a1', to: 'a1' }))
++		});
++		loadRealAnalysis.mockResolvedValue({ evalPerPly: [], bestMoves: {} });
++
++		await startReview();
++
++		expect(getMaxPly()).toBe(31);
+ 	});
+ 
+ 	it('goToPly clamps to [0, MAX_PLY]', () => {
+ 		goToPly(-5);
+ 		expect(appState.ply).toBe(0);
+ 		goToPly(999);
+-		expect(appState.ply).toBe(31);
++		expect(appState.ply).toBe(getMaxPly());
+ 		goToPly(10);
+ 		expect(appState.ply).toBe(10);
+ 	});
+ 
+ 	it('stepPly moves by delta and clamps', () => {
+ 		appState.ply = 0;
+ 		stepPly(-1);
+ 		expect(appState.ply).toBe(0);
+ 		stepPly(1);
+ 		expect(appState.ply).toBe(1);
+ 	});
+ 
+-	it('startReview resets to the default review state regardless of pgnText', () => {
++	it('startReview resets to the default review state regardless of pgnText', async () => {
+ 		appState.gameLoaded = false;
+ 		appState.ply = 0;
+ 		appState.tab = 'details';
+-		startReview();
++		parsePgn.mockResolvedValue({
++			sanList: Array.from({ length: 31 }, (_, i) => `move${i}`),
++			positions: Array.from({ length: 32 }, () => ({})),
++			moves: Array.from({ length: 31 }, () => ({ from: 'a1', to: 'a1' }))
++		});
++		loadRealAnalysis.mockResolvedValue({ evalPerPly: [], bestMoves: {} });
++
++		await startReview();
++
+ 		expect(appState.gameLoaded).toBe(true);
+ 		expect(appState.screen).toBe('review');
+ 		expect(appState.ply).toBe(31);
+ 		expect(appState.tab).toBe('analysis');
+ 	});
+ 
+ 	it('newGame resets to onboarding', () => {
+ 		newGame();
+ 		expect(appState.gameLoaded).toBe(false);
+ 		expect(appState.pgnText).toBe('');
+@@ -84,50 +106,114 @@ describe('screen/ply transitions', () => {
+ 		expect(appState.ply).toBe(6);
+ 		expect(right.defaultPrevented).toBe(true);
+ 
+ 		appState.screen = 'home';
+ 		const left = new KeyboardEvent('keydown', { key: 'ArrowLeft', cancelable: true });
+ 		handleReviewKeydown(left);
+ 		expect(appState.ply).toBe(6); // unchanged — guarded on screen
+ 	});
+ });
+ 
++describe('startReview (real PGN parsing)', () => {
++	beforeEach(() => {
++		parsePgn.mockReset();
++		loadRealAnalysis.mockReset();
++		loadRealAnalysis.mockResolvedValue({ evalPerPly: [], bestMoves: {} });
++	});
++
++	it('on successful parse: populates game, resets parseError, and loads the review screen', async () => {
++		appState.pgnText = '1. e4 e5';
++		appState.parseError = 'stale error from a previous attempt';
++		parsePgn.mockResolvedValue({
++			sanList: ['e4', 'e5'],
++			positions: [{}, {}, {}],
++			moves: [
++				{ from: 'e2', to: 'e4' },
++				{ from: 'e7', to: 'e5' }
++			]
++		});
++
++		await startReview();
++
++		expect(parsePgn).toHaveBeenCalledWith('1. e4 e5');
++		expect(appState.parseError).toBeNull();
++		expect(appState.game?.sanList).toEqual(['e4', 'e5']);
++		expect(appState.game?.isSample).toBe(false);
++		expect(appState.gameLoaded).toBe(true);
++		expect(appState.screen).toBe('review');
++		expect(appState.ply).toBe(2);
++		expect(appState.evalPerPly).toEqual([0, 0, 0]);
++	});
++
++	it('falls back to the sample PGN when pgnText is blank, and flags isSample true', async () => {
++		appState.pgnText = '   ';
++		parsePgn.mockResolvedValue({
++			sanList: ['e4'],
++			positions: [{}, {}],
++			moves: [{ from: 'e2', to: 'e4' }]
++		});
++
++		await startReview();
++
++		const { SAMPLE_PGN } = await import('$lib/game/sample-pgn');
++		expect(parsePgn).toHaveBeenCalledWith(SAMPLE_PGN);
++		expect(appState.game?.isSample).toBe(true);
++	});
++
++	it('on parse failure: sets parseError and does not load the review screen', async () => {
++		appState.pgnText = 'not a real pgn';
++		appState.gameLoaded = false;
++		parsePgn.mockRejectedValue(new Error('illegal move'));
++
++		await startReview();
++
++		expect(appState.parseError).toBe('illegal move');
++		expect(appState.gameLoaded).toBe(false);
++	});
++});
++
+ describe('real analysis loading', () => {
+ 	beforeEach(() => {
++		parsePgn.mockReset();
+ 		loadRealAnalysis.mockReset();
++		parsePgn.mockResolvedValue({
++			sanList: ['e4'],
++			positions: [{}, {}],
++			moves: [{ from: 'e2', to: 'e4' }]
++		});
+ 	});
+ 
+ 	it('starts in the idle status by default', () => {
+ 		const state = createAppState();
+ 		expect(state.analysisStatus).toBe('idle');
+ 		expect(state.evalPerPly.length).toBeGreaterThan(0);
+ 	});
+ 
+-	it('goes loading -> ready and applies the real data on startReview success', async () => {
++	it('goes loading -> ready and applies the real data once startReview resolves', async () => {
+ 		let resolveAnalysis!: (v: { evalPerPly: number[]; bestMoves: Record<number, never> }) => void;
+ 		loadRealAnalysis.mockReturnValue(
+ 			new Promise((resolve) => {
+ 				resolveAnalysis = resolve;
+ 			})
+ 		);
+ 
+-		startReview();
++		await startReview();
+ 		expect(appState.analysisStatus).toBe('loading');
+ 
+ 		resolveAnalysis({ evalPerPly: [0, 0.3], bestMoves: {} });
+ 		await Promise.resolve();
+ 		await Promise.resolve();
+ 
+ 		expect(appState.analysisStatus).toBe('ready');
+ 		expect(appState.evalPerPly).toEqual([0, 0.3]);
+ 	});
+ 
+ 	it('goes loading -> error when loadRealAnalysis rejects', async () => {
+ 		loadRealAnalysis.mockRejectedValue(new Error('engine offline'));
+ 
+-		startReview();
++		await startReview();
+ 		await Promise.resolve();
+ 		await Promise.resolve();
+ 
+ 		expect(appState.analysisStatus).toBe('error');
+ 	});
+ });

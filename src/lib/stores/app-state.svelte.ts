@@ -1,7 +1,10 @@
 import type { Move } from '$lib/board/types';
 import type { Screen, Tab } from '$lib/types';
-import { SAN_LIST, EVAL_PER_PLY, BEST_MOVES } from '$lib/game/mock-data';
+import { EVAL_PER_PLY, BEST_MOVES } from '$lib/game/mock-data';
 import { loadRealAnalysis } from '$lib/game/engine-analysis';
+import { parsePgn } from '$lib/api/pgn';
+import { SAMPLE_PGN } from '$lib/game/sample-pgn';
+import type { GameData } from '$lib/game/review';
 
 export interface AppState {
 	screen: Screen;
@@ -16,6 +19,8 @@ export interface AppState {
 	evalPerPly: number[];
 	bestMoves: Record<number, Move & { san: string }>;
 	analysisStatus: 'idle' | 'loading' | 'ready' | 'error';
+	game: GameData | null;
+	parseError: string | null;
 }
 
 const defaultState: AppState = {
@@ -30,7 +35,9 @@ const defaultState: AppState = {
 	selfAnalysis: false,
 	evalPerPly: [...EVAL_PER_PLY],
 	bestMoves: { ...BEST_MOVES },
-	analysisStatus: 'idle'
+	analysisStatus: 'idle',
+	game: null,
+	parseError: null
 };
 
 /**
@@ -49,23 +56,47 @@ export function createAppState(): AppState {
 /** The reactive singleton store that tracks application state. Consumers should import and use this export. */
 export const appState = $state(defaultState);
 
-export const MAX_PLY = SAN_LIST.length;
+export function getMaxPly(): number {
+	return appState.game ? appState.game.sanList.length : 0;
+}
 
 export function goToPly(ply: number): void {
-	appState.ply = Math.max(0, Math.min(MAX_PLY, ply));
+	appState.ply = Math.max(0, Math.min(getMaxPly(), ply));
 }
 
 export function stepPly(delta: number): void {
 	goToPly(appState.ply + delta);
 }
 
-/** Reference `startReview` handler: always loads the same mock game — pgnText is cosmetic (Global Constraints). */
-export function startReview(): void {
-	appState.gameLoaded = true;
-	appState.screen = 'review';
-	appState.ply = MAX_PLY;
-	appState.tab = 'analysis';
-	void refreshRealAnalysis();
+/** Parses the pasted/typed PGN (or the built-in sample if blank) via the real
+ * Rust pgn module, replacing the mock SAN engine (LOGIC.md §7/§8). */
+export async function startReview(): Promise<void> {
+	const pgnToParse = appState.pgnText.trim() || SAMPLE_PGN;
+	try {
+		const parsed = await parsePgn(pgnToParse);
+		appState.game = {
+			sanList: parsed.sanList,
+			positions: parsed.positions,
+			moveMeta: parsed.moves,
+			isSample: pgnToParse.trim() === SAMPLE_PGN.trim(),
+			whiteName: parsed.whiteName,
+			blackName: parsed.blackName,
+			whiteRating: parsed.whiteRating,
+			blackRating: parsed.blackRating
+		};
+		appState.evalPerPly = new Array(parsed.sanList.length + 1).fill(0);
+		appState.bestMoves = {};
+		appState.analysisStatus = 'idle';
+		appState.parseError = null;
+		appState.gameLoaded = true;
+		appState.screen = 'review';
+		appState.ply = parsed.sanList.length;
+		appState.tab = 'analysis';
+		void refreshRealAnalysis();
+	} catch (err) {
+		appState.parseError =
+			typeof err === 'string' ? err : err instanceof Error ? err.message : 'Failed to parse PGN.';
+	}
 }
 
 /** Fires the Phase-0 engine spike (LOGIC.md §7): replaces the seeded mock
@@ -73,7 +104,7 @@ export function startReview(): void {
 async function refreshRealAnalysis(): Promise<void> {
 	appState.analysisStatus = 'loading';
 	try {
-		const { evalPerPly, bestMoves } = await loadRealAnalysis();
+		const { evalPerPly, bestMoves } = await loadRealAnalysis(appState.game!.positions);
 		appState.evalPerPly = evalPerPly;
 		appState.bestMoves = bestMoves;
 		appState.analysisStatus = 'ready';
