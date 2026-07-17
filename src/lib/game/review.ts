@@ -15,7 +15,7 @@ import type { Move, PieceColor, PieceType, Position } from '$lib/board/types';
 import type { ClassCode } from '$lib/types';
 import { NOT_BEST_CODES } from '$lib/tokens';
 import { BEST_MOVES, COACH_TEXT_MAP, EVAL_PER_PLY, CLASS_CODES, PLAYERS } from './mock-data';
-import { computeGameAccuracy, resolveWinner } from './accuracy';
+import { computeGameAccuracy, resolveWinner, estimatePerformanceRating } from './accuracy';
 
 export interface GameData {
 	sanList: string[];
@@ -167,6 +167,7 @@ export interface AccuracySide {
 	name: string;
 	initial: string;
 	accuracy: string | null;
+	gameRating: string | null;
 	isWinner: boolean;
 }
 
@@ -202,12 +203,14 @@ export function getAccuracySummary(game: GameData, evalPerPly: number[]): Accura
 			name: whiteName,
 			initial: whiteName.charAt(0).toUpperCase(),
 			accuracy: white === null ? null : white.toFixed(1),
+			gameRating: estimatePerformanceRating(white)?.toString() ?? null,
 			isWinner: winner === 'white'
 		},
 		black: {
 			name: blackName,
 			initial: blackName.charAt(0).toUpperCase(),
 			accuracy: black === null ? null : black.toFixed(1),
+			gameRating: estimatePerformanceRating(black)?.toString() ?? null,
 			isWinner: winner === 'black'
 		},
 		resultLabel: formatResultLabel(game.result)

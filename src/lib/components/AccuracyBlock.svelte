@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { PLAYERS } from '$lib/game/mock-data';
 	import { TOKENS } from '$lib/tokens';
 	import type { AccuracySide } from '$lib/game/review';
 
@@ -51,9 +50,9 @@
 		<div class="rating-title">Game Rating</div>
 		<div class="rating-subtitle">Est. performance</div>
 	</div>
-	<div class="rating-col"><div class="chip neutral sbmono wide">{PLAYERS.white.gameRating}</div></div>
+	<div class="rating-col"><div class="chip neutral sbmono wide">{white.gameRating ?? '—'}</div></div>
 	<span></span>
-	<div class="rating-col"><div class="chip tinted sbmono wide">{PLAYERS.black.gameRating}</div></div>
+	<div class="rating-col"><div class="chip tinted sbmono wide">{black.gameRating ?? '—'}</div></div>
 </div>
 
 <style>

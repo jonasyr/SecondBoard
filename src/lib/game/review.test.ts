@@ -159,6 +159,10 @@ describe('getAccuracySummary', () => {
 		expect(summary.white.isWinner).toBe(false);
 		expect(summary.black.isWinner).toBe(true);
 		expect(summary.resultLabel).toBe('0–1');
+		// gameRating is derived from this game's own accuracy (~99.9999 for both
+		// sides given this evalPerPly), not from rating/result: (99.9999-64)*100 ≈ 3600.
+		expect(summary.white.gameRating).toBe('3600');
+		expect(summary.black.gameRating).toBe('3600');
 	});
 
 	it('uses real PGN names when present', () => {
@@ -176,6 +180,24 @@ describe('getAccuracySummary', () => {
 		expect(summary.black.initial).toBe('R');
 		expect(summary.white.isWinner).toBe(true);
 		expect(summary.black.isWinner).toBe(false);
+	});
+
+	it('computes gameRating from this game\'s own accuracy, independent of the result/winner', () => {
+		// Only White has a move here (evalPerPly length 2); Black made no move,
+		// so Black's accuracy -- and therefore gameRating -- is null.
+		const game: GameData = { ...notSampleGame, result: null };
+		const summary = getAccuracySummary(game, [0, 1]);
+
+		expect(summary.white.gameRating).toBe('3600'); // (99.9999-64)*100 rounded
+		expect(summary.black.gameRating).toBeNull();
+	});
+
+	it('reports gameRating as null (not a fabricated number) when there is not enough eval data yet', () => {
+		const game: GameData = { ...sampleGame, result: '0-1' };
+		const summary = getAccuracySummary(game, [0]);
+
+		expect(summary.white.gameRating).toBeNull();
+		expect(summary.black.gameRating).toBeNull();
 	});
 
 	it('reports accuracy as null (not a fabricated number) when there is not enough eval data yet', () => {
