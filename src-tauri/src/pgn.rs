@@ -20,6 +20,7 @@ pub struct ParsedGame {
     pub black_name: Option<String>,
     pub white_rating: Option<String>,
     pub black_rating: Option<String>,
+    pub result: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
@@ -108,6 +109,7 @@ struct GameVisitor {
     black_name: Option<String>,
     white_rating: Option<String>,
     black_rating: Option<String>,
+    result: Option<String>,
 }
 
 impl GameVisitor {
@@ -123,6 +125,7 @@ impl GameVisitor {
             black_name: None,
             white_rating: None,
             black_rating: None,
+            result: None,
         }
     }
 }
@@ -136,6 +139,7 @@ impl Visitor for GameVisitor {
             b"Black" => self.black_name = decode_known_tag(value),
             b"WhiteElo" => self.white_rating = decode_known_tag(value),
             b"BlackElo" => self.black_rating = decode_known_tag(value),
+            b"Result" => self.result = decode_known_tag(value),
             _ => {}
         }
     }
@@ -175,6 +179,7 @@ impl Visitor for GameVisitor {
             black_name: self.black_name.take(),
             white_rating: self.white_rating.take(),
             black_rating: self.black_rating.take(),
+            result: self.result.take(),
         })
     }
 }
@@ -229,6 +234,19 @@ mod tests {
         assert_eq!(game.black_name, Some("DominikP".to_string()));
         assert_eq!(game.white_rating, Some("1867".to_string()));
         assert_eq!(game.black_rating, Some("2043".to_string()));
+    }
+
+    #[test]
+    fn extracts_the_result_tag() {
+        let game = parse_pgn(SAMPLE_PGN).expect("sample PGN should parse");
+        assert_eq!(game.result, Some("0-1".to_string()));
+    }
+
+    #[test]
+    fn treats_a_missing_result_tag_as_none() {
+        let pgn = "[Event \"Casual Game\"]\n[White \"Alice\"]\n[Black \"Bob\"]\n\n1. e4 e5";
+        let game = parse_pgn(pgn).expect("PGN with no Result tag should still parse");
+        assert_eq!(game.result, None);
     }
 
     #[test]
