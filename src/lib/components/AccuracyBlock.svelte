@@ -50,9 +50,25 @@
 		<div class="rating-title">Game Rating</div>
 		<div class="rating-subtitle">Est. performance</div>
 	</div>
-	<div class="rating-col"><div class="chip neutral sbmono wide">{white.gameRating ?? '—'}</div></div>
+	<div class="rating-col">
+		<div
+			class="chip sbmono wide"
+			class:neutral={!white.isWinner}
+			class:tinted={white.isWinner}
+		>
+			{white.gameRating ?? '—'}
+		</div>
+	</div>
 	<span></span>
-	<div class="rating-col"><div class="chip tinted sbmono wide">{black.gameRating ?? '—'}</div></div>
+	<div class="rating-col">
+		<div
+			class="chip sbmono wide"
+			class:neutral={!black.isWinner}
+			class:tinted={black.isWinner}
+		>
+			{black.gameRating ?? '—'}
+		</div>
+	</div>
 </div>
 
 <style>

@@ -43,21 +43,29 @@ describe('AccuracyBlock', () => {
 		expect(getAllByText('—')).toHaveLength(5);
 	});
 
-	it('highlights the real winner\'s avatar/chip, not always Black', () => {
+	it('highlights the real winner\'s avatar/accuracy chip/game-rating chip, not always Black', () => {
 		const { container } = render(AccuracyBlock, {
 			props: { white: { ...white, isWinner: true }, black: { ...black, isWinner: false }, resultLabel: '1-0' }
 		});
 		const cols = container.querySelectorAll('.col');
 		expect(cols[0].querySelector('.avatar')?.classList.contains('tinted')).toBe(true);
 		expect(cols[1].querySelector('.avatar')?.classList.contains('tinted')).toBe(false);
+
+		const ratingChips = container.querySelectorAll('.rating-col .chip');
+		expect(ratingChips[0].classList.contains('tinted')).toBe(true); // white's gameRating chip
+		expect(ratingChips[1].classList.contains('tinted')).toBe(false); // black's gameRating chip
 	});
 
-	it('tints neither side on a draw', () => {
+	it('tints neither side\'s avatar/accuracy chip/game-rating chip on a draw', () => {
 		const { container } = render(AccuracyBlock, {
 			props: { white, black: { ...black, isWinner: false }, resultLabel: '½–½' }
 		});
 		const cols = container.querySelectorAll('.col');
 		expect(cols[0].querySelector('.avatar')?.classList.contains('tinted')).toBe(false);
 		expect(cols[1].querySelector('.avatar')?.classList.contains('tinted')).toBe(false);
+
+		const ratingChips = container.querySelectorAll('.rating-col .chip');
+		expect(ratingChips[0].classList.contains('tinted')).toBe(false);
+		expect(ratingChips[1].classList.contains('tinted')).toBe(false);
 	});
 });
