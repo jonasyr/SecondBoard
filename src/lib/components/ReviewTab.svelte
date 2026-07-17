@@ -15,7 +15,14 @@
 
 	let { ply, evalPerPly, analyzing = false }: Props = $props();
 
-	const accuracy = $derived(getAccuracySummary(appState.game!, evalPerPly));
+	// Only feed the real evalPerPly in once analysis has actually finished;
+	// otherwise (idle/loading/error) pass an empty array so
+	// computeGameAccuracy's own length<2 guard returns null/null, rendering
+	// "—" instead of a fabricated 100.0 from the seeded all-zero placeholder
+	// evalPerPly that startReview() writes before analysis completes.
+	const accuracy = $derived(
+		getAccuracySummary(appState.game!, appState.analysisStatus === 'ready' ? evalPerPly : [])
+	);
 </script>
 
 <div class="review-tab sbscroll">

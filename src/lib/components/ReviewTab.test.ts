@@ -51,4 +51,15 @@ describe('ReviewTab', () => {
 		expect(getByText('Analyzing with Stockfish…')).toBeTruthy();
 		expect(container.querySelector('.graph-blur')?.classList.contains('analyzing')).toBe(true);
 	});
+
+	it('does not show a fabricated 100.0 accuracy while analysis is not ready, even when evalPerPly is a full-length placeholder of zeros', () => {
+		appState.analysisStatus = 'loading';
+		const { container, queryByText } = render(ReviewTab, {
+			props: { ply: 1, evalPerPly: new Array(2).fill(0) }
+		});
+		expect(queryByText('100.0')).toBeNull();
+		const chips = container.querySelectorAll('.accuracy-grid .chip.sbmono');
+		expect(chips.length).toBe(2);
+		chips.forEach((chip) => expect(chip.textContent?.trim()).toBe('—'));
+	});
 });
