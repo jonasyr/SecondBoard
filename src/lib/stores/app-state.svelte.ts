@@ -22,6 +22,8 @@ export interface AppState {
 	bestMoves: Record<number, Move & { san: string }>;
 	classCodes: ClassCode[];
 	wdlPerPly: (Wdl | null)[];
+	secondEvalPerPly: (number | null)[];
+	secondWdlPerPly: (Wdl | null)[];
 	analysisStatus: 'idle' | 'loading' | 'ready' | 'error';
 	game: GameData | null;
 	parseError: string | null;
@@ -41,6 +43,8 @@ const defaultState: AppState = {
 	bestMoves: { ...BEST_MOVES },
 	classCodes: [],
 	wdlPerPly: [],
+	secondEvalPerPly: [],
+	secondWdlPerPly: [],
 	analysisStatus: 'idle',
 	game: null,
 	parseError: null
@@ -95,6 +99,8 @@ export async function startReview(): Promise<void> {
 		appState.bestMoves = {};
 		appState.classCodes = [];
 		appState.wdlPerPly = [];
+		appState.secondEvalPerPly = [];
+		appState.secondWdlPerPly = [];
 		appState.analysisStatus = 'idle';
 		appState.parseError = null;
 		appState.gameLoaded = true;
@@ -113,11 +119,20 @@ export async function startReview(): Promise<void> {
 async function refreshRealAnalysis(): Promise<void> {
 	appState.analysisStatus = 'loading';
 	try {
-		const { evalPerPly, bestMoves, wdlPerPly } = await loadRealAnalysis(appState.game!.positions);
+		const { evalPerPly, bestMoves, wdlPerPly, secondEvalPerPly, secondWdlPerPly } =
+			await loadRealAnalysis(appState.game!.positions);
 		appState.evalPerPly = evalPerPly;
 		appState.bestMoves = bestMoves;
 		appState.wdlPerPly = wdlPerPly;
-		appState.classCodes = classifyGame(evalPerPly, wdlPerPly);
+		appState.secondEvalPerPly = secondEvalPerPly;
+		appState.secondWdlPerPly = secondWdlPerPly;
+		appState.classCodes = classifyGame(evalPerPly, wdlPerPly, {
+			positions: appState.game!.positions,
+			moveMeta: appState.game!.moveMeta,
+			bestMoves,
+			secondEvalPerPly,
+			secondWdlPerPly
+		});
 		appState.analysisStatus = 'ready';
 	} catch {
 		appState.analysisStatus = 'error';
