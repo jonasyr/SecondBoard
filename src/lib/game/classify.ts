@@ -26,14 +26,16 @@ import type { Move, Position } from '$lib/board/types';
 import type { Wdl } from './accuracy';
 import { winPercentForPly } from './accuracy';
 import { sideToMoveForPly } from './notation';
-import { isMaterialSacrifice } from './material';
+import { isPieceHanging } from './attacks';
+import { PIECE_VALUES } from './material';
 
 /** blueprint §8's `ClassificationConfig` defaults, expressed on this codebase's
  * 0-100 win%-points scale (the blueprint's own numbers are on a 0-1 scale). */
 const BRILLIANT_MIN_WIN = 50;
 const BRILLIANT_NOT_WINNING = 97;
+const BRILLIANT_MIN_SACRIFICE_VALUE = 3;
 const GREAT_ONLY_MOVE_GAP = 20;
-const GREAT_NOT_ALREADY_DECIDED = 97;
+const GREAT_NOT_ALREADY_DECIDED = 97; // recalibrated in Task 4 of this same plan
 const MISS_WIN_BEFORE = 80;
 const MISS_WIN_AFTER = 55;
 
@@ -143,38 +145,22 @@ function classifySpecial(
 	);
 	const nearBest = epLoss <= 2 || playedIsBest;
 
-	// Prefer the position AFTER the opponent's next reply when it's available: a piece
-	// deliberately left en prise (the classic "offered" sacrifice -- e.g. this game's own
-	// 17...Be6!!, only captured on White's following move) shows no material change at all
-	// on the sacrificing move's own ply, so checking only positions[ply-1] vs positions[ply]
-	// can never see it. Falls back to the same-ply comparison (today's pre-Task-1 behavior)
-	// when the played move was the game's very last ply (positions[ply + 1] doesn't exist).
-	const widenedWindow = special.positions[ply + 1];
-	let materialAfter = widenedWindow ?? special.positions[ply];
-
-	// The widened window is causally blind: it just diffs total material balance across the
-	// two plies, so an UNRELATED capture elsewhere on the board (some other piece that was
-	// already hanging for reasons that have nothing to do with this move) would inflate the
-	// swing and wrongly look like a sacrifice caused by this move. Only trust the widened
-	// window when the square this move landed on (`playedMove.to`) no longer holds a piece of
-	// the mover's own color there -- i.e. the mover's own piece was actually captured (or is
-	// otherwise gone) on the square it just moved to, tying the material loss to THIS move's
-	// piece rather than some other exchange happening elsewhere. Otherwise, fall back to the
-	// same-ply comparison so a real over-the-board immediate sacrifice still works exactly as
-	// it did before this whole feature was added.
-	if (widenedWindow && playedMove) {
-		const pieceOnLandingSquare = widenedWindow[playedMove.to];
-		const moverStillThere = pieceOnLandingSquare?.[1] === mover;
-		if (moverStillThere) {
-			materialAfter = special.positions[ply];
-		}
-	}
+	// A real sound sacrifice is a piece left ATTACKED that's still fine for the mover whether
+	// or not the opponent actually takes it (e.g. the reference game's 11...Na4, never captured
+	// at all -- White correctly declines). Checking the square the mover's own move landed on
+	// for "is it currently hanging" (attacks.ts) catches this directly, unlike diffing
+	// material across subsequent board snapshots, which can only ever see a sacrifice the
+	// opponent actually accepts -- see docs/superpowers/plans/2026-07-20-iteration-12-attack-based-brilliant.md.
+	const afterPosition = special.positions[ply];
+	const playedPiece = playedMove && afterPosition ? afterPosition[playedMove.to] : undefined;
+	const sacrificedValue = playedPiece ? PIECE_VALUES[playedPiece[0]] : 0;
 
 	if (
 		nearBest &&
-		special.positions[ply - 1] &&
-		materialAfter &&
-		isMaterialSacrifice(special.positions[ply - 1], materialAfter, mover) &&
+		playedMove &&
+		afterPosition &&
+		sacrificedValue >= BRILLIANT_MIN_SACRIFICE_VALUE &&
+		isPieceHanging(afterPosition, playedMove.to, mover) &&
 		afterPov >= BRILLIANT_MIN_WIN &&
 		beforePov < BRILLIANT_NOT_WINNING
 	) {
@@ -182,7 +168,11 @@ function classifySpecial(
 	}
 
 	if (playedIsBest && beforePov < GREAT_NOT_ALREADY_DECIDED) {
-		const secondPov = secondLineWinPercent(ply - 1, special.secondEvalPerPly, special.secondWdlPerPly);
+		const secondPov = secondLineWinPercent(
+			ply - 1,
+			special.secondEvalPerPly,
+			special.secondWdlPerPly
+		);
 		if (secondPov !== null) {
 			const secondMoverPov = mover === 'w' ? secondPov : 100 - secondPov;
 			if (beforePov - secondMoverPov >= GREAT_ONLY_MOVE_GAP) {

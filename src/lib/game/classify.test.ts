@@ -7,7 +7,7 @@ describe('classifyMoveByEpLoss', () => {
 		expect(classifyMoveByEpLoss(0)).toBe('best');
 	});
 
-	it('classifies the upper edge of each band using Chess.com\'s exact published cutoffs', () => {
+	it("classifies the upper edge of each band using Chess.com's exact published cutoffs", () => {
 		expect(classifyMoveByEpLoss(2)).toBe('excellent');
 		expect(classifyMoveByEpLoss(5)).toBe('good');
 		expect(classifyMoveByEpLoss(10)).toBe('inaccuracy');
@@ -32,7 +32,7 @@ describe('classifyMoveByEpLoss', () => {
 });
 
 describe('classifyGame', () => {
-	it('returns one classification per move, best when the mover\'s win% never worsens', () => {
+	it("returns one classification per move, best when the mover's win% never worsens", () => {
 		// ply0 (start, eval 0) -> ply1 White moves to +1.0 (better for White) ->
 		// ply2 Black moves to +0.5 (better for Black, relative to +1.0).
 		const codes = classifyGame([0, 1, 0.5]);
@@ -51,7 +51,7 @@ describe('classifyGame', () => {
 		expect(classifyGame([])).toEqual([]);
 	});
 
-	it('attributes each ply\'s classification to the correct mover (White odd ply positions, Black even)', () => {
+	it("attributes each ply's classification to the correct mover (White odd ply positions, Black even)", () => {
 		// ply1 White: 0 -> 1 (improves, best). ply2 Black: 1 -> -1 (Black's own
 		// POV win% at eval -1 is much better for Black than at eval 1, so also
 		// best for Black). ply3 White: -1 -> -9 (a big drop in White's own win%
@@ -72,7 +72,10 @@ describe('classifyGame', () => {
 		// a wdl showing White going from a clear edge to lost changes the verdict.
 		const evalPerPly = [0, -0.3];
 		const withoutWdl = classifyGame(evalPerPly);
-		const wdlPerPly: Array<[number, number, number] | null> = [[600, 300, 100], [0, 0, 1000]];
+		const wdlPerPly: Array<[number, number, number] | null> = [
+			[600, 300, 100],
+			[0, 0, 1000]
+		];
 		const withWdl = classifyGame(evalPerPly, wdlPerPly);
 		expect(withoutWdl[0]).not.toBe('blunder');
 		expect(withWdl[0]).toBe('blunder');
@@ -84,20 +87,23 @@ describe('classifyGame with special classes', () => {
 	// evalPerPly / wdlPerPly are White-POV win% inputs; the fixture positions/moves below are
 	// only wired up to exercise the Brilliant/Great/Miss branches, not to represent a legal game.
 
-	it('classifies a best/near-best sound piece sacrifice as brilliant', () => {
-		const evalPerPly = [0, 0]; // win% 50 before and after (via the sigmoid) is not what
-		// matters here -- use wdlPerPly to pin exact mover-POV win% values instead.
+	it('classifies an immediately-hanging near-best move as brilliant', () => {
+		// White's knight lands on a4, attacked by Black's queen on a8 along the open a-file,
+		// with no White defender of a4 -- classic hanging piece, worth a minor piece (3).
+		const evalPerPly = [0, 0];
 		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
-			[600, 400, 0], // ply 0: White win% 80 (mover POV, White to move)
-			[600, 400, 0] // ply 1: White win% 80 after the move (stays >= 50, well under 97)
+			[600, 400, 0], // ply 0: mover (White) win% 80 before the sacrifice
+			[600, 400, 0] // ply 1: still 80 right after -- the engine already credits the
+			// follow-up tactics, matching this codebase's existing eval-at-ply convention
 		];
 		const positions: Position[] = [
-			{ e1: ['K', 'w'], e5: ['N', 'w'], e8: ['K', 'b'] }, // before: White has a knight on e5
-			{ e1: ['K', 'w'], e8: ['K', 'b'] } // after: the knight is gone -- a sacrifice
+			{ e1: ['K', 'w'], d4: ['N', 'w'], a8: ['Q', 'b'], e8: ['K', 'b'] }, // before: knight on d4
+			{ e1: ['K', 'w'], a4: ['N', 'w'], a8: ['Q', 'b'], e8: ['K', 'b'] } // after: knight moved
+			// to a4, hanging to the queen on a8 along the open a-file
 		];
-		const moveMeta: Move[] = [{ from: 'e5', to: 'd7' }];
+		const moveMeta: Move[] = [{ from: 'd4', to: 'a4' }];
 		const bestMoves: Record<number, Move & { san: string }> = {
-			1: { from: 'e5', to: 'd7', san: 'Nd7' } // played move IS the engine's suggestion
+			1: { from: 'd4', to: 'a4', san: 'Na4' } // played move IS the engine's suggestion
 		};
 
 		const codes = classifyGame(evalPerPly, wdlPerPly, { positions, moveMeta, bestMoves });
@@ -105,102 +111,59 @@ describe('classifyGame with special classes', () => {
 		expect(codes).toEqual(['brilliant']);
 	});
 
-	it('classifies an offered sacrifice (material lost only after the opponent\'s next reply) as brilliant', () => {
-		// Mirrors the PATTERN of the reference game's 17...Be6!! (a piece offered that
-		// captures/loses nothing on its own move, only taken on the opponent's very next
-		// reply) -- docs/references/DonaldByrne_RJamesFischer/. Colors are flipped from the
-		// real game (White offers here, not Black): `classifyGame`'s ply-index convention
-		// means `codes[0]` (ply 1) is always evaluated with `mover = sideToMoveForPly(0) ===
-		// 'w'` in any isolated array-based fixture like this one (ply 0 is always "White to
-		// move" by this codebase's indexing), so the sacrificed piece must belong to White
-		// for this fixture's `mover` and the sacrificed color to actually agree -- this is a
-		// test-harness detail, not a claim about who sacrifices in the real game.
-		const evalPerPly = [0, 0, 0]; // 3 plies: before the offer, after the offer, after the reply captures it
+	it('classifies a declined sacrifice (piece hanging but never actually captured) as brilliant', () => {
+		// Mirrors the reference game's 11...Na4 exactly (docs/references/DonaldByrne_RJamesFischer/):
+		// the knight is genuinely hanging (attacked, undefended) but the opponent's ACTUAL next
+		// move (modeled here, though classifyGame never even looks at ply 2 for this ply's own
+		// classification) does not capture it. The old material-diff-window approach could never
+		// detect this since no capture ever occurs on the board; attack-based detection doesn't
+		// need one.
+		const evalPerPly = [0, 0, 0];
 		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
-			[600, 400, 0], // ply 0: mover (White) win% 80 before the offered move
-			[600, 400, 0], // ply 1: still 80 right after offering the piece (engine already
-			// credits the follow-up tactics, per this codebase's existing convention)
-			[600, 400, 0] // ply 2: irrelevant to this test's own assertion, included only for
-			// array-length parity with positions/moveMeta below
+			[600, 400, 0],
+			[600, 400, 0],
+			[600, 400, 0]
 		];
 		const positions: Position[] = [
-			{ e1: ['K', 'w'], e8: ['K', 'b'], e5: ['B', 'w'] }, // before: White's bishop still on e5
-			{ e1: ['K', 'w'], e8: ['K', 'b'], d6: ['B', 'w'] }, // after White's own move: bishop moved
-			// to d6, nothing captured -- material diff vs. "before" is 0 at this point
-			{ e1: ['K', 'w'], e8: ['K', 'b'] } // after Black's NEXT reply captures the bishop on d6
+			{ e1: ['K', 'w'], d4: ['N', 'w'], a8: ['Q', 'b'], e8: ['K', 'b'] },
+			{ e1: ['K', 'w'], a4: ['N', 'w'], a8: ['Q', 'b'], e8: ['K', 'b'] }, // knight hanging on a4
+			{ e1: ['K', 'w'], a4: ['N', 'w'], d1: ['Q', 'b'], e8: ['K', 'b'] } // opponent declines the
+			// knight, plays elsewhere instead (queen repositions to d1) -- the knight is still
+			// sitting on a4, still hanging, simply never taken
 		];
 		const moveMeta: Move[] = [
-			{ from: 'e5', to: 'd6' }, // White's offered move (ply 1)
-			{ from: 'e8', to: 'd6' } // Black's reply that captures it (ply 2) -- moveMeta content
-			// for ply 2 doesn't affect this test (only ply 1 is classified as White's move here)
+			{ from: 'd4', to: 'a4' },
+			{ from: 'a8', to: 'd1' } // the opponent's actual reply -- NOT a capture of a4
 		];
 		const bestMoves: Record<number, Move & { san: string }> = {
-			1: { from: 'e5', to: 'd6', san: 'Bd6' } // played move IS the engine's suggestion
+			1: { from: 'd4', to: 'a4', san: 'Na4' }
 		};
 
 		const codes = classifyGame(evalPerPly, wdlPerPly, { positions, moveMeta, bestMoves });
 
-		expect(codes[0]).toBe('brilliant'); // codes[0] = classification of ply 1 (White's offered move)
+		expect(codes[0]).toBe('brilliant'); // codes[0] = classification of ply 1 (the Na4-pattern move)
 	});
 
-	it('falls back to the same-ply material diff when the move played is the very last ply', () => {
-		// No positions[ply + 1] exists at all -- must not throw, and must fall back to
-		// comparing positions[ply - 1] directly against positions[ply] (today's pre-Task-1
-		// behavior), still correctly detecting an IMMEDIATE (same-move) sacrifice.
+	it('does not classify a quiet, adequately-defended move as brilliant', () => {
+		// The knight on a4 is attacked by the queen on a8, but also defended once by White's own
+		// rook on a1 -- attackers (1) do not exceed defenders (1), so it is not "hanging".
 		const evalPerPly = [0, 0];
 		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
 			[600, 400, 0],
 			[600, 400, 0]
 		];
 		const positions: Position[] = [
-			{ e1: ['K', 'w'], e5: ['N', 'w'], e8: ['K', 'b'] }, // before: White has a knight on e5
-			{ e1: ['K', 'w'], e8: ['K', 'b'] } // after (the LAST ply of the game): the knight is
-			// simply given away in this same move, no positions[2] exists at all
+			{ e1: ['K', 'w'], d4: ['N', 'w'], a1: ['R', 'w'], a8: ['Q', 'b'], e8: ['K', 'b'] },
+			{ e1: ['K', 'w'], a4: ['N', 'w'], a1: ['R', 'w'], a8: ['Q', 'b'], e8: ['K', 'b'] }
 		];
-		const moveMeta: Move[] = [{ from: 'e5', to: 'd7' }];
+		const moveMeta: Move[] = [{ from: 'd4', to: 'a4' }];
 		const bestMoves: Record<number, Move & { san: string }> = {
-			1: { from: 'e5', to: 'd7', san: 'Nd7' }
+			1: { from: 'd4', to: 'a4', san: 'Na4' }
 		};
 
 		const codes = classifyGame(evalPerPly, wdlPerPly, { positions, moveMeta, bestMoves });
 
-		expect(codes[0]).toBe('brilliant');
-	});
-
-	it('does NOT classify a quiet move as brilliant just because the opponent\'s reply captures an unrelated, already-hanging piece elsewhere on the board', () => {
-		// White plays a genuinely quiet king move (e1-e2, nothing captured, nothing offered).
-		// Black's reply captures an unrelated White rook on a1 that was hanging for reasons that
-		// have nothing to do with White's move -- the widened (offered-sacrifice) window still
-		// sees a >=3-point material swing across positions[0] -> positions[2], but that swing is
-		// NOT attributable to the piece White just moved (the king safely sits on e2 in
-		// positions[2], untouched), so this must NOT be brilliant. Must fall back to the
-		// same-ply (positions[0] vs positions[1]) comparison, which shows no material change at
-		// all for White's own quiet move.
-		const evalPerPly = [0, 0, 0];
-		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
-			[600, 400, 0], // ply 0: mover (White) win% 80 before White's move
-			[600, 400, 0], // ply 1: still 80 right after White's quiet move
-			[600, 400, 0] // ply 2: irrelevant to this test's assertion, array-length parity only
-		];
-		const positions: Position[] = [
-			{ e1: ['K', 'w'], e8: ['K', 'b'], a1: ['R', 'w'], a8: ['R', 'b'] }, // before: White king
-			// on e1, White rook hanging on a1
-			{ e2: ['K', 'w'], e8: ['K', 'b'], a1: ['R', 'w'], a8: ['R', 'b'] }, // after White's OWN
-			// move: king moved e1->e2, nothing else changed -- quiet, no material swing at all
-			{ e2: ['K', 'w'], e8: ['K', 'b'], a1: ['R', 'b'] } // after Black's NEXT reply: Black's
-			// rook captures the unrelated White rook on a1 (nothing to do with White's e1-e2 move)
-		];
-		const moveMeta: Move[] = [
-			{ from: 'e1', to: 'e2' }, // White's quiet move (ply 1)
-			{ from: 'a8', to: 'a1' } // Black's reply capturing the unrelated rook (ply 2)
-		];
-		const bestMoves: Record<number, Move & { san: string }> = {
-			1: { from: 'e1', to: 'e2', san: 'Ke2' } // played move IS the engine's suggestion
-		};
-
-		const codes = classifyGame(evalPerPly, wdlPerPly, { positions, moveMeta, bestMoves });
-
-		expect(codes[0]).not.toBe('brilliant');
+		expect(codes).not.toEqual(['brilliant']);
 	});
 
 	it('classifies an only-move (large MultiPV gap) best move as great', () => {
