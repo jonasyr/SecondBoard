@@ -128,4 +128,58 @@ describe('loadRealAnalysis', () => {
 
 		expect(wdlPerPly.every((w) => w === null)).toBe(true);
 	});
+
+	it('produces one secondEvalPerPly entry per position, normalized to White POV', async () => {
+		analyzeFen.mockImplementation(async () => ({
+			evalCp: 50,
+			isMate: false,
+			bestMoveUci: 'e2e4',
+			pv: [],
+			wdl: null,
+			secondEvalCp: 20,
+			secondIsMate: false,
+			secondWdl: null
+		}));
+
+		const { secondEvalPerPly } = await loadRealAnalysis(testPositions);
+
+		expect(secondEvalPerPly).toHaveLength(testPositions.length);
+		expect(secondEvalPerPly[0]).toBeCloseTo(0.2); // ply 0: White to move, +20cp -> +0.20 White POV
+		expect(secondEvalPerPly[1]).toBeCloseTo(-0.2); // ply 1: Black to move, +20cp for Black -> -0.20 White POV
+	});
+
+	it('reports a null secondEvalPerPly entry when the engine reported no second PV line', async () => {
+		analyzeFen.mockResolvedValue({
+			evalCp: 0,
+			isMate: false,
+			bestMoveUci: 'e2e4',
+			pv: [],
+			wdl: null,
+			secondEvalCp: null,
+			secondIsMate: false,
+			secondWdl: null
+		});
+
+		const { secondEvalPerPly } = await loadRealAnalysis(testPositions);
+
+		expect(secondEvalPerPly.every((e) => e === null)).toBe(true);
+	});
+
+	it('produces one secondWdlPerPly entry per position, flipped to White POV', async () => {
+		analyzeFen.mockImplementation(async () => ({
+			evalCp: 0,
+			isMate: false,
+			bestMoveUci: 'e2e4',
+			pv: [],
+			wdl: null,
+			secondEvalCp: 0,
+			secondIsMate: false,
+			secondWdl: [600, 300, 100]
+		}));
+
+		const { secondWdlPerPly } = await loadRealAnalysis(testPositions);
+
+		expect(secondWdlPerPly[0]).toEqual([600, 300, 100]); // ply 0: White to move, no flip
+		expect(secondWdlPerPly[1]).toEqual([100, 300, 600]); // ply 1: Black to move, w/l swap
+	});
 });
