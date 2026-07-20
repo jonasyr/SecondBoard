@@ -60,4 +60,20 @@ describe('classifyGame', () => {
 		expect(codes[1]).toBe('best'); // Black's move 1
 		expect(codes[2]).toBe('blunder'); // White's move 2
 	});
+
+	it('produces the exact same classifications as before when wdlPerPly is omitted (no regression)', () => {
+		expect(classifyGame([0, 1, 0.5])).toEqual(['best', 'best']);
+		expect(classifyGame([0, -8])).toEqual(['blunder']);
+	});
+
+	it('uses the WDL-derived win% for a ply that has one, changing the classification vs. eval-only', () => {
+		// eval swing alone (0 -> -0.3) would classify as a small loss (good/excellent);
+		// a wdl showing White going from a clear edge to lost changes the verdict.
+		const evalPerPly = [0, -0.3];
+		const withoutWdl = classifyGame(evalPerPly);
+		const wdlPerPly: Array<[number, number, number] | null> = [[600, 300, 100], [0, 0, 1000]];
+		const withWdl = classifyGame(evalPerPly, wdlPerPly);
+		expect(withoutWdl[0]).not.toBe('blunder');
+		expect(withWdl[0]).toBe('blunder');
+	});
 });
