@@ -202,7 +202,7 @@ describe('classifyGame with special classes', () => {
 			[990, 5, 5]
 		];
 		const secondWdlPerPly: (import('./accuracy').Wdl | null)[] = [
-			[500, 400, 100], // ply 0's second PV line: White win% (500+200)/10 = 70 -> gap of 28,
+			[500, 400, 100], // ply 0's second PV line: White win% (500+200)/10 = 70 -> gap of 29.25,
 			// which WOULD clear the (now-raised) 20-point bar on its own
 			null
 		];
@@ -239,7 +239,7 @@ describe('classifyGame with special classes', () => {
 			[960, 40, 0]
 		];
 		const secondWdlPerPly: (import('./accuracy').Wdl | null)[] = [
-			[500, 400, 100], // ply 0's second PV line: White win% (500+200)/10 = 70 -> gap of 20
+			[600, 360, 40], // ply 0's second PV line: White win% (600+180)/10 = 78 -> gap of 20
 			null
 		];
 		const evalPerPly = [0, 0];
