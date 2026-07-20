@@ -8,7 +8,7 @@
 	import ReviewPanel from './ReviewPanel.svelte';
 
 	const data = $derived(
-		getReviewPly(appState.ply, appState.game!, appState.evalPerPly, appState.bestMoves)
+		getReviewPly(appState.ply, appState.game!, appState.evalPerPly, appState.bestMoves, appState.classCodes)
 	);
 	const rows = $derived(getPlayerRows(appState.ply, appState.flipped, appState.game!));
 
