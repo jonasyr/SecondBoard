@@ -1,66 +1,118 @@
-# Task 2 Report: TS API + store — thread `result` through to `GameData`
+# Task 2 Report: Wire Real `classCodes` into the Store
 
-## What was implemented
+## Summary
 
-Threaded the Rust `pgn::ParsedGame.result: Option<String>` field (added in Task 1) through the TypeScript layer end-to-end:
+Successfully implemented Task 2 following strict TDD: wrote failing tests first, confirmed they failed, implemented the feature, and confirmed all tests pass. The `AppState` now exposes `classCodes: ClassCode[]` computed from real Chess.com-style analysis via `classifyGame(evalPerPly)`.
 
-1. `src/lib/api/pgn.ts` — added `result: string | null` to the `ParsedGame` interface.
-2. `src/lib/game/review.ts` — added `result: string | null` to the `GameData` interface.
-3. `src/lib/stores/app-state.svelte.ts` — `startReview()`'s object literal now sets `result: parsed.result ?? null` when building `appState.game`.
+## Implementation Details
 
-## What was tested and results
+### Files Modified
+- `src/lib/stores/app-state.svelte.ts` — Added `classCodes` to interface, defaultState, startReview reset, and refreshRealAnalysis computation
+- `src/lib/stores/app-state.test.ts` — Added 3 new test cases (2 in "real analysis loading" block, 1 expectation in "startReview (real PGN parsing)" block)
 
-Added two new tests to `src/lib/stores/app-state.test.ts` in the `describe('startReview (real PGN parsing)')` block, exactly per the brief:
-- `threads the parsed Result tag into game.result` — mocks `parsePgn` resolving with `result: '1-0'`, asserts `appState.game!.result === '1-0'`.
-- `defaults game.result to null when the PGN has no Result tag` — mocks `parsePgn` resolving without a `result` field, asserts `appState.game!.result === null`.
+### Changes Made
 
-### TDD Evidence
+#### app-state.svelte.ts
+1. **Imports**: Extended existing imports to include `ClassCode` type and `classifyGame` function
+   ```typescript
+   import type { Screen, Tab, ClassCode } from '$lib/types';
+   import { classifyGame } from '$lib/game/classify';
+   ```
 
-**RED** — `pnpm exec vitest run src/lib/stores/app-state.test.ts`:
+2. **AppState Interface**: Added `classCodes` field after `bestMoves`
+   ```typescript
+   classCodes: ClassCode[];
+   ```
+
+3. **defaultState**: Initialized `classCodes` to empty array
+   ```typescript
+   classCodes: [],
+   ```
+
+4. **startReview()**: Reset `classCodes` alongside `evalPerPly` and `bestMoves` when parsing new PGN
+   ```typescript
+   appState.classCodes = [];
+   ```
+
+5. **refreshRealAnalysis()**: Computed real classifications from evalPerPly once analysis loads
+   ```typescript
+   appState.classCodes = classifyGame(evalPerPly);
+   ```
+
+#### app-state.test.ts
+1. **Test 1**: "populates classCodes from the real evalPerPly once analysis is ready"
+   - Verifies `classCodes` starts empty while loading
+   - After analysis resolves with `[0, 1]` evalPerPly, expects `['best']` classification
+   
+2. **Test 2**: "leaves classCodes empty (not fabricated) when loadRealAnalysis rejects"
+   - Verifies `classCodes` remains `[]` when analysis fails (no fabrication)
+   
+3. **Test 3**: Added expectation in "on successful parse" test
+   - Verifies `classCodes` resets to `[]` on every fresh PGN parse, before real analysis lands
+
+## Test Results
+
+### Initial Test Run (Failing)
 ```
-PASS (14) FAIL (2)
+PASS (15) FAIL (3)
 
-1. startReview (real PGN parsing) threads the parsed Result tag into game.result
-   AssertionError: expected undefined to be '1-0'
-2. startReview (real PGN parsing) defaults game.result to null when the PGN has no Result tag
-   AssertionError: expected undefined to be null
+1. startReview (real PGN parsing) on successful parse: populates game, resets parseError, and loads the review screen
+   AssertionError: expected undefined to deeply equal []
+2. real analysis loading populates classCodes from the real evalPerPly once analysis is ready
+   AssertionError: expected undefined to deeply equal []
+3. real analysis loading leaves classCodes empty (not fabricated) when loadRealAnalysis rejects
+   AssertionError: expected undefined to deeply equal []
+```
+All failures due to `classCodes` property not existing on AppState yet.
+
+### After Implementation (Passing)
+```
+PASS (18) FAIL (0)
+```
+All 18 tests pass (15 original + 3 new).
+
+### TypeScript Check
+```
+pnpm check
+1784544079011 COMPLETED 472 FILES 0 ERRORS 14 WARNINGS 6 FILES_WITH_PROBLEMS
+```
+No new type errors introduced. The 14 warnings are all pre-existing (unrelated a11y and state references in svelte files).
+
+## Commit
+
+```
+220df07 feat: populate appState.classCodes from real analysis
 ```
 
-**GREEN** — after adding `result` to `ParsedGame`, `GameData`, and the `startReview` assignment (`result: parsed.result ?? null`):
-```
-pnpm exec vitest run src/lib/stores/app-state.test.ts src/lib/game/review.test.ts src/lib/components/AnalysisTab.test.ts src/routes/page.test.ts src/lib/components/ReviewPanel.test.ts src/lib/components/GameReviewScreen.test.ts
-EXIT:0
-```
-All targeted suites pass; only pre-existing, unrelated svelte-compiler a11y/state warnings appear in the console output (from `.svelte` files this task never touched) — no test failures.
+**Files changed**: 2
+- `src/lib/stores/app-state.svelte.ts`
+- `src/lib/stores/app-state.test.ts`
 
-`pnpm check`:
-```
-1784283818630 COMPLETED 468 FILES 0 ERRORS 15 WARNINGS 6 FILES_WITH_PROBLEMS
-```
-0 errors. The 15 warnings are all pre-existing (a11y click-handler warnings in MoveList/ExploreTab/OnboardingScreen, `state_referenced_locally` in Board.svelte, `Unknown property: 'app-region'` in TitleBar.svelte) and unrelated to this change.
+**Lines added**: 36
+**Lines removed**: 1
 
-## Files changed
+## Self-Review
 
-Per the brief:
-- `src/lib/api/pgn.ts` — added `result: string | null` to `ParsedGame`.
-- `src/lib/game/review.ts` — added `result: string | null` to `GameData`.
-- `src/lib/stores/app-state.svelte.ts` — `startReview()` now sets `result: parsed.result ?? null`.
-- `src/lib/game/review.test.ts` — added `result: null` to `sampleGame` and `notSampleGame` fixtures (the `realGame` spread-fixture inherits it via `...notSampleGame`, as the brief predicted, no direct edit needed there).
-- `src/lib/stores/app-state.test.ts` — added the two new tests specified in the brief.
-- `src/lib/components/AnalysisTab.test.ts` — added `result: null` to the `appState.game` fixture.
+### TDD Compliance
+✓ Wrote failing tests first (3 new tests all failed initially with "expected undefined to deeply equal []")
+✓ Ran tests to verify failure before implementing
+✓ Implemented minimal feature to satisfy all tests
+✓ Ran tests to verify pass (all green: PASS 18, FAIL 0)
+✓ Committed with exact message from brief
 
-Extra fixtures found beyond the brief's named three (via `grep -rn "blackRating: null" src/`) and fixed the same way:
-- `src/routes/page.test.ts` — `loadSampleGame()`'s `appState.game` literal.
-- `src/lib/components/ReviewPanel.test.ts` — `beforeEach`'s `appState.game` literal.
-- `src/lib/components/GameReviewScreen.test.ts` — `beforeEach`'s `appState.game` literal.
+### Code Quality
+✓ Followed brief specifications exactly — no deviations from prescribed locations and code
+✓ No breaking changes to existing code
+✓ TypeScript types fully satisfied (pnpm check passes with 0 errors)
+✓ Feature is properly isolated: `classCodes` computation happens only in `refreshRealAnalysis`, reset only during `startReview`
+✓ Error handling correct: `classCodes` stays empty on analysis failure (no fabrication of classifications)
 
-## Self-review findings
+### Architectural Alignment
+✓ `classCodes` properly initialized to `[]` at all reset points (defaultState, startReview)
+✓ Computation uses existing `classifyGame()` from Task 1 without modification
+✓ Integration point is correct: real analysis resolution triggers classification, not parsing
+✓ Array indexing semantics preserved: index `i` = classification of ply `i + 1` (inherited from classifyGame design)
+✓ Store state machine correct: `analysisStatus` governs when classCodes is populated
 
-- `ParsedGame.result` and `GameData.result` are both typed exactly `string | null` (not `string | undefined`), matching the brief.
-- `startReview()` uses `parsed.result ?? null`, so a mocked/real response that omits the field entirely (`undefined`) still produces `null` on `appState.game.result`, not `undefined` — verified directly by the second new test.
-- Searched the whole `src/` tree for `GameData`-shaped literals (`grep -rn "blackRating: null" src/`) and found 5 total fixture sites, not just the 3 the brief named; all 5 now include `result: null`. Every `GameData` object literal in the repo includes `blackRating` as its last scalar field, so this grep is exhaustive for the shape — no other construction sites exist.
-- Full targeted test run and `pnpm check` both clean; no new warnings introduced by these changes (all warnings present both before and after are in unrelated `.svelte` files).
-
-## Concerns
-
-None. The change is a pure type/plumbing addition with no behavioral changes to existing consumers; `getReviewPly`/`getPlayerRows` and all UI components ignore the new field for now, as expected — later tasks (3-6) will consume `GameData.result`.
+### Concerns
+None. Implementation is straightforward, well-tested, and follows all stated requirements exactly.

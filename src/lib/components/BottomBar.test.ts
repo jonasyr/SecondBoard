@@ -9,6 +9,7 @@ describe('BottomBar', () => {
 			props: {
 				ply: 0,
 				evalPerPly: EVAL_PER_PLY,
+				classCodes: [],
 				onFirst: () => {},
 				onPrev: () => {},
 				onNext: () => {},
@@ -24,6 +25,7 @@ describe('BottomBar', () => {
 			props: {
 				ply: 0,
 				evalPerPly: EVAL_PER_PLY,
+				classCodes: [],
 				onFirst: () => {},
 				onPrev: () => {},
 				onNext: () => {},
@@ -40,6 +42,7 @@ describe('BottomBar', () => {
 			props: {
 				ply: 0,
 				evalPerPly: EVAL_PER_PLY,
+				classCodes: [],
 				onFirst: () => {},
 				onPrev: () => {},
 				onNext: () => {},

@@ -1,146 +1,262 @@
-## Task 4: `review.ts` — `getAccuracySummary` (real data + mock-name fallback)
+## Task 4: `AnalysisTab.svelte` + `MoveList.svelte` — real classification in the move list and coach card
 
 **Files:**
-- Modify: `src/lib/game/review.ts`
-- Modify: `src/lib/game/review.test.ts`
+- Modify: `src/lib/components/AnalysisTab.svelte`
+- Modify: `src/lib/components/MoveList.svelte`
+- Modify: `src/lib/components/MoveList.test.ts`
+- Modify: `src/lib/components/AnalysisTab.test.ts`
 
 **Interfaces:**
-- Consumes: `GameData.result`/`whiteName`/`blackName` (Task 2); `computeGameAccuracy`/`resolveWinner` from `./accuracy` (Task 3); existing `PLAYERS` from `./mock-data`.
-- Produces: `AccuracySummary` and `getAccuracySummary(game: GameData, evalPerPly: number[]): AccuracySummary` — consumed by Task 6 (`ReviewTab.svelte`).
+- Consumes: `appState.classCodes: ClassCode[]` (Task 2); `getReviewPly`'s new 5th parameter (Task 3).
+- Produces: `MoveList`'s `Props` drops `isSample: boolean`, adds `classCodes: ClassCode[]` — no other component depends on `MoveList`'s prop shape.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the failing tests**
 
-Add to `src/lib/game/review.test.ts` (new `describe` block at the end of the file, after the existing `getPlayerRows` block):
+Replace `src/lib/components/MoveList.test.ts` entirely:
 
 ```typescript
-describe('getAccuracySummary', () => {
-	it('falls back to the mock PLAYERS names when the PGN has no name tags, and resolves the real winner', () => {
-		const game: GameData = { ...sampleGame, result: '0-1' };
-		const summary = getAccuracySummary(game, [0, 1, 0.5]);
+import { describe, it, expect, vi } from 'vitest';
+import { render } from '@testing-library/svelte';
+import MoveList from './MoveList.svelte';
+import type { ClassCode } from '$lib/types';
 
-		expect(summary.white.name).toBe('Jonas');
-		expect(summary.black.name).toBe('DominikP');
-		expect(summary.white.isWinner).toBe(false);
-		expect(summary.black.isWinner).toBe(true);
-		expect(summary.resultLabel).toBe('0–1');
+// Italian Game move list (31 plies), matching this repo's other sample-game fixtures.
+const sanList = [
+	'e4', 'e5', 'Nf3', 'Nc6', 'Bc4', 'Bc5', 'c3', 'Nf6', 'd3', 'd6', 'O-O', 'O-O',
+	'Re1', 'a6', 'Bb3', 'Ba7', 'h3', 'h6', 'Nbd2', 'Be6', 'Bxe6', 'fxe6', 'Nf1',
+	'Qe7', 'Ng3', 'Rad8', 'd4', 'exd4', 'cxd4', 'd5', 'Ne5'
+];
+const classCodes: ClassCode[] = Array(31).fill('best');
+
+describe('MoveList', () => {
+	it('renders 16 rows with move-number gutter', () => {
+		const { container } = render(MoveList, {
+			props: { selectedPly: 0, onSelectPly: () => {}, sanList, classCodes }
+		});
+		expect(container.querySelectorAll('.row')).toHaveLength(16);
+		expect(container.textContent).toContain('1.');
+		expect(container.textContent).toContain('16.');
 	});
 
-	it('uses real PGN names when present', () => {
-		const game: GameData = {
-			...notSampleGame,
-			whiteName: 'Donald Byrne',
-			blackName: 'Robert James Fischer',
-			result: '1-0'
-		};
-		const summary = getAccuracySummary(game, [0, 1]);
-
-		expect(summary.white.name).toBe('Donald Byrne');
-		expect(summary.white.initial).toBe('D');
-		expect(summary.black.name).toBe('Robert James Fischer');
-		expect(summary.black.initial).toBe('R');
-		expect(summary.white.isWinner).toBe(true);
-		expect(summary.black.isWinner).toBe(false);
+	it('marks the cell matching selectedPly as selected via data-sb-sel', () => {
+		const { container } = render(MoveList, {
+			props: { selectedPly: 31, onSelectPly: () => {}, sanList, classCodes }
+		});
+		expect(container.querySelector('[data-sb-sel="1"]')).not.toBeNull();
 	});
 
-	it('reports accuracy as null (not a fabricated number) when there is not enough eval data yet', () => {
-		const game: GameData = { ...sampleGame, result: null };
-		const summary = getAccuracySummary(game, [0]);
-
-		expect(summary.white.accuracy).toBeNull();
-		expect(summary.black.accuracy).toBeNull();
-		expect(summary.resultLabel).toBe('—');
+	it('calls onSelectPly with the clicked ply', () => {
+		const onSelectPly = vi.fn();
+		const { container } = render(MoveList, {
+			props: { selectedPly: 0, onSelectPly, sanList, classCodes }
+		});
+		const firstWhiteCell = container.querySelector('.cell') as HTMLElement;
+		firstWhiteCell.click();
+		expect(onSelectPly).toHaveBeenCalledWith(1);
 	});
 
-	it('formats a draw result and marks neither side as the winner', () => {
-		const game: GameData = { ...sampleGame, result: '1/2-1/2' };
-		const summary = getAccuracySummary(game, [0, 0]);
+	it('renders no black cell in the final (odd-move-count) row', () => {
+		const { container } = render(MoveList, {
+			props: { selectedPly: 31, onSelectPly: () => {}, sanList, classCodes }
+		});
+		const rows = container.querySelectorAll('.row');
+		const lastRow = rows[rows.length - 1];
+		expect(lastRow.querySelectorAll('.cell')).toHaveLength(1); // white only — sanList has 31 plies
+	});
 
-		expect(summary.resultLabel).toBe('½–½');
-		expect(summary.white.isWinner).toBe(false);
-		expect(summary.black.isWinner).toBe(false);
+	it('does not show a classification badge for a ply with no classCodes entry (analysis not ready)', () => {
+		const { container } = render(MoveList, {
+			props: { selectedPly: 0, onSelectPly: () => {}, sanList: ['e4', 'e5'], classCodes: [] }
+		});
+		expect(container.querySelectorAll('.badge')).toHaveLength(0);
+	});
+
+	it('shows a classification badge for every ply that has a real classCodes entry', () => {
+		const { container } = render(MoveList, {
+			props: { selectedPly: 0, onSelectPly: () => {}, sanList: ['e4', 'e5'], classCodes: ['excellent', 'blunder'] }
+		});
+		expect(container.querySelectorAll('.badge')).toHaveLength(2);
+	});
+
+	it('still highlights the selected cell when classCodes is empty', () => {
+		const { container } = render(MoveList, {
+			props: { selectedPly: 1, onSelectPly: () => {}, sanList: ['e4', 'e5'], classCodes: [] }
+		});
+		const selected = container.querySelector('[data-sb-sel="1"]') as HTMLElement;
+		expect(selected).not.toBeNull();
+		expect(selected.getAttribute('style')).toContain('background: rgba(45, 224, 206, 0.14)');
 	});
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Run tests to verify they fail**
 
-Run: `pnpm exec vitest run src/lib/game/review.test.ts`
-Expected: FAIL — `getAccuracySummary is not a function` (not exported yet).
+Run: `pnpm exec vitest run src/lib/components/MoveList.test.ts`
+Expected: FAIL — `MoveList` still requires `isSample`, not `classCodes`; badge visibility is still gated on `isSample`, so the "no classCodes entry" / "real classCodes entry" tests don't match.
 
-- [ ] **Step 3: Implement `getAccuracySummary` in `src/lib/game/review.ts`**
+- [ ] **Step 3: Rewrite `MoveList.svelte`'s script block and template**
 
-Add the import (extend the existing `./mock-data` import line and add the new `./accuracy` import) — modify line 17:
+Replace the `<script>` block in `src/lib/components/MoveList.svelte`:
 
-```typescript
-import { BEST_MOVES, COACH_TEXT_MAP, EVAL_PER_PLY, CLASS_CODES, PLAYERS } from './mock-data';
-import { computeGameAccuracy, resolveWinner } from './accuracy';
+```svelte
+<script lang="ts">
+	import { TOKENS } from '$lib/tokens';
+	import type { ClassCode } from '$lib/types';
+	import ClassBadge from './ClassBadge.svelte';
+
+	interface Props {
+		selectedPly: number;
+		onSelectPly: (ply: number) => void;
+		sanList: string[];
+		classCodes: ClassCode[];
+	}
+
+	let { selectedPly, onSelectPly, sanList, classCodes }: Props = $props();
+
+	interface Row {
+		num: string;
+		wPly: number;
+		bPly: number | null;
+		striped: boolean;
+	}
+
+	const rows: Row[] = $derived(
+		Array.from({ length: Math.ceil(sanList.length / 2) }, (_, i) => {
+			const wPly = 2 * i + 1;
+			const bPly = 2 * i + 2;
+			return {
+				num: i + 1 + '.',
+				wPly,
+				bPly: bPly <= sanList.length ? bPly : null,
+				striped: i % 2 === 1
+			};
+		})
+	);
+
+	function cellStyle(sel: boolean, code: ClassCode | null): string {
+		if (sel) {
+			return 'background:rgba(45,224,206,.14);color:#5EF0DE;font-weight:600;box-shadow:inset 0 0 0 1px rgba(45,224,206,.3);';
+		}
+		return code ? `color:${TOKENS.review.moveTint[code]};` : '';
+	}
+
+	let listEl: HTMLDivElement | undefined = $state();
+
+	// Reference _syncMoveScroll (SecondBoard.dc.html lines 822-830): manual
+	// scrollTop adjustment, NOT scrollIntoView, run after each ply change.
+	$effect(() => {
+		void selectedPly;
+		requestAnimationFrame(() => {
+			const c = listEl;
+			if (!c) return;
+			const row = c.querySelector('[data-sb-sel="1"]');
+			if (!row) return;
+			const delta = row.getBoundingClientRect().top - c.getBoundingClientRect().top - 2;
+			c.scrollTop += delta;
+		});
+	});
+</script>
 ```
 
-Append to the end of `src/lib/game/review.ts` (after `getPlayerRows`):
+Replace the template body (everything inside `<div class="move-list" ...>`):
 
-```typescript
-export interface AccuracySide {
-	name: string;
-	initial: string;
-	accuracy: string | null;
-	isWinner: boolean;
-}
-
-export interface AccuracySummary {
-	white: AccuracySide;
-	black: AccuracySide;
-	resultLabel: string;
-}
-
-function formatResultLabel(result: string | null): string {
-	if (result === '1-0') return '1–0';
-	if (result === '0-1') return '0–1';
-	if (result === '1/2-1/2') return '½–½';
-	return '—';
-}
-
-/**
- * Derives the Accuracy block's real winner + accuracy numbers (OVERVIEW §12
- * Accuracy System) from the loaded game's PGN Result tag and real Stockfish
- * evalPerPly. Player name/initial follow the same real-PGN-over-mock-PLAYERS
- * fallback as getPlayerRows. Accuracy is null (rendered as "—" by
- * AccuracyBlock) rather than a mock number when there isn't enough eval data
- * yet (analysis still loading, or a game with too few plies).
- */
-export function getAccuracySummary(game: GameData, evalPerPly: number[]): AccuracySummary {
-	const whiteName = game.whiteName ?? PLAYERS.white.name;
-	const blackName = game.blackName ?? PLAYERS.black.name;
-	const { white, black } = computeGameAccuracy(evalPerPly);
-	const winner = resolveWinner(game.result);
-
-	return {
-		white: {
-			name: whiteName,
-			initial: whiteName.charAt(0).toUpperCase(),
-			accuracy: white === null ? null : white.toFixed(1),
-			isWinner: winner === 'white'
-		},
-		black: {
-			name: blackName,
-			initial: blackName.charAt(0).toUpperCase(),
-			accuracy: black === null ? null : black.toFixed(1),
-			isWinner: winner === 'black'
-		},
-		resultLabel: formatResultLabel(game.result)
-	};
-}
+```svelte
+<div class="move-list sbscroll" bind:this={listEl} data-sb-movelist="1">
+	{#each rows as row (row.wPly)}
+		<div class="row" class:striped={row.striped}>
+			<span class="num sbmono">{row.num}</span>
+			<div
+				class="cell"
+				data-sb-sel={selectedPly === row.wPly ? '1' : '0'}
+				style={cellStyle(selectedPly === row.wPly, classCodes[row.wPly - 1] ?? null)}
+				onclick={() => onSelectPly(row.wPly)}
+			>
+				{#if classCodes[row.wPly - 1]}
+					<ClassBadge classCode={classCodes[row.wPly - 1]} size={16} />
+				{/if}
+				<span class="san sbmono">{sanList[row.wPly - 1]}</span>
+			</div>
+			{#if row.bPly !== null}
+				<div
+					class="cell"
+					data-sb-sel={selectedPly === row.bPly ? '1' : '0'}
+					style={cellStyle(selectedPly === row.bPly, classCodes[row.bPly - 1] ?? null)}
+					onclick={() => onSelectPly(row.bPly!)}
+				>
+					{#if classCodes[row.bPly - 1]}
+						<ClassBadge classCode={classCodes[row.bPly - 1]} size={16} />
+					{/if}
+					<span class="san sbmono">{sanList[row.bPly - 1]}</span>
+				</div>
+			{:else}
+				<div></div>
+			{/if}
+		</div>
+	{/each}
+</div>
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+(The `<style>` block is unchanged.)
 
-Run: `pnpm exec vitest run src/lib/game/review.test.ts`
+- [ ] **Step 4: Run `MoveList` tests to verify they pass**
+
+Run: `pnpm exec vitest run src/lib/components/MoveList.test.ts`
 Expected: PASS — all green.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Update `AnalysisTab.svelte` to pass real `classCodes` through**
+
+Update the failing caller test first — in `src/lib/components/AnalysisTab.test.ts`, no test code needs to change (it doesn't assert on badges), but running the suite now will fail on the `MoveList` prop-shape mismatch. Confirm by running:
+
+Run: `pnpm exec vitest run src/lib/components/AnalysisTab.test.ts`
+Expected: FAIL — Svelte warns/throws that `MoveList` no longer accepts `isSample` as a valid prop (or, depending on strictness, simply passes it through unused while `classCodes` is `undefined`), and `getReviewPly`'s classification no longer resolves the same way.
+
+Modify `src/lib/components/AnalysisTab.svelte`:
+
+```svelte
+<script lang="ts">
+	import { getReviewPly } from '$lib/game/review';
+	import { appState } from '$lib/stores/app-state.svelte';
+	import CoachCard from './CoachCard.svelte';
+	import MoveList from './MoveList.svelte';
+	import Icon from './Icon.svelte';
+
+	interface Props {
+		ply: number;
+		onSelectPly: (ply: number) => void;
+		onNext: () => void;
+	}
+
+	let { ply, onSelectPly, onNext }: Props = $props();
+
+	const data = $derived(
+		getReviewPly(ply, appState.game!, appState.evalPerPly, appState.bestMoves, appState.classCodes)
+	);
+</script>
+```
+
+Replace the `<MoveList ... />` call:
+
+```svelte
+	<MoveList
+		selectedPly={ply}
+		{onSelectPly}
+		sanList={appState.game!.sanList}
+		classCodes={appState.classCodes}
+	/>
+```
+
+(Everything else in the file — the `coach-slot`/`actions` markup and the `<style>` block — is unchanged.)
+
+- [ ] **Step 6: Run tests to verify they pass**
+
+Run: `pnpm exec vitest run src/lib/components/AnalysisTab.test.ts src/lib/components/MoveList.test.ts`
+Expected: PASS — all green.
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/lib/game/review.ts src/lib/game/review.test.ts
-git commit -m "feat: derive real winner/accuracy summary in getAccuracySummary"
+git add src/lib/components/AnalysisTab.svelte src/lib/components/MoveList.svelte src/lib/components/MoveList.test.ts
+git commit -m "feat: MoveList and AnalysisTab render real per-move classification"
 ```
 
 ---

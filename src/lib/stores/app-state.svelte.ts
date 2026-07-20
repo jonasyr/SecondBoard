@@ -1,8 +1,9 @@
 import type { Move } from '$lib/board/types';
-import type { Screen, Tab } from '$lib/types';
+import type { Screen, Tab, ClassCode } from '$lib/types';
 import { EVAL_PER_PLY, BEST_MOVES } from '$lib/game/mock-data';
 import { loadRealAnalysis } from '$lib/game/engine-analysis';
 import { parsePgn } from '$lib/api/pgn';
+import { classifyGame } from '$lib/game/classify';
 import { SAMPLE_PGN } from '$lib/game/sample-pgn';
 import type { GameData } from '$lib/game/review';
 
@@ -18,6 +19,7 @@ export interface AppState {
 	selfAnalysis: boolean;
 	evalPerPly: number[];
 	bestMoves: Record<number, Move & { san: string }>;
+	classCodes: ClassCode[];
 	analysisStatus: 'idle' | 'loading' | 'ready' | 'error';
 	game: GameData | null;
 	parseError: string | null;
@@ -35,6 +37,7 @@ const defaultState: AppState = {
 	selfAnalysis: false,
 	evalPerPly: [...EVAL_PER_PLY],
 	bestMoves: { ...BEST_MOVES },
+	classCodes: [],
 	analysisStatus: 'idle',
 	game: null,
 	parseError: null
@@ -87,6 +90,7 @@ export async function startReview(): Promise<void> {
 		};
 		appState.evalPerPly = new Array(parsed.sanList.length + 1).fill(0);
 		appState.bestMoves = {};
+		appState.classCodes = [];
 		appState.analysisStatus = 'idle';
 		appState.parseError = null;
 		appState.gameLoaded = true;
@@ -108,6 +112,7 @@ async function refreshRealAnalysis(): Promise<void> {
 		const { evalPerPly, bestMoves } = await loadRealAnalysis(appState.game!.positions);
 		appState.evalPerPly = evalPerPly;
 		appState.bestMoves = bestMoves;
+		appState.classCodes = classifyGame(evalPerPly);
 		appState.analysisStatus = 'ready';
 	} catch {
 		appState.analysisStatus = 'error';

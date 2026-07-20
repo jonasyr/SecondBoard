@@ -142,6 +142,7 @@ describe('startReview (real PGN parsing)', () => {
 		expect(appState.screen).toBe('review');
 		expect(appState.ply).toBe(2);
 		expect(appState.evalPerPly).toEqual([0, 0, 0]);
+		expect(appState.classCodes).toEqual([]); // reset on every fresh parse, before real analysis lands
 	});
 
 	it('falls back to the sample PGN when pgnText is blank, and flags isSample true', async () => {
@@ -243,6 +244,35 @@ describe('real analysis loading', () => {
 
 		expect(appState.analysisStatus).toBe('ready');
 		expect(appState.evalPerPly).toEqual([0, 0.3]);
+	});
+
+	it('populates classCodes from the real evalPerPly once analysis is ready', async () => {
+		let resolveAnalysis!: (v: { evalPerPly: number[]; bestMoves: Record<number, never> }) => void;
+		loadRealAnalysis.mockReturnValue(
+			new Promise((resolve) => {
+				resolveAnalysis = resolve;
+			})
+		);
+
+		await startReview();
+		expect(appState.classCodes).toEqual([]); // nothing computed yet while loading
+
+		resolveAnalysis({ evalPerPly: [0, 1], bestMoves: {} });
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(appState.classCodes).toEqual(['best']);
+	});
+
+	it('leaves classCodes empty (not fabricated) when loadRealAnalysis rejects', async () => {
+		loadRealAnalysis.mockRejectedValue(new Error('engine offline'));
+
+		await startReview();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(appState.analysisStatus).toBe('error');
+		expect(appState.classCodes).toEqual([]);
 	});
 
 	it('goes loading -> error when loadRealAnalysis rejects', async () => {

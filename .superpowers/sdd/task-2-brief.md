@@ -1,122 +1,118 @@
-## Task 2: TS API + store — thread `result` through to `GameData`
+## Task 2: `app-state.svelte.ts` — wire real `classCodes` into the store
 
 **Files:**
-- Modify: `src/lib/api/pgn.ts`
-- Modify: `src/lib/game/review.ts` (only the `GameData` interface, lines 19-28)
-- Modify: `src/lib/stores/app-state.svelte.ts` (only the `startReview` object literal, lines 77-86)
-- Modify: `src/lib/game/review.test.ts` (fixture objects, add `result: null` to `sampleGame`/`notSampleGame`)
-- Test: `src/lib/stores/app-state.test.ts` (add one new test)
+- Modify: `src/lib/stores/app-state.svelte.ts`
+- Modify: `src/lib/stores/app-state.test.ts`
 
 **Interfaces:**
-- Consumes: `pgn::ParsedGame.result: Option<String>` from Task 1 (deserializes as `string | null` via Tauri's `invoke`).
-- Produces: `GameData.result: string | null` — consumed by Task 4's `getAccuracySummary`.
+- Consumes: `classifyGame(evalPerPly: number[]): ClassCode[]` from Task 1.
+- Produces: `AppState.classCodes: ClassCode[]` — consumed by Tasks 3-6.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the failing tests**
 
-Add to `src/lib/stores/app-state.test.ts`, in the same `describe` block as the other `startReview` tests (follow the existing pattern at the file's PGN-parsing tests, using the same `parsePgn.mockResolvedValue`/`loadRealAnalysis.mockResolvedValue` setup already used there):
+Add to `src/lib/stores/app-state.test.ts`, inside the existing `describe('real analysis loading', ...)` block (after the `'goes loading -> ready and applies the real data once startReview resolves'` test):
 
 ```typescript
-	it('threads the parsed Result tag into game.result', async () => {
-		parsePgn.mockResolvedValue({
-			sanList: ['e4'],
-			positions: [{}, {}],
-			moves: [{ from: 'e2', to: 'e4' }],
-			result: '1-0'
-		});
-		loadRealAnalysis.mockResolvedValue({ evalPerPly: [], bestMoves: {} });
+	it('populates classCodes from the real evalPerPly once analysis is ready', async () => {
+		let resolveAnalysis!: (v: { evalPerPly: number[]; bestMoves: Record<number, never> }) => void;
+		loadRealAnalysis.mockReturnValue(
+			new Promise((resolve) => {
+				resolveAnalysis = resolve;
+			})
+		);
 
 		await startReview();
+		expect(appState.classCodes).toEqual([]); // nothing computed yet while loading
 
-		expect(appState.game!.result).toBe('1-0');
+		resolveAnalysis({ evalPerPly: [0, 1], bestMoves: {} });
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(appState.classCodes).toEqual(['best']);
 	});
 
-	it('defaults game.result to null when the PGN has no Result tag', async () => {
-		parsePgn.mockResolvedValue({
-			sanList: ['e4'],
-			positions: [{}, {}],
-			moves: [{ from: 'e2', to: 'e4' }]
-		});
-		loadRealAnalysis.mockResolvedValue({ evalPerPly: [], bestMoves: {} });
+	it('leaves classCodes empty (not fabricated) when loadRealAnalysis rejects', async () => {
+		loadRealAnalysis.mockRejectedValue(new Error('engine offline'));
 
 		await startReview();
+		await Promise.resolve();
+		await Promise.resolve();
 
-		expect(appState.game!.result).toBeNull();
+		expect(appState.analysisStatus).toBe('error');
+		expect(appState.classCodes).toEqual([]);
 	});
+```
+
+Also add, inside the existing `describe('startReview (real PGN parsing)', ...)` block's first test (`'on successful parse: ...'`), right after the existing `expect(appState.evalPerPly).toEqual([0, 0, 0]);` line:
+
+```typescript
+		expect(appState.classCodes).toEqual([]); // reset on every fresh parse, before real analysis lands
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `pnpm exec vitest run src/lib/stores/app-state.test.ts`
-Expected: FAIL — `appState.game!.result` is `undefined`, not `'1-0'`/`null` (property doesn't exist yet on the assigned object; TypeScript would also fail `pnpm check` at this point, which is expected mid-task).
+Expected: FAIL — `appState.classCodes` is `undefined`, not `[]`/`['best']` (property doesn't exist on `AppState` yet).
 
-- [ ] **Step 3: Add `result` to `ParsedGame`, `GameData`, and the `startReview` assignment**
+- [ ] **Step 3: Add `classCodes` to `AppState`, `defaultState`, `startReview`, and `refreshRealAnalysis`**
 
-In `src/lib/api/pgn.ts`, modify `ParsedGame`:
-
-```typescript
-export interface ParsedGame {
-	sanList: string[];
-	positions: Position[];
-	moves: Move[];
-	whiteName: string | null;
-	blackName: string | null;
-	whiteRating: string | null;
-	blackRating: string | null;
-	result: string | null;
-}
-```
-
-In `src/lib/game/review.ts`, modify `GameData`:
+In `src/lib/stores/app-state.svelte.ts`, add the import (extend the existing `$lib/game/classify` import):
 
 ```typescript
-export interface GameData {
-	sanList: string[];
-	positions: Position[];
-	moveMeta: Move[];
-	isSample: boolean;
-	whiteName: string | null;
-	blackName: string | null;
-	whiteRating: string | null;
-	blackRating: string | null;
-	result: string | null;
-}
+import { classifyGame } from '$lib/game/classify';
 ```
 
-In `src/lib/stores/app-state.svelte.ts`, modify the object literal inside `startReview`:
+Modify the `AppState` interface — add after `bestMoves`:
 
 ```typescript
-		appState.game = {
-			sanList: parsed.sanList,
-			positions: parsed.positions,
-			moveMeta: parsed.moves,
-			isSample: pgnToParse.trim() === SAMPLE_PGN.trim(),
-			whiteName: parsed.whiteName,
-			blackName: parsed.blackName,
-			whiteRating: parsed.whiteRating,
-			blackRating: parsed.blackRating,
-			result: parsed.result ?? null
-		};
+	bestMoves: Record<number, Move & { san: string }>;
+	classCodes: ClassCode[];
 ```
 
-- [ ] **Step 4: Fix now-broken `GameData` fixtures**
+(Add `import type { ClassCode } from '$lib/types';` to the top of the file alongside the existing `Screen`/`Tab` import.)
 
-In `src/lib/game/review.test.ts`, add `result: null` to both `sampleGame` (after `blackRating: null,` around line 24) and `notSampleGame` (after `blackRating: null,` around line 38), and to the `realGame` spread-fixture inside the `'uses real PGN White/Black/*Elo tags...'` test — since it uses `...notSampleGame`, it inherits `result: null` automatically and needs no direct edit.
+Modify `defaultState` — add after `bestMoves: { ...BEST_MOVES },`:
 
-Also check `src/lib/components/AnalysisTab.test.ts`'s `appState.game = {...}` fixture (lines 21-30) and add `result: null` after `blackRating: null,`.
+```typescript
+	bestMoves: { ...BEST_MOVES },
+	classCodes: [],
+```
 
-- [ ] **Step 5: Run tests to verify they pass**
+In `startReview`, reset `classCodes` alongside the existing `evalPerPly`/`bestMoves` reset (add right after `appState.bestMoves = {};`):
 
-Run: `pnpm exec vitest run src/lib/stores/app-state.test.ts src/lib/game/review.test.ts src/lib/components/AnalysisTab.test.ts`
+```typescript
+			appState.evalPerPly = new Array(parsed.sanList.length + 1).fill(0);
+			appState.bestMoves = {};
+			appState.classCodes = [];
+```
+
+In `refreshRealAnalysis`, compute real classifications alongside the real `evalPerPly`/`bestMoves` (modify the `try` block):
+
+```typescript
+	try {
+		const { evalPerPly, bestMoves } = await loadRealAnalysis(appState.game!.positions);
+		appState.evalPerPly = evalPerPly;
+		appState.bestMoves = bestMoves;
+		appState.classCodes = classifyGame(evalPerPly);
+		appState.analysisStatus = 'ready';
+	} catch {
+		appState.analysisStatus = 'error';
+	}
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `pnpm exec vitest run src/lib/stores/app-state.test.ts`
 Expected: PASS — all green.
 
 Run: `pnpm check`
-Expected: no new TypeScript errors (the `ParsedGame`/`GameData` shapes now agree end-to-end).
+Expected: no new TypeScript errors.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/api/pgn.ts src/lib/game/review.ts src/lib/stores/app-state.svelte.ts src/lib/game/review.test.ts src/lib/stores/app-state.test.ts src/lib/components/AnalysisTab.test.ts
-git commit -m "feat: thread the PGN Result tag into GameData.result"
+git add src/lib/stores/app-state.svelte.ts src/lib/stores/app-state.test.ts
+git commit -m "feat: populate appState.classCodes from real analysis"
 ```
 
 ---

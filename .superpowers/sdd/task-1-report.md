@@ -1,109 +1,72 @@
-## Task 1 Report: Extract PGN `Result` Tag
-
-### Status: DONE
-
-Successfully implemented extraction of the PGN `Result` tag into the `ParsedGame` struct. The implementation adds a new `result: Option<String>` field and reuses the existing `decode_known_tag()` helper to parse the Result tag value, following the exact pattern used for White/Black/WhiteElo/BlackElo tags.
+# Task 1 Report: `src/lib/game/classify.ts` — Pure EP-Cutoff Classifier
 
 ## Implementation Summary
 
-Modified `src-tauri/src/pgn.rs` to:
-- Add `result: Option<String>` field to `ParsedGame` struct (serializes as `result` via serde camelCase)
-- Add `result: Option<String>` field to `GameVisitor` struct
-- Initialize `result: None` in `GameVisitor::new()`
-- Extend `tag()` method to handle `b"Result"` tag using `decode_known_tag(value)`
-- Extend `end_game()` to return `result: self.result.take()` in the `ParsedGame`
+Implemented the deterministic core move classifier using Chess.com's published Expected-Points (EP) cutoff table, replacing mocked classification data. The implementation consists of:
 
-## TDD Evidence
+- **`classifyMoveByEpLoss(epLossPoints: number): ClassCode`** — Pure cutoff-table lookup function that maps win% loss to one of six classification bands: `best` (≤0), `excellent` (≤2), `good` (≤5), `inaccuracy` (≤10), `mistake` (≤20), or `blunder` (>20). Negative loss (win% improved) is treated as zero (best).
 
-### RED Phase (Failing Tests)
+- **`classifyGame(evalPerPly: number[]): ClassCode[]`** — Classifies all moves in a game from White-POV eval values. For each ply, it:
+  1. Converts eval to win% using `winPercentFromEval` from `accuracy.ts`
+  2. Determines the mover using `sideToMoveForPly` from `notation.ts`
+  3. Calculates EP loss from the mover's perspective (accounting for side-of-board conversion)
+  4. Classifies using the cutoff table
+  5. Returns one classification per move (index i = ply i+1), or empty array for <2 eval samples
 
-**Command run:**
+## Files Created
+
+- `src/lib/game/classify.ts` — Implementation (65 lines)
+- `src/lib/game/classify.test.ts` — Test suite (81 lines)
+
+## Test Execution
+
+### Step 1: Verify tests fail (before implementation)
 ```bash
-cd src-tauri && cargo test pgn::tests
+pnpm exec vitest run src/lib/game/classify.test.ts
 ```
+**Result**: FAIL (expected) — Cannot resolve import "./classify"
 
-**Expected failure (compile errors before implementation):**
-```
-error[E0609]: no field `result` on type `ParsedGame`
-   --> src\pgn.rs:237:25
-    |
-237 |         assert_eq!(game.result, Some("0-1".to_string()));
-    |                         ^^^^^^ unknown field
-
-error[E0609]: no field `result` on type `ParsedGame`
-   --> src\pgn.rs:244:25
-    |
-244 |         assert_eq!(game.result, None);
-    |                         ^^^^^^ unknown field
-```
-
-Why expected: Tests reference a field that doesn't exist yet (written before implementation).
-
-### GREEN Phase (Passing Tests)
-
-**Command run after implementation:**
+### Step 2: Verify tests pass (after implementation)
 ```bash
-cd src-tauri && cargo test pgn::tests
+pnpm exec vitest run src/lib/game/classify.test.ts
 ```
+**Result**: PASS (9) FAIL (0)
 
-**Output:**
+### Test Coverage
+All 9 tests pass:
+- `classifyMoveByEpLoss`: 5 tests covering exact zero, cutoff boundaries, post-cutoff transitions, large losses, and negative loss handling
+- `classifyGame`: 4 tests covering move classification sequences, blunder detection, empty array for insufficient data, and mover-side attribution (White vs Black POV)
+
+## Commit Details
+
+**Hash**: `d2407c5`  
+**Message**: `feat: add real Expected-Points move classifier (classify.ts)`  
+**Branch**: `feat/reproduce-chesscom`  
+**Changed files**: 2 (both new)
 ```
-cargo test: 12 passed, 17 filtered out (2 suites, 0.01s)
+ src/lib/game/classify.ts      | 65 +++++++++++++++++++++
+ src/lib/game/classify.test.ts | 81 +++++++++++++++++++++++++++
+ 2 files changed, 146 insertions(+)
 ```
-
-**Verification of specific new tests:**
-- `cargo test pgn::tests::extracts_the_result_tag` → 1 passed
-- `cargo test pgn::tests::treats_a_missing_result_tag_as_none` → 1 passed
-
-**Full test suite:**
-```bash
-cargo test
-```
-
-**Output:**
-```
-cargo test: 29 passed (3 suites, 1.01s)
-```
-
-## Tests Implemented
-
-### Test 1: `extracts_the_result_tag`
-Uses SAMPLE_PGN which contains `[Result "0-1"]`. Verifies extraction of the result value into `game.result == Some("0-1".to_string())`.
-
-### Test 2: `treats_a_missing_result_tag_as_none`
-Uses a minimal PGN without a Result tag. Verifies that absence of the tag results in `game.result == None`.
-
-## Files Changed
-
-- `src-tauri/src/pgn.rs` (18 insertions)
-  - Added `result: Option<String>` field to `ParsedGame` struct
-  - Added `result: Option<String>` field to `GameVisitor` struct
-  - Added `result: None` initialization in `GameVisitor::new()`
-  - Added `b"Result" => self.result = decode_known_tag(value)` to `tag()` method
-  - Added `result: self.result.take()` to `end_game()` method
-  - Added two new test functions
 
 ## Self-Review
 
-Implementation verified against brief requirements:
-- ✓ Field name is `result: Option<String>` (serializes as `result` via serde camelCase)
-- ✓ Uses existing `decode_known_tag()` helper (reuses "?" → None logic)
-- ✓ Immutable patterns used throughout (`.take()` for Option ownership)
-- ✓ Both tests pass individually and in full suite
-- ✓ No compiler warnings
-- ✓ Test assertions are precise and verify both Some and None cases
-- ✓ Code organization unchanged; only additions to existing module
+### TDD Adherence
+✅ **Followed TDD exactly**: Tests written first, verified to fail with expected error, implementation added, all tests verified to pass, committed with exact message from brief.
 
-## Concerns
+### Code Quality
+✅ **Implementation matches brief verbatim**: Both functions are copied exactly as specified, with identical logic and structure.
 
-None. Implementation is complete and correct:
-- All 29 tests pass (2 new tests + 27 existing)
-- Code matches brief specification exactly
-- Immutability patterns followed
-- Proper use of existing helpers
-- Clean build with no warnings
+✅ **Logic correctness**:
+- Cutoff thresholds match Chess.com's published values (0.00/0.02/0.05/0.10/0.20 on 0–1 scale, or 0/2/5/10/20 on 0–100 scale)
+- Mover-side POV conversion is correct: White's win% is used for White, inverted (100 − white%) for Black
+- Empty array for <2 samples prevents fabrication from incomplete data
+- Negative loss → best classification is intentional (improvement is never penalized)
 
-## Commit
+✅ **Dependencies**: Correctly imports and uses `winPercentFromEval` and `sideToMoveForPly` from adjacent modules (both already existed, no new dependencies added).
 
-**SHA:** `17667f0`  
-**Message:** `feat(pgn): extract the Result PGN tag into ParsedGame`
+### Scope Correctness
+✅ **Core classifier only**: Implements only the 6 deterministic cutoff-table classes (best/excellent/good/inaccuracy/mistake/blunder). Fuzzy Chess.com features (Book/Brilliant/Great/Miss/Forced) explicitly deferred per the brief's scope note and project docs.
+
+### No Concerns
+No ambiguities, no missing context, no test failures. Task is complete as specified.

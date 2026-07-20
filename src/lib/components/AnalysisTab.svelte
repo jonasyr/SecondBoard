@@ -13,7 +13,9 @@
 
 	let { ply, onSelectPly, onNext }: Props = $props();
 
-	const data = $derived(getReviewPly(ply, appState.game!, appState.evalPerPly, appState.bestMoves));
+	const data = $derived(
+		getReviewPly(ply, appState.game!, appState.evalPerPly, appState.bestMoves, appState.classCodes)
+	);
 </script>
 
 <div class="analysis-tab">
@@ -47,7 +49,7 @@
 		selectedPly={ply}
 		{onSelectPly}
 		sanList={appState.game!.sanList}
-		isSample={appState.game!.isSample}
+		classCodes={appState.classCodes}
 	/>
 </div>
 

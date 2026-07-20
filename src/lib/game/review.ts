@@ -3,12 +3,13 @@
  * reference Component's renderVals() (SecondBoard.dc.html lines 1221-1262).
  * Positions/moves/SAN now come from the real Rust `pgn` module's parse of
  * whatever game is loaded (`GameData`, Iteration 6) instead of a hardcoded
- * mock array. Move classification/coach text/best-move suggestions remain
- * mocked (CLASS_CODES/COACH_TEXT_MAP/BEST_MOVES in ./mock-data) and are
- * applied ONLY when `game.isSample` is true — i.e. the loaded PGN is
- * byte-identical to the one known sample game those mocks describe. A
- * genuinely different real pasted game gets real positions/moves but no
- * (rather than misleading) classification (README §11 step 6 scope).
+ * mock array. Move classification is driven purely by whether the caller's
+ * `classCodes` array (real per-ply classification once analysis has run,
+ * `[]` while it hasn't) has an entry for a given ply — independent of
+ * `game.isSample`, so any loaded game gets real classification once its
+ * analysis lands, not just the built-in sample. `bestMoves`/`COACH_TEXT_MAP`
+ * default to mocks (./mock-data) for backward compatibility with callers
+ * that haven't been updated yet.
  */
 import { capturedInfo, evalBarPct } from '$lib/board/geometry';
 import type { Move, PieceColor, PieceType, Position } from '$lib/board/types';
@@ -46,7 +47,7 @@ const INTRO_COACH_TEXT =
 	'The game begins. Step through with the arrows or arrow keys to see every move classified.';
 
 export const UNCLASSIFIED_COACH_TEXT =
-	"Move classification isn't available yet for pasted games — only the built-in sample game is fully analyzed in this preview.";
+	"Move classification isn't available yet — analysis for this move hasn't finished.";
 
 /**
  * Derives everything the Game Review screen needs to render a given ply:
@@ -60,12 +61,12 @@ export function getReviewPly(
 	ply: number,
 	game: GameData,
 	evalPerPly: number[] = EVAL_PER_PLY,
-	bestMoves: Record<number, Move & { san: string }> = BEST_MOVES
+	bestMoves: Record<number, Move & { san: string }> = BEST_MOVES,
+	classCodes: ClassCode[] = CLASS_CODES
 ): ReviewPly {
 	const position = game.positions[ply];
 	const lastMove = ply > 0 ? game.moveMeta[ply - 1] : null;
-	const classCode: ClassCode | null =
-		ply > 0 && game.isSample ? (CLASS_CODES[ply - 1] ?? null) : null;
+	const classCode: ClassCode | null = ply > 0 ? (classCodes[ply - 1] ?? null) : null;
 
 	const evalNum = evalPerPly[ply];
 	const evalStr = (evalNum >= 0 ? '+' : '') + evalNum.toFixed(2);

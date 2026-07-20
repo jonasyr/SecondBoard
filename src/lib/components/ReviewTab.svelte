@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { appState } from '$lib/stores/app-state.svelte';
-	import { CLASS_CODES } from '$lib/game/mock-data';
 	import { getAccuracySummary } from '$lib/game/review';
+	import type { ClassCode } from '$lib/types';
 	import EvalGraph from './EvalGraph.svelte';
 	import AccuracyBlock from './AccuracyBlock.svelte';
 	import BreakdownTable from './BreakdownTable.svelte';
@@ -10,10 +10,11 @@
 	interface Props {
 		ply: number;
 		evalPerPly: number[];
+		classCodes: ClassCode[];
 		analyzing?: boolean;
 	}
 
-	let { ply, evalPerPly, analyzing = false }: Props = $props();
+	let { ply, evalPerPly, classCodes, analyzing = false }: Props = $props();
 
 	// Only feed the real evalPerPly in once analysis has actually finished;
 	// otherwise (idle/loading/error) pass an empty array so
@@ -28,7 +29,7 @@
 <div class="review-tab sbscroll">
 	<div class="graph-slot">
 		<div class="graph-blur" class:analyzing>
-			<EvalGraph {evalPerPly} classCodes={CLASS_CODES} {ply} height={66} />
+			<EvalGraph {evalPerPly} {classCodes} {ply} height={66} />
 		</div>
 		{#if analyzing}
 			<div class="analyzing-overlay"><span>Analyzing with Stockfish…</span></div>

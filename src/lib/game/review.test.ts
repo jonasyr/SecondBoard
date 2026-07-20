@@ -52,11 +52,27 @@ describe('getReviewPly', () => {
 		expect(r.evalStr).toBe('+0.00');
 	});
 
-	it('ply 1 (white move 1, "e4") is classified book with coachMove "1. e4"', () => {
-		const r = getReviewPly(1, sampleGame);
-		expect(r.classCode).toBe('book');
+	it('ply 1 is classified from the real evalPerPly (Expected-Points cutoffs), independent of isSample', () => {
+		const r = getReviewPly(1, sampleGame, undefined, undefined, ['excellent']);
+		expect(r.classCode).toBe('excellent');
 		expect(r.coachMove).toBe('1. e4');
 		expect(r.lastMove).toEqual({ from: 'e2', to: 'e4' });
+	});
+
+	it('applies real classification to a non-sample game too, given real classCodes', () => {
+		const r = getReviewPly(1, notSampleGame, undefined, undefined, ['blunder']);
+		expect(r.classCode).toBe('blunder');
+		expect(r.coachText).toBe('A costly error — this swings the evaluation sharply.');
+		expect(r.coachMove).toBe('1. d4'); // sanList is still real regardless of isSample
+	});
+
+	it('shows no classification/coach-classification text when classCodes has no entry yet for this ply (analysis not ready)', () => {
+		const r = getReviewPly(1, sampleGame, undefined, undefined, []);
+		expect(r.classCode).toBeNull();
+		expect(r.best).toBeNull();
+		expect(r.coachText).toBe(
+			"Move classification isn't available yet — analysis for this move hasn't finished."
+		);
 	});
 
 	it('a black ply renders "N... san" with the ellipsis separator', () => {
@@ -65,7 +81,7 @@ describe('getReviewPly', () => {
 	});
 
 	it('only exposes `best` when the played move is a NOT_BEST_CODE and bestMoves has an entry', () => {
-		expect(getReviewPly(14, sampleGame).best).toEqual({ from: 'c8', to: 'g4', san: 'Bg4' }); // inaccuracy
+		expect(getReviewPly(14, sampleGame).best).toEqual({ from: 'c8', to: 'g4', san: 'Bg4' }); // inaccuracy (from default mock CLASS_CODES)
 		expect(getReviewPly(1, sampleGame).best).toBeNull(); // book, not a NOT_BEST code
 	});
 
@@ -78,16 +94,6 @@ describe('getReviewPly', () => {
 		const r = getReviewPly(1, sampleGame, [0, 99], {});
 		expect(r.evalNum).toBe(99);
 		expect(r.evalStr).toBe('+99.00');
-	});
-
-	it('does not apply classification/coach text to a non-sample game', () => {
-		const r = getReviewPly(1, notSampleGame);
-		expect(r.classCode).toBeNull();
-		expect(r.best).toBeNull();
-		expect(r.coachText).toBe(
-			"Move classification isn't available yet for pasted games — only the built-in sample game is fully analyzed in this preview."
-		);
-		expect(r.coachMove).toBe('1. d4'); // sanList is still real regardless of isSample
 	});
 
 	it('exposes `nextBest` as bestMoves[ply + 1], regardless of classCode/isSample', () => {
