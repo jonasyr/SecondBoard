@@ -1,103 +1,81 @@
-# Task 7 Report: `TitleBar.svelte` — Native-Style Controls, Moved Top-Right
+# Task 7 Report: thread `wdlPerPly` end-to-end (appState -> review.ts -> ReviewTab/ReviewPanel)
 
-## Implementation Summary
+## Summary
 
-Successfully completed TDD implementation following the exact specifications in `task-7-brief.md`:
+This was the final wiring task for the Stockfish WDL iteration. It threads the
+`RealAnalysis.wdlPerPly` produced by `loadRealAnalysis` (Task 6) through
+`appState`, into `getAccuracySummary`, and down into `ReviewTab.svelte` /
+`ReviewPanel.svelte`, following the exact same pattern already used for
+`classCodes` in a prior merged iteration.
 
-1. **Replaced test file** with new test suite that validates:
-   - "Local · Offline" pill is no longer rendered
-   - Version string still renders
-   - Window controls are positioned in `.right` after the version string (trailing-edge)
-   - All three button click handlers work correctly
+## Files changed
 
-2. **Replaced component** with native-Windows-style window controls:
-   - Moved `.window-controls` from first child (top-left) to last child inside `.right` (top-right)
-   - Replaced decorative `.dot` buttons with proper `.win-btn` buttons
-   - Removed entire `.status-pill` markup and all related styles
-   - Updated button SVGs to be thin-line native-Windows glyphs (minimize, maximize, close)
-   - Implemented native hover behavior (light gray on most, red #e81123 on close)
-   - Changed `.title-bar` padding from `0 14px` to `0 0 0 14px` to let buttons reach true corner
+- `src/lib/stores/app-state.svelte.ts`
+  - Added `import type { Wdl } from '$lib/game/accuracy';`
+  - Added `wdlPerPly: (Wdl | null)[]` to the `AppState` interface (after `classCodes`)
+  - Added `wdlPerPly: []` to `defaultState` (after `classCodes: []`)
+  - `startReview`: resets `appState.wdlPerPly = []` alongside `classCodes` on every fresh parse
+  - `refreshRealAnalysis`: destructures `wdlPerPly` from `loadRealAnalysis`'s result, assigns `appState.wdlPerPly = wdlPerPly`, and passes it into `classifyGame(evalPerPly, wdlPerPly)`
+- `src/lib/stores/app-state.test.ts`
+  - Added `'populates wdlPerPly from real analysis once it is ready, and resets it to [] on a fresh parse'` test inside `describe('real analysis loading', ...)`, right after the existing classCodes test — exact text from the brief
+- `src/lib/game/review.ts`
+  - Added `import type { Wdl } from './accuracy';`
+  - `getAccuracySummary` gained a new optional 3rd parameter `wdlPerPly?: (Wdl | null)[]`, passed through to `computeGameAccuracy(evalPerPly, wdlPerPly)`
+- `src/lib/game/review.test.ts`
+  - Added the `'accepts an optional wdlPerPly...'` test at the end of `describe('getAccuracySummary', ...)` — exact text from the brief
+- `src/lib/components/ReviewTab.svelte`
+  - Added `import type { Wdl } from '$lib/game/accuracy';`
+  - `Props` interface gained a new required `wdlPerPly: (Wdl | null)[]` field
+  - `$props()` destructure now includes `wdlPerPly`
+  - `accuracy` derivation now passes `appState.analysisStatus === 'ready' ? wdlPerPly : []` as `getAccuracySummary`'s 3rd argument, gated the same way as `evalPerPly`
+  - Updated the comment above the derivation to describe both evalPerPly and wdlPerPly gating
+- `src/lib/components/ReviewTab.test.ts`
+  - Added `wdlPerPly: []` to all 5 existing `render(ReviewTab, { props: {...} })` calls
+  - Added the new `'gates wdlPerPly on analysisStatus === ready...'` test at the end of `describe('ReviewTab', ...)`
+- `src/lib/components/ReviewPanel.svelte`
+  - `<ReviewTab ... />` call now passes `wdlPerPly={appState.wdlPerPly}`
 
-## Test Results
+All changes match the brief's code blocks verbatim.
 
-### RED Phase (Initial Test Run)
-Command: `pnpm exec vitest run src/lib/components/TitleBar.test.ts`
+## Test commands run
 
-**Result:** 2 FAIL, 4 PASS
-- ✗ "does not render the "Local · Offline" pill anymore" — FAILED (pill still rendered)
-- ✗ "renders the window controls after the version string, at the trailing edge of the bar" — FAILED (controls not in correct position)
-- ✓ All other tests passed (title text, version string renders, click handlers exist)
+1. Failing-tests check (Step 2), before implementation:
+   ```
+   pnpm exec vitest run src/lib/stores/app-state.test.ts src/lib/game/review.test.ts src/lib/components/ReviewTab.test.ts
+   ```
+   Result: `PASS (44) FAIL (2)`
+   - `getAccuracySummary accepts an optional wdlPerPly...` failed: `expected '32.4' not to be '32.4'` (computeGameAccuracy wasn't yet receiving wdlPerPly, so both calls produced identical output)
+   - `real analysis loading populates wdlPerPly...` failed: `expected undefined to deeply equal []` (`appState.wdlPerPly` didn't exist yet)
+   - Note: the new ReviewTab gating test already passed at this point (both gated/ungated states rendered "—" either way, since `ReviewTab`'s `Props` didn't yet declare `wdlPerPly` so passing it was a no-op) — this matches the brief's caveat that the gating test "can't [meaningfully] pass" until the prop is wired, though it happened to assert a state that was already true.
 
-### GREEN Phase (After Implementation)
-Command: `pnpm exec vitest run src/lib/components/TitleBar.test.ts`
+2. Passing-tests check (Step 6), after implementation:
+   ```
+   pnpm exec vitest run src/lib/stores/app-state.test.ts src/lib/game/review.test.ts src/lib/components/ReviewTab.test.ts
+   ```
+   Result: `PASS (46) FAIL (0)`
 
-**Result:** 6 PASS, 0 FAIL ✓
-- ✓ renders the window title text
-- ✓ does not render the "Local · Offline" pill anymore, but keeps the version string
-- ✓ renders the window controls after the version string, at the trailing edge of the bar
-- ✓ calls minimizeWindow when the minimize button is clicked
-- ✓ calls toggleMaximizeWindow when the maximize button is clicked
-- ✓ calls closeWindow when the close button is clicked
+3. Full suite:
+   ```
+   rtk proxy pnpm exec vitest run
+   ```
+   Result: `Test Files 48 passed (48)`, `Tests 258 passed (258)`
 
-### Full Suite Verification
-Command: `pnpm exec vitest run`
-
-**Result:** SUCCESS (exit code 0) — All tests across the entire repo pass, no regressions introduced.
-
-### Type Checking
-Command: `pnpm check`
-
-**Result:** 0 ERRORS (14 warnings are pre-existing Svelte compiler warnings unrelated to this change)
-- Warnings about `app-region` property in TitleBar are pre-existing (Tauri-specific CSS, valid)
-- No new warnings introduced by this change
-
-### Linting
-Command: `pnpm lint`
-
-**Result:** ESLint: No issues found ✓ (clean)
-
-## Self-Review Findings
-
-✓ **Pill Removal:** "Local · Offline" pill (`<div class="status-pill">...</div>`) completely removed, along with all related CSS classes (`.status-pill`, `.status-dot`, `.status-text`)
-
-✓ **Window Controls Position:** Window controls now positioned as last child inside `.right`, after the version string, at trailing-edge (top-right corner). Uses `align-self: stretch` to fill full title bar height.
-
-✓ **Button Attributes:** All three buttons maintain their exact `title` attributes:
-- "Minimize" → triggers `minimizeWindow`
-- "Maximize" → triggers `toggleMaximizeWindow`
-- "Close" → triggers `closeWindow`
-
-✓ **Native Styling:** 
-- Close button shows red background (#e81123) on hover
-- Other buttons show light gray hover (rgba(255, 255, 255, 0.08))
-- Buttons use thin-line SVG glyphs matching Windows convention
-- 44px wide buttons with proper alignment
-
-✓ **Padding:** `.title-bar` padding changed from `0 14px` to `0 0 0 14px`, allowing window controls to reach the true top-right corner while keeping the title centered via flexbox gaps
-
-✓ **Test Output:** Pristine — all 6 tests pass, no flakes, no warnings
-✓ **Lint Output:** Clean — no linting issues introduced
-✓ **Svelte Check:** No new warnings introduced
-
-## Files Changed
-
-- `src/lib/components/TitleBar.svelte` (119 insertions/deletions)
-  - Removed `.dot` buttons and styling
-  - Removed `.status-pill` markup and styling
-  - Added `.win-btn` buttons with SVG glyphs
-  - Moved window-controls to `.right` container as last child
-  - Updated CSS for native Windows appearance
-
-- `src/lib/components/TitleBar.test.ts` (24 insertions/deletions)
-  - Updated test assertions to verify pill removal
-  - Added position/order test using `compareDocumentPosition`
-  - Updated button click test descriptions
+4. Typecheck:
+   ```
+   pnpm check
+   ```
+   Result: `COMPLETED 472 FILES 0 ERRORS 14 WARNINGS 6 FILES_WITH_PROBLEMS` — all warnings are pre-existing a11y/svelte-state warnings in unrelated files (Board.svelte, MoveList.svelte, OnboardingScreen.svelte, ExploreTab.svelte, NavControls.svelte, TitleBar.svelte), none introduced by this change.
 
 ## Commit
 
-**Commit SHA:** `16564fb`
-**Message:** `fix(titlebar): native-style window controls at top-right, drop Local/Offline pill`
+```
+1aafabe feat: thread real wdlPerPly through appState into accuracy and classification
+```
+7 files changed, 75 insertions(+), 15 deletions(-)
 
-## Concerns
+## Self-review
 
-None. The implementation follows the brief exactly, all tests pass, linting is clean, and full suite verification shows no regressions.
+- Implementation matches the brief's code blocks exactly (imports, field placement, gating pattern for wdlPerPly mirrors the existing evalPerPly gating in ReviewTab.svelte).
+- Existing tests in `app-state.test.ts` that mock `loadRealAnalysis.mockResolvedValue({ evalPerPly: [], bestMoves: {} })` (without a `wdlPerPly` key) are untouched per the brief's instructions — after this change, those resolve with `appState.wdlPerPly = undefined` in that code path. This is pre-existing test fixture shape the brief didn't ask me to update, and it doesn't break any assertion (no test in that describe block asserts on `wdlPerPly` except the new one, which supplies it explicitly). Flagging it since it means `AppState.wdlPerPly`'s static type (`(Wdl | null)[]`) doesn't strictly hold at runtime for those particular mocked test paths — but this is scoped to test mocks, not production code, and `loadRealAnalysis`'s real return type (from Task 6) always includes `wdlPerPly`.
+- No behavior change for existing callers: `getAccuracySummary`'s new 3rd parameter is optional and `computeGameAccuracy`/`classifyGame` already handle `undefined` (from Tasks 4/5), so all pre-existing call sites without `wdlPerPly` are unaffected.
+- Ran the full test suite and typecheck as final sanity checks; both clean.

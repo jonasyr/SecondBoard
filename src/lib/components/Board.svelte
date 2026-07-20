@@ -46,7 +46,9 @@
 					? {
 							square: lastMove.to,
 							glyph: TOKENS.classification[classCode].glyph,
-							color: TOKENS.classification[classCode].color
+							color: TOKENS.classification[classCode].color,
+							icon: TOKENS.classification[classCode].icon,
+							label: TOKENS.classification[classCode].name
 						}
 					: null
 		})
@@ -92,9 +94,9 @@
 				stroke-width="11"
 				stroke-linecap="round"
 				stroke-linejoin="round"
-				opacity="0.82"
+				opacity="0.45"
 			/>
-			<polygon points={arrow.head} fill="#4ADEA0" opacity="0.82" />
+			<polygon points={arrow.head} fill="#4ADEA0" opacity="0.45" />
 		</svg>
 	{/if}
 </div>

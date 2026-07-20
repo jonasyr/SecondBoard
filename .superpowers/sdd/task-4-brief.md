@@ -1,262 +1,151 @@
-## Task 4: `AnalysisTab.svelte` + `MoveList.svelte` — real classification in the move list and coach card
+## Task 4: `accuracy.ts` — `Wdl` type, `winPercentFromWdl`, and the `winPercentForPly` preference helper
 
 **Files:**
-- Modify: `src/lib/components/AnalysisTab.svelte`
-- Modify: `src/lib/components/MoveList.svelte`
-- Modify: `src/lib/components/MoveList.test.ts`
-- Modify: `src/lib/components/AnalysisTab.test.ts`
+- Modify: `src/lib/game/accuracy.ts`
+- Modify: `src/lib/game/accuracy.test.ts`
 
 **Interfaces:**
-- Consumes: `appState.classCodes: ClassCode[]` (Task 2); `getReviewPly`'s new 5th parameter (Task 3).
-- Produces: `MoveList`'s `Props` drops `isSample: boolean`, adds `classCodes: ClassCode[]` — no other component depends on `MoveList`'s prop shape.
+- Produces:
+  - `Wdl = readonly [number, number, number]` (White-POV per-mille win/draw/loss) — consumed by Tasks 5, 6, 7.
+  - `winPercentFromWdl(wdl: Wdl): number` — consumed internally and by Task 5.
+  - `winPercentForPly(ply: number, evalPerPly: number[], wdlPerPly?: (Wdl | null)[]): number` — consumed by Task 5 (`classifyGame`) and internally by `computeGameAccuracy`.
+  - `computeGameAccuracy(evalPerPly: number[], wdlPerPly?: (Wdl | null)[]): GameAccuracy` — new optional 2nd parameter, consumed by Task 7 (`getAccuracySummary`).
 
 - [ ] **Step 1: Write the failing tests**
 
-Replace `src/lib/components/MoveList.test.ts` entirely:
+Add to `src/lib/game/accuracy.test.ts`, right after the existing `winPercentFromEval` describe block:
 
 ```typescript
-import { describe, it, expect, vi } from 'vitest';
-import { render } from '@testing-library/svelte';
-import MoveList from './MoveList.svelte';
-import type { ClassCode } from '$lib/types';
-
-// Italian Game move list (31 plies), matching this repo's other sample-game fixtures.
-const sanList = [
-	'e4', 'e5', 'Nf3', 'Nc6', 'Bc4', 'Bc5', 'c3', 'Nf6', 'd3', 'd6', 'O-O', 'O-O',
-	'Re1', 'a6', 'Bb3', 'Ba7', 'h3', 'h6', 'Nbd2', 'Be6', 'Bxe6', 'fxe6', 'Nf1',
-	'Qe7', 'Ng3', 'Rad8', 'd4', 'exd4', 'cxd4', 'd5', 'Ne5'
-];
-const classCodes: ClassCode[] = Array(31).fill('best');
-
-describe('MoveList', () => {
-	it('renders 16 rows with move-number gutter', () => {
-		const { container } = render(MoveList, {
-			props: { selectedPly: 0, onSelectPly: () => {}, sanList, classCodes }
-		});
-		expect(container.querySelectorAll('.row')).toHaveLength(16);
-		expect(container.textContent).toContain('1.');
-		expect(container.textContent).toContain('16.');
+describe('winPercentFromWdl', () => {
+	it('matches the blueprint\'s own worked example: wdl 500 400 100 -> 70', () => {
+		expect(winPercentFromWdl([500, 400, 100])).toBe(70);
 	});
 
-	it('marks the cell matching selectedPly as selected via data-sb-sel', () => {
-		const { container } = render(MoveList, {
-			props: { selectedPly: 31, onSelectPly: () => {}, sanList, classCodes }
-		});
-		expect(container.querySelector('[data-sb-sel="1"]')).not.toBeNull();
+	it('is 100 for a certain win and 0 for a certain loss', () => {
+		expect(winPercentFromWdl([1000, 0, 0])).toBe(100);
+		expect(winPercentFromWdl([0, 0, 1000])).toBe(0);
 	});
 
-	it('calls onSelectPly with the clicked ply', () => {
-		const onSelectPly = vi.fn();
-		const { container } = render(MoveList, {
-			props: { selectedPly: 0, onSelectPly, sanList, classCodes }
-		});
-		const firstWhiteCell = container.querySelector('.cell') as HTMLElement;
-		firstWhiteCell.click();
-		expect(onSelectPly).toHaveBeenCalledWith(1);
+	it('is 50 for a certain draw', () => {
+		expect(winPercentFromWdl([0, 1000, 0])).toBe(50);
+	});
+});
+
+describe('winPercentForPly', () => {
+	it('prefers the WDL-derived win% when a real entry is present for this ply', () => {
+		const evalPerPly = [0, 1];
+		const wdlPerPly: Array<[number, number, number] | null> = [[500, 400, 100], null];
+		expect(winPercentForPly(0, evalPerPly, wdlPerPly)).toBe(70);
 	});
 
-	it('renders no black cell in the final (odd-move-count) row', () => {
-		const { container } = render(MoveList, {
-			props: { selectedPly: 31, onSelectPly: () => {}, sanList, classCodes }
-		});
-		const rows = container.querySelectorAll('.row');
-		const lastRow = rows[rows.length - 1];
-		expect(lastRow.querySelectorAll('.cell')).toHaveLength(1); // white only — sanList has 31 plies
+	it('falls back to the eval sigmoid when wdlPerPly has no entry for this ply', () => {
+		const evalPerPly = [0, 1];
+		const wdlPerPly: Array<[number, number, number] | null> = [[500, 400, 100], null];
+		expect(winPercentForPly(1, evalPerPly, wdlPerPly)).toBeCloseTo(winPercentFromEval(1), 9);
 	});
 
-	it('does not show a classification badge for a ply with no classCodes entry (analysis not ready)', () => {
-		const { container } = render(MoveList, {
-			props: { selectedPly: 0, onSelectPly: () => {}, sanList: ['e4', 'e5'], classCodes: [] }
-		});
-		expect(container.querySelectorAll('.badge')).toHaveLength(0);
+	it('falls back to the eval sigmoid when wdlPerPly is omitted entirely', () => {
+		const evalPerPly = [0, 1];
+		expect(winPercentForPly(0, evalPerPly)).toBe(winPercentFromEval(0));
+		expect(winPercentForPly(1, evalPerPly)).toBeCloseTo(winPercentFromEval(1), 9);
+	});
+});
+
+describe('computeGameAccuracy with WDL', () => {
+	it('produces the exact same result as before when wdlPerPly is omitted (no regression)', () => {
+		// Locks in the pre-existing exact value from this file's own
+		// "penalizes a mover..." test above -- passing no wdlPerPly must not
+		// change a single digit of the output.
+		const { white, black } = computeGameAccuracy([0, -3, -3.2, -8, -8.5]);
+		expect(white).toBeCloseTo(37.3255159268525, 9);
+		expect(black).toBe(100);
 	});
 
-	it('shows a classification badge for every ply that has a real classCodes entry', () => {
-		const { container } = render(MoveList, {
-			props: { selectedPly: 0, onSelectPly: () => {}, sanList: ['e4', 'e5'], classCodes: ['excellent', 'blunder'] }
-		});
-		expect(container.querySelectorAll('.badge')).toHaveLength(2);
-	});
-
-	it('still highlights the selected cell when classCodes is empty', () => {
-		const { container } = render(MoveList, {
-			props: { selectedPly: 1, onSelectPly: () => {}, sanList: ['e4', 'e5'], classCodes: [] }
-		});
-		const selected = container.querySelector('[data-sb-sel="1"]') as HTMLElement;
-		expect(selected).not.toBeNull();
-		expect(selected.getAttribute('style')).toContain('background: rgba(45, 224, 206, 0.14)');
+	it('uses the WDL-derived win% for a ply that has one, changing the result vs. eval-only', () => {
+		const evalPerPly = [0, -3];
+		const withoutWdl = computeGameAccuracy(evalPerPly);
+		// A wdl reporting White as far more lost than the eval sigmoid implies
+		// (eval -3 pawns alone) should pull White's accuracy down further.
+		const wdlPerPly: Array<[number, number, number] | null> = [[500, 400, 100], [0, 0, 1000]];
+		const withWdl = computeGameAccuracy(evalPerPly, wdlPerPly);
+		expect(withWdl.white).not.toBeCloseTo(withoutWdl.white!, 6);
+		expect(withWdl.white!).toBeLessThan(withoutWdl.white!);
 	});
 });
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `pnpm exec vitest run src/lib/components/MoveList.test.ts`
-Expected: FAIL — `MoveList` still requires `isSample`, not `classCodes`; badge visibility is still gated on `isSample`, so the "no classCodes entry" / "real classCodes entry" tests don't match.
+Run: `pnpm exec vitest run src/lib/game/accuracy.test.ts`
+Expected: FAIL — `winPercentFromWdl`/`winPercentForPly` are not exported (`Cannot find module` style errors from the named imports), and `computeGameAccuracy` ignores a 2nd argument entirely so the WDL-vs-no-WDL comparison test fails.
 
-- [ ] **Step 3: Rewrite `MoveList.svelte`'s script block and template**
+- [ ] **Step 3: Implement in `src/lib/game/accuracy.ts`**
 
-Replace the `<script>` block in `src/lib/components/MoveList.svelte`:
+Add the import line update at the top of the test file (already covered by Step 1's `describe` blocks referencing these names — the test file's existing `import { winPercentFromEval, computeGameAccuracy, resolveWinner, estimatePerformanceRating } from './accuracy';` line needs `winPercentFromWdl, winPercentForPly` added):
 
-```svelte
-<script lang="ts">
-	import { TOKENS } from '$lib/tokens';
-	import type { ClassCode } from '$lib/types';
-	import ClassBadge from './ClassBadge.svelte';
-
-	interface Props {
-		selectedPly: number;
-		onSelectPly: (ply: number) => void;
-		sanList: string[];
-		classCodes: ClassCode[];
-	}
-
-	let { selectedPly, onSelectPly, sanList, classCodes }: Props = $props();
-
-	interface Row {
-		num: string;
-		wPly: number;
-		bPly: number | null;
-		striped: boolean;
-	}
-
-	const rows: Row[] = $derived(
-		Array.from({ length: Math.ceil(sanList.length / 2) }, (_, i) => {
-			const wPly = 2 * i + 1;
-			const bPly = 2 * i + 2;
-			return {
-				num: i + 1 + '.',
-				wPly,
-				bPly: bPly <= sanList.length ? bPly : null,
-				striped: i % 2 === 1
-			};
-		})
-	);
-
-	function cellStyle(sel: boolean, code: ClassCode | null): string {
-		if (sel) {
-			return 'background:rgba(45,224,206,.14);color:#5EF0DE;font-weight:600;box-shadow:inset 0 0 0 1px rgba(45,224,206,.3);';
-		}
-		return code ? `color:${TOKENS.review.moveTint[code]};` : '';
-	}
-
-	let listEl: HTMLDivElement | undefined = $state();
-
-	// Reference _syncMoveScroll (SecondBoard.dc.html lines 822-830): manual
-	// scrollTop adjustment, NOT scrollIntoView, run after each ply change.
-	$effect(() => {
-		void selectedPly;
-		requestAnimationFrame(() => {
-			const c = listEl;
-			if (!c) return;
-			const row = c.querySelector('[data-sb-sel="1"]');
-			if (!row) return;
-			const delta = row.getBoundingClientRect().top - c.getBoundingClientRect().top - 2;
-			c.scrollTop += delta;
-		});
-	});
-</script>
+```typescript
+import { winPercentFromEval, winPercentFromWdl, winPercentForPly, computeGameAccuracy, resolveWinner, estimatePerformanceRating } from './accuracy';
 ```
 
-Replace the template body (everything inside `<div class="move-list" ...>`):
+In `src/lib/game/accuracy.ts`, add right after `winPercentFromEval`'s definition:
 
-```svelte
-<div class="move-list sbscroll" bind:this={listEl} data-sb-movelist="1">
-	{#each rows as row (row.wPly)}
-		<div class="row" class:striped={row.striped}>
-			<span class="num sbmono">{row.num}</span>
-			<div
-				class="cell"
-				data-sb-sel={selectedPly === row.wPly ? '1' : '0'}
-				style={cellStyle(selectedPly === row.wPly, classCodes[row.wPly - 1] ?? null)}
-				onclick={() => onSelectPly(row.wPly)}
-			>
-				{#if classCodes[row.wPly - 1]}
-					<ClassBadge classCode={classCodes[row.wPly - 1]} size={16} />
-				{/if}
-				<span class="san sbmono">{sanList[row.wPly - 1]}</span>
-			</div>
-			{#if row.bPly !== null}
-				<div
-					class="cell"
-					data-sb-sel={selectedPly === row.bPly ? '1' : '0'}
-					style={cellStyle(selectedPly === row.bPly, classCodes[row.bPly - 1] ?? null)}
-					onclick={() => onSelectPly(row.bPly!)}
-				>
-					{#if classCodes[row.bPly - 1]}
-						<ClassBadge classCode={classCodes[row.bPly - 1]} size={16} />
-					{/if}
-					<span class="san sbmono">{sanList[row.bPly - 1]}</span>
-				</div>
-			{:else}
-				<div></div>
-			{/if}
-		</div>
-	{/each}
-</div>
+```typescript
+/** Win/draw/loss per-mille (`w + d + l = 1000`), always stored White-POV in
+ * this codebase — exactly like `evalPerPly` is White-POV pawns — so every
+ * consumer applies the same mover-POV flip (`mover === 'w' ? x : 100 - x`)
+ * uniformly regardless of whether a given ply's win% came from WDL or the
+ * eval sigmoid. Raw engine WDL is side-to-move POV; engine-analysis.ts's
+ * `toWhitePovWdl` is the one place that converts. */
+export type Wdl = readonly [w: number, d: number, l: number];
+
+/** Stockfish's own WDL model, converted to a White-POV win percentage
+ * (blueprint §3.2: `ExpScore = (w + 0.5*d)/1000`, expressed here on the
+ * 0-100 scale to match `winPercentFromEval`'s scale exactly). */
+export function winPercentFromWdl(wdl: Wdl): number {
+	return (wdl[0] + 0.5 * wdl[1]) / 10;
+}
+
+/** The one place that decides "WDL if the engine reported it for this ply,
+ * else the eval sigmoid" -- both `computeGameAccuracy` and `classify.ts`'s
+ * `classifyGame` call this instead of `winPercentFromEval` directly, so a
+ * future ply-level data source only needs to be taught to this function
+ * once. `wdlPerPly` is optional and index-aligned with `evalPerPly`; when
+ * omitted, or when this ply's entry is missing/null, behavior is identical
+ * to calling `winPercentFromEval` directly (byte-for-byte, existing
+ * behavior is fully preserved for engine builds/positions without WDL). */
+export function winPercentForPly(
+	ply: number,
+	evalPerPly: number[],
+	wdlPerPly?: (Wdl | null)[]
+): number {
+	const wdl = wdlPerPly?.[ply];
+	return wdl ? winPercentFromWdl(wdl) : winPercentFromEval(evalPerPly[ply]);
+}
 ```
 
-(The `<style>` block is unchanged.)
+Modify `computeGameAccuracy`'s signature and its `winPercents` derivation (the rest of the function body is unchanged):
 
-- [ ] **Step 4: Run `MoveList` tests to verify they pass**
+```typescript
+export function computeGameAccuracy(evalPerPly: number[], wdlPerPly?: (Wdl | null)[]): GameAccuracy {
+	const plyCount = evalPerPly.length;
+	if (plyCount < 2) return { white: null, black: null };
 
-Run: `pnpm exec vitest run src/lib/components/MoveList.test.ts`
-Expected: PASS — all green.
-
-- [ ] **Step 5: Update `AnalysisTab.svelte` to pass real `classCodes` through**
-
-Update the failing caller test first — in `src/lib/components/AnalysisTab.test.ts`, no test code needs to change (it doesn't assert on badges), but running the suite now will fail on the `MoveList` prop-shape mismatch. Confirm by running:
-
-Run: `pnpm exec vitest run src/lib/components/AnalysisTab.test.ts`
-Expected: FAIL — Svelte warns/throws that `MoveList` no longer accepts `isSample` as a valid prop (or, depending on strictness, simply passes it through unused while `classCodes` is `undefined`), and `getReviewPly`'s classification no longer resolves the same way.
-
-Modify `src/lib/components/AnalysisTab.svelte`:
-
-```svelte
-<script lang="ts">
-	import { getReviewPly } from '$lib/game/review';
-	import { appState } from '$lib/stores/app-state.svelte';
-	import CoachCard from './CoachCard.svelte';
-	import MoveList from './MoveList.svelte';
-	import Icon from './Icon.svelte';
-
-	interface Props {
-		ply: number;
-		onSelectPly: (ply: number) => void;
-		onNext: () => void;
-	}
-
-	let { ply, onSelectPly, onNext }: Props = $props();
-
-	const data = $derived(
-		getReviewPly(ply, appState.game!, appState.evalPerPly, appState.bestMoves, appState.classCodes)
-	);
-</script>
+	const winPercents = evalPerPly.map((_, ply) => winPercentForPly(ply, evalPerPly, wdlPerPly));
+	const moveCount = plyCount - 1;
+	const windowSize = Math.min(8, Math.max(2, Math.floor(moveCount / 10)));
+	// ... (rest of function body unchanged from here)
 ```
 
-Replace the `<MoveList ... />` call:
+- [ ] **Step 4: Run tests to verify they pass**
 
-```svelte
-	<MoveList
-		selectedPly={ply}
-		{onSelectPly}
-		sanList={appState.game!.sanList}
-		classCodes={appState.classCodes}
-	/>
-```
+Run: `pnpm exec vitest run src/lib/game/accuracy.test.ts`
+Expected: PASS — all tests green, including the full pre-existing suite (confirming the no-`wdlPerPly` regression lock holds).
 
-(Everything else in the file — the `coach-slot`/`actions` markup and the `<style>` block — is unchanged.)
-
-- [ ] **Step 6: Run tests to verify they pass**
-
-Run: `pnpm exec vitest run src/lib/components/AnalysisTab.test.ts src/lib/components/MoveList.test.ts`
-Expected: PASS — all green.
-
-- [ ] **Step 7: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/components/AnalysisTab.svelte src/lib/components/MoveList.svelte src/lib/components/MoveList.test.ts
-git commit -m "feat: MoveList and AnalysisTab render real per-move classification"
+git add src/lib/game/accuracy.ts src/lib/game/accuracy.test.ts
+git commit -m "feat: prefer WDL-derived win%% over the eval sigmoid when the engine reports it"
 ```
 
 ---

@@ -7,9 +7,9 @@
 	{#each PHASE_ROWS as [name, whiteCode, blackCode] (name)}
 		<div class="row">
 			<span class="name">{name}</span>
-			<div class="badge-col"><ClassBadge classCode={whiteCode} size={22} useDarkFg /></div>
+			<div class="badge-col"><ClassBadge classCode={whiteCode} size={22} /></div>
 			<span></span>
-			<div class="badge-col"><ClassBadge classCode={blackCode} size={22} useDarkFg /></div>
+			<div class="badge-col"><ClassBadge classCode={blackCode} size={22} /></div>
 		</div>
 	{/each}
 </div>

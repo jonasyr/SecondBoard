@@ -6,13 +6,15 @@
  * BEST_MOVES arrays used. classCodes/coachText stay mocked — move
  * classification is out of scope for this iteration (LOGIC.md §7).
  */
-import type { Move, Position } from '$lib/board/types';
+import type { Move, Position, PieceColor } from '$lib/board/types';
+import type { Wdl } from './accuracy';
 import { analyzeFen } from '$lib/api/engine';
 import { positionToFen, sideToMoveForPly, fullmoveNumberForPly, moveToSan } from './notation';
 
 export interface RealAnalysis {
 	evalPerPly: number[];
 	bestMoves: Record<number, Move & { san: string }>;
+	wdlPerPly: (Wdl | null)[];
 }
 
 /** Number of `analyzeFen` calls (and thus real Stockfish processes) allowed to be
@@ -48,6 +50,13 @@ function toWhitePovEval(evalCp: number, sideToMove: 'w' | 'b'): number {
 	return sideToMove === 'w' ? evalCp / 100 : -(evalCp / 100);
 }
 
+/** Stockfish's WDL is relative to the side to move at the analyzed FEN, exactly
+ * like its cp score -- flip win/loss (draw is symmetric) to White's POV so it
+ * matches `evalPerPly`'s convention and can be indexed identically. */
+function toWhitePovWdl(wdl: [number, number, number], sideToMove: PieceColor): Wdl {
+	return sideToMove === 'w' ? wdl : [wdl[2], wdl[1], wdl[0]];
+}
+
 export async function loadRealAnalysis(positions: Position[]): Promise<RealAnalysis> {
 	const results = await mapWithConcurrency(positions, ANALYSIS_CONCURRENCY, (position, ply) =>
 		analyzeFen(positionToFen(position, sideToMoveForPly(ply), fullmoveNumberForPly(ply)))
@@ -55,6 +64,10 @@ export async function loadRealAnalysis(positions: Position[]): Promise<RealAnaly
 
 	const evalPerPly = results.map((r, ply) =>
 		toWhitePovEval(r.evalCp, sideToMoveForPly(ply))
+	);
+
+	const wdlPerPly = results.map((r, ply) =>
+		r.wdl ? toWhitePovWdl(r.wdl, sideToMoveForPly(ply)) : null
 	);
 
 	const bestMoves: Record<number, Move & { san: string }> = {};
@@ -65,5 +78,5 @@ export async function loadRealAnalysis(positions: Position[]): Promise<RealAnaly
 		bestMoves[ply + 1] = { from, to, san: moveToSan(positions[ply], { from, to }) };
 	});
 
-	return { evalPerPly, bestMoves };
+	return { evalPerPly, bestMoves, wdlPerPly };
 }

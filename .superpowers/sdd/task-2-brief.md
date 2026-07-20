@@ -1,118 +1,79 @@
-## Task 2: `app-state.svelte.ts` — wire real `classCodes` into the store
+## Task 2: Rust `lib.rs` — expose `wdl` through the `analyze_fen` Tauri command
 
 **Files:**
-- Modify: `src/lib/stores/app-state.svelte.ts`
-- Modify: `src/lib/stores/app-state.test.ts`
+- Modify: `src-tauri/src/lib.rs`
 
 **Interfaces:**
-- Consumes: `classifyGame(evalPerPly: number[]): ClassCode[]` from Task 1.
-- Produces: `AppState.classCodes: ClassCode[]` — consumed by Tasks 3-6.
+- Consumes: `engine::EngineAnalysis.wdl: Option<(u32, u32, u32)>` (Task 1).
+- Produces: `AnalyzeFenResult.wdl: Option<(u32, u32, u32)>` — serializes as a JSON 3-element array or `null` — consumed by Task 3.
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1: Write the failing test**
 
-Add to `src/lib/stores/app-state.test.ts`, inside the existing `describe('real analysis loading', ...)` block (after the `'goes loading -> ready and applies the real data once startReview resolves'` test):
+Add to the `#[cfg(test)] mod analyze_fen_tests` block in `src-tauri/src/lib.rs`, right after `analyze_fen_command_delegates_to_the_engine_module`:
 
-```typescript
-	it('populates classCodes from the real evalPerPly once analysis is ready', async () => {
-		let resolveAnalysis!: (v: { evalPerPly: number[]; bestMoves: Record<number, never> }) => void;
-		loadRealAnalysis.mockReturnValue(
-			new Promise((resolve) => {
-				resolveAnalysis = resolve;
-			})
-		);
-
-		await startReview();
-		expect(appState.classCodes).toEqual([]); // nothing computed yet while loading
-
-		resolveAnalysis({ evalPerPly: [0, 1], bestMoves: {} });
-		await Promise.resolve();
-		await Promise.resolve();
-
-		expect(appState.classCodes).toEqual(['best']);
-	});
-
-	it('leaves classCodes empty (not fabricated) when loadRealAnalysis rejects', async () => {
-		loadRealAnalysis.mockRejectedValue(new Error('engine offline'));
-
-		await startReview();
-		await Promise.resolve();
-		await Promise.resolve();
-
-		expect(appState.analysisStatus).toBe('error');
-		expect(appState.classCodes).toEqual([]);
-	});
+```rust
+    #[test]
+    fn analyze_fen_result_carries_the_engines_wdl_field() {
+        let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1".to_string();
+        match analyze_fen_sync(fen) {
+            Ok(result) => {
+                // Real Stockfish on this machine should report WDL for a legal position.
+                assert!(result.wdl.is_some());
+            }
+            Err(msg) => {
+                assert!(msg.contains("failed to spawn engine"), "unexpected error: {msg}");
+            }
+        }
+    }
 ```
 
-Also add, inside the existing `describe('startReview (real PGN parsing)', ...)` block's first test (`'on successful parse: ...'`), right after the existing `expect(appState.evalPerPly).toEqual([0, 0, 0]);` line:
+- [ ] **Step 2: Run test to verify it fails**
 
-```typescript
-		expect(appState.classCodes).toEqual([]); // reset on every fresh parse, before real analysis lands
+Run: `cd src-tauri && cargo test analyze_fen_tests`
+Expected: FAIL — `no field \`wdl\` on type \`AnalyzeFenResult\`` (compile error).
+
+- [ ] **Step 3: Add `wdl` to `AnalyzeFenResult` and its `From` impl**
+
+In `src-tauri/src/lib.rs`, modify `AnalyzeFenResult`:
+
+```rust
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AnalyzeFenResult {
+    eval_cp: i32,
+    is_mate: bool,
+    best_move_uci: String,
+    pv: Vec<String>,
+    wdl: Option<(u32, u32, u32)>,
+}
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+Modify the `From<engine::EngineAnalysis>` impl:
 
-Run: `pnpm exec vitest run src/lib/stores/app-state.test.ts`
-Expected: FAIL — `appState.classCodes` is `undefined`, not `[]`/`['best']` (property doesn't exist on `AppState` yet).
-
-- [ ] **Step 3: Add `classCodes` to `AppState`, `defaultState`, `startReview`, and `refreshRealAnalysis`**
-
-In `src/lib/stores/app-state.svelte.ts`, add the import (extend the existing `$lib/game/classify` import):
-
-```typescript
-import { classifyGame } from '$lib/game/classify';
-```
-
-Modify the `AppState` interface — add after `bestMoves`:
-
-```typescript
-	bestMoves: Record<number, Move & { san: string }>;
-	classCodes: ClassCode[];
-```
-
-(Add `import type { ClassCode } from '$lib/types';` to the top of the file alongside the existing `Screen`/`Tab` import.)
-
-Modify `defaultState` — add after `bestMoves: { ...BEST_MOVES },`:
-
-```typescript
-	bestMoves: { ...BEST_MOVES },
-	classCodes: [],
-```
-
-In `startReview`, reset `classCodes` alongside the existing `evalPerPly`/`bestMoves` reset (add right after `appState.bestMoves = {};`):
-
-```typescript
-			appState.evalPerPly = new Array(parsed.sanList.length + 1).fill(0);
-			appState.bestMoves = {};
-			appState.classCodes = [];
-```
-
-In `refreshRealAnalysis`, compute real classifications alongside the real `evalPerPly`/`bestMoves` (modify the `try` block):
-
-```typescript
-	try {
-		const { evalPerPly, bestMoves } = await loadRealAnalysis(appState.game!.positions);
-		appState.evalPerPly = evalPerPly;
-		appState.bestMoves = bestMoves;
-		appState.classCodes = classifyGame(evalPerPly);
-		appState.analysisStatus = 'ready';
-	} catch {
-		appState.analysisStatus = 'error';
-	}
+```rust
+impl From<engine::EngineAnalysis> for AnalyzeFenResult {
+    fn from(a: engine::EngineAnalysis) -> Self {
+        AnalyzeFenResult {
+            eval_cp: a.eval_cp,
+            is_mate: a.is_mate,
+            best_move_uci: a.best_move_uci,
+            pv: a.pv,
+            wdl: a.wdl,
+        }
+    }
+}
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `pnpm exec vitest run src/lib/stores/app-state.test.ts`
-Expected: PASS — all green.
-
-Run: `pnpm check`
-Expected: no new TypeScript errors.
+Run: `cd src-tauri && cargo test`
+Expected: PASS — full Rust suite green, including the new `analyze_fen_result_carries_the_engines_wdl_field` test.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/stores/app-state.svelte.ts src/lib/stores/app-state.test.ts
-git commit -m "feat: populate appState.classCodes from real analysis"
+git add src-tauri/src/lib.rs
+git commit -m "feat: expose engine WDL through the analyze_fen Tauri command"
 ```
 
 ---

@@ -8,10 +8,11 @@
  * "expected points" on a 0-1 scale (Best 0.00 / Excellent <=0.02 / Good
  * <=0.05 / Inaccuracy <=0.10 / Mistake <=0.20 / Blunder >0.20); this module
  * uses win% on the 0-100 scale instead (identical up to a factor of 100),
- * since that's the scale `winPercentFromEval` (accuracy.ts, itself an exact
- * port of lichess's sigmoid) already produces — reusing it keeps the eval
- * math consistent between accuracy and classification instead of
- * introducing a second, slightly different win-probability model.
+ * since that's the scale `winPercentForPly` (accuracy.ts) already produces,
+ * whether from the eval sigmoid or Stockfish's own WDL model — reusing it
+ * keeps the win-probability math consistent between accuracy and
+ * classification instead of introducing a second, slightly different
+ * win-probability model.
  *
  * Scope note: this is the deterministic "core" classifier only (the 6
  * cutoff-table classes). Book/Brilliant/Great/Miss/Forced are Chess.com's
@@ -21,7 +22,8 @@
  * §4/§11 "Recommended next steps".
  */
 import type { ClassCode } from '$lib/types';
-import { winPercentFromEval } from './accuracy';
+import type { Wdl } from './accuracy';
+import { winPercentForPly } from './accuracy';
 import { sideToMoveForPly } from './notation';
 
 /** Chess.com's own published Expected-Points cutoff table (support article,
@@ -49,10 +51,10 @@ export function classifyMoveByEpLoss(epLossPoints: number): ClassCode {
  * array when there isn't enough eval data yet (fewer than 2 samples) rather
  * than fabricating classifications from incomplete data.
  */
-export function classifyGame(evalPerPly: number[]): ClassCode[] {
+export function classifyGame(evalPerPly: number[], wdlPerPly?: (Wdl | null)[]): ClassCode[] {
 	if (evalPerPly.length < 2) return [];
 
-	const winPercents = evalPerPly.map(winPercentFromEval);
+	const winPercents = evalPerPly.map((_, ply) => winPercentForPly(ply, evalPerPly, wdlPerPly));
 	const codes: ClassCode[] = [];
 
 	for (let ply = 1; ply < evalPerPly.length; ply++) {

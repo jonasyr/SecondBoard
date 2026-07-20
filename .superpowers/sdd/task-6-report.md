@@ -1,59 +1,69 @@
-# Task 6 Report — ReviewPanel/ReviewTab/BottomBar real classification
+# Task 6 Report: `engine-analysis.ts` — produce `wdlPerPly` (White-POV) from real analysis
 
-## What was implemented
+## Summary
 
-Followed the brief exactly (`.superpowers/sdd/task-6-brief.md`), steps 1-9.
+Implemented `wdlPerPly` on `RealAnalysis` in `src/lib/game/engine-analysis.ts`, exactly per the brief:
 
-1. **`src/lib/components/ReviewTab.test.ts`** — added `classCodes: []` to all 4 `render(ReviewTab, { props: {...} })` calls (one per `it` block).
-2. **`src/lib/components/BottomBar.test.ts`** — added `classCodes: []` to all 3 `render(BottomBar, { props: {...} })` calls.
-3. **`src/lib/components/ReviewTab.svelte`** — removed the `import { CLASS_CODES } from '$lib/game/mock-data'` import, added `import type { ClassCode } from '$lib/types'`, added `classCodes: ClassCode[]` to `Props` and destructured it from `$props()`. Updated `<EvalGraph {evalPerPly} classCodes={CLASS_CODES} {ply} height={66} />` to `<EvalGraph {evalPerPly} {classCodes} {ply} height={66} />`. Kept the existing `appState` import (still used by the `accuracy` derivation) and the existing `accuracy` derivation logic unchanged.
-4. **`src/lib/components/BottomBar.svelte`** — same pattern: removed the mock `CLASS_CODES` import, added `import type { ClassCode } from '$lib/types'`, added `classCodes: ClassCode[]` to `Props`, destructured it, and updated the `<EvalGraph ... />` call to use `{classCodes}`.
-5. **`src/lib/components/ReviewPanel.svelte`** — added `classCodes={appState.classCodes}` to both the `<ReviewTab ... />` and `<BottomBar ... />` invocations, and fixed the previously misindented `<ReviewTab ... />` call's attributes to match the brief's target snippet (which showed properly tab-indented attributes; the pre-existing file had them de-indented).
+- Imported `PieceColor` from `$lib/board/types` and `Wdl` from `./accuracy`.
+- Added `wdlPerPly: (Wdl | null)[]` to the `RealAnalysis` interface.
+- Added `toWhitePovWdl(wdl, sideToMove)`: a pure helper mirroring `toWhitePovEval`'s flip pattern, but swapping win/loss (index 0 and 2) instead of negating, since draw (index 1) is symmetric.
+- In `loadRealAnalysis`, computed `wdlPerPly` per ply as `r.wdl ? toWhitePovWdl(r.wdl, sideToMoveForPly(ply)) : null`, and included it in the returned object alongside `evalPerPly` and `bestMoves`.
 
-Confirmed no residual references to the mock `CLASS_CODES` remain in either `.svelte` file (`grep -rn "CLASS_CODES" ReviewTab.svelte BottomBar.svelte` → no matches).
+Added two new tests to the end of the `describe('loadRealAnalysis', ...)` block in `src/lib/game/engine-analysis.test.ts`, verbatim from the brief:
 
-Confirmed `appState.classCodes` exists and is populated by prior tasks (`src/lib/stores/app-state.svelte.ts:93` resets it to `[]`, `:115` sets it via `classifyGame(evalPerPly)`).
+1. `'produces one wdlPerPly entry per position, flipped to White POV'` — mocks `analyzeFen` to always return `wdl: [600, 300, 100]`, asserts ply 0 (White to move) is unflipped `[600, 300, 100]` and ply 1 (Black to move) is flipped to `[100, 300, 600]`.
+2. `'reports null wdlPerPly entries for positions where the engine did not report wdl'` — mocks `wdl: null`, asserts every `wdlPerPly` entry is `null`.
+
+No changes were made to any pre-existing test bodies. As predicted by the brief, every pre-existing test's mocked `analyzeFen` resolved value omits the `wdl` field entirely, so `r.wdl` is `undefined` (falsy) there, and the ternary falls through to `null` for every ply — those tests never assert on `wdlPerPly` and continue passing unmodified.
 
 ## Test commands run and output
 
-**Step 4 (pre-refactor, preparatory check)** — with only the test files updated (mock import still present, `Props` interfaces not yet updated):
-```
-pnpm exec vitest run src/lib/components/ReviewTab.test.ts src/lib/components/BottomBar.test.ts
-```
-Result: `PASS (8) FAIL (0)` — as the brief anticipated, Svelte silently accepts the extra unknown `classCodes` prop at this stage, so this step confirms "unchanged," not a hard failure. This matched the brief's explicit expectation for Step 4.
+### Step 2 — confirm tests fail before implementation
 
-**Step 8 (post-refactor)** — after implementing steps 5-7:
 ```
-pnpm exec vitest run src/lib/components/ReviewTab.test.ts src/lib/components/BottomBar.test.ts
+pnpm exec vitest run src/lib/game/engine-analysis.test.ts
 ```
-Result: `PASS (8) FAIL (0)` — all green.
+Result: `PASS (6) FAIL (2)` — the two new tests failed as expected:
+- `produces one wdlPerPly entry per position, flipped to White POV`: `AssertionError: Target cannot be null or undefined.` (`wdlPerPly` was `undefined`)
+- `reports null wdlPerPly entries for positions where the engine did not report wdl`: `TypeError: Cannot read properties of undefined (reading 'every')`
 
-**Final full-suite sanity check** (per instructions, run via `rtk proxy` since the rtk wrapper had previously truncated plain vitest output on this machine):
+All 6 pre-existing tests passed at this point (unmodified, before the implementation changes), confirming the test file changes alone don't break anything and isolating the failures to the two new cases.
+
+### Step 4 — confirm tests pass after implementation
+
+```
+pnpm exec vitest run src/lib/game/engine-analysis.test.ts
+```
+Result: `PASS (8) FAIL (0)` — all 8 tests (6 pre-existing + 2 new) passed.
+
+### Additional verification
+
+```
+rtk tsc
+```
+Result: `TypeScript: No errors found`
+
 ```
 rtk proxy pnpm exec vitest run
 ```
-Result:
+(Full project suite, run through `rtk proxy` because RTK's vitest output parser failed to parse this run's raw output — using proxy mode to get the real vitest summary instead of a parse-failure passthrough.)
+
+Result: `Test Files 48 passed (48)` / `Tests 255 passed (255)`. No failures anywhere in the repo. (Some pre-existing Svelte a11y/reactivity lint warnings from `vite-plugin-svelte` appear in the log — unrelated to this change, not test failures, and pre-existing on this branch.)
+
+## Commit
+
 ```
- Test Files  48 passed (48)
-      Tests  242 passed (242)
-   Duration  8.93s
+ce0a8f0 feat: loadRealAnalysis produces White-POV wdlPerPly alongside evalPerPly
 ```
-(Some pre-existing Svelte a11y lint warnings from `vite-plugin-svelte` appeared in the output — unrelated to this change, present in `MoveList.svelte`, `Board.svelte`, `OnboardingScreen.svelte`, `ExploreTab.svelte`, `NavControls.svelte` — no new warnings introduced by this task's files.)
 
-## Commit hash
-
-`caaed74` — "feat: eval graph (ReviewTab/BottomBar) renders real per-move classification"
-
-Files changed: `src/lib/components/ReviewPanel.svelte`, `src/lib/components/ReviewTab.svelte`, `src/lib/components/ReviewTab.test.ts`, `src/lib/components/BottomBar.svelte`, `src/lib/components/BottomBar.test.ts` (5 files changed, 22 insertions(+), 15 deletions(-)).
+Files changed: `src/lib/game/engine-analysis.ts` (+17/-2), `src/lib/game/engine-analysis.test.ts` (+24).
 
 ## Self-review
 
-- Diff matches the brief's exact before/after snippets for all four production/test files; no extra refactoring introduced beyond fixing pre-existing indentation in `ReviewPanel.svelte`'s `<ReviewTab .../>` call (which the brief's own target snippet showed correctly indented).
-- `appState.classCodes` is real (from Task 2), not a stub — verified by grep against `app-state.svelte.ts`.
-- No other call sites in the codebase still import `CLASS_CODES` from `$lib/game/mock-data` for use in `ReviewTab.svelte`/`BottomBar.svelte` — grep confirmed clean.
-- Full 242-test suite passes with no regressions.
-- No ambiguity encountered; brief was unambiguous and matched the actual file contents on disk exactly before editing.
-
-## Concerns
-
-None.
+- Followed the brief's exact code verbatim for both the test additions and the implementation (imports, interface, helper, and `loadRealAnalysis` body match the brief character-for-character where specified).
+- Verified the "zero changes needed to pre-existing tests" claim empirically rather than assuming it: ran the full pre-existing 6-test file before touching `engine-analysis.ts` and confirmed only the 2 new tests failed; after implementing, all 8 passed with no edits to the original 6 test bodies.
+- `toWhitePovWdl`'s type signature takes `PieceColor` (not the inline `'w' | 'b'` used by the neighboring `toWhitePovEval`) per the brief — both are structurally identical types so this introduces no behavioral difference, just matches the brief's stated import list (`PieceColor` from `$lib/board/types`).
+- Confirmed `AnalyzeFenResult.wdl: [number, number, number] | null` already exists in `src/lib/api/engine.ts` (from Task 3) and `Wdl` already exists in `src/lib/game/accuracy.ts` (from Task 4) before relying on them — both were already committed on this branch, so no cross-task drift.
+- Ran `tsc` and the full 255-test project suite (not just the one file) to confirm no regressions elsewhere (e.g. any other consumer destructuring `RealAnalysis` that might be affected by the new required field) — none found; `wdlPerPly` is additive only, and Task 7 (wiring it into `app-state.svelte.ts`) is explicitly out of scope for this task.
+- Note: this file previously contained a stale report from an unrelated earlier iteration's "Task 6" (ReviewPanel/ReviewTab/BottomBar classification work) — that content has been replaced with this task's actual report since it did not describe this task's work.
+- No concerns. Task is complete and self-contained; ready for Task 7 to consume `RealAnalysis.wdlPerPly`.

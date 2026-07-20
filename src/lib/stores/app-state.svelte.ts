@@ -1,5 +1,6 @@
 import type { Move } from '$lib/board/types';
 import type { Screen, Tab, ClassCode } from '$lib/types';
+import type { Wdl } from '$lib/game/accuracy';
 import { EVAL_PER_PLY, BEST_MOVES } from '$lib/game/mock-data';
 import { loadRealAnalysis } from '$lib/game/engine-analysis';
 import { parsePgn } from '$lib/api/pgn';
@@ -20,6 +21,7 @@ export interface AppState {
 	evalPerPly: number[];
 	bestMoves: Record<number, Move & { san: string }>;
 	classCodes: ClassCode[];
+	wdlPerPly: (Wdl | null)[];
 	analysisStatus: 'idle' | 'loading' | 'ready' | 'error';
 	game: GameData | null;
 	parseError: string | null;
@@ -38,6 +40,7 @@ const defaultState: AppState = {
 	evalPerPly: [...EVAL_PER_PLY],
 	bestMoves: { ...BEST_MOVES },
 	classCodes: [],
+	wdlPerPly: [],
 	analysisStatus: 'idle',
 	game: null,
 	parseError: null
@@ -91,6 +94,7 @@ export async function startReview(): Promise<void> {
 		appState.evalPerPly = new Array(parsed.sanList.length + 1).fill(0);
 		appState.bestMoves = {};
 		appState.classCodes = [];
+		appState.wdlPerPly = [];
 		appState.analysisStatus = 'idle';
 		appState.parseError = null;
 		appState.gameLoaded = true;
@@ -109,10 +113,11 @@ export async function startReview(): Promise<void> {
 async function refreshRealAnalysis(): Promise<void> {
 	appState.analysisStatus = 'loading';
 	try {
-		const { evalPerPly, bestMoves } = await loadRealAnalysis(appState.game!.positions);
+		const { evalPerPly, bestMoves, wdlPerPly } = await loadRealAnalysis(appState.game!.positions);
 		appState.evalPerPly = evalPerPly;
 		appState.bestMoves = bestMoves;
-		appState.classCodes = classifyGame(evalPerPly);
+		appState.wdlPerPly = wdlPerPly;
+		appState.classCodes = classifyGame(evalPerPly, wdlPerPly);
 		appState.analysisStatus = 'ready';
 	} catch {
 		appState.analysisStatus = 'error';

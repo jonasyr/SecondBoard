@@ -1,4 +1,5 @@
 import type { ClassCode } from './types';
+import { CLASSIFICATION_ICONS } from './assets/classification-icons';
 
 /**
  * Single source of truth for the SecondBoard design system.
@@ -93,17 +94,17 @@ export const TOKENS = {
 		mono: "'Geist Mono', ui-monospace, monospace"
 	},
 	classification: {
-		brilliant: { name: 'Brilliant', word: 'brilliant', color: '#2DE0CE', glyph: '!!' },
-		great: { name: 'Great', word: 'a great move', color: '#60A5FA', glyph: '!' },
-		best: { name: 'Best', word: 'the best move', color: '#4ADEA0', glyph: '★' },
-		excellent: { name: 'Excellent', word: 'excellent', color: '#86E5A8', glyph: '✦' },
-		good: { name: 'Good', word: 'a good move', color: '#8FB39B', glyph: '✓' },
-		book: { name: 'Book', word: 'a book move', color: '#C99B6E', glyph: '◈' },
-		inaccuracy: { name: 'Inaccuracy', word: 'an inaccuracy', color: '#F5B14C', glyph: '?!' },
-		mistake: { name: 'Mistake', word: 'a mistake', color: '#F97A45', glyph: '?' },
-		miss: { name: 'Miss', word: 'a miss', color: '#C77DFF', glyph: '✕' },
-		blunder: { name: 'Blunder', word: 'a blunder', color: '#F26B6B', glyph: '??' }
-	} satisfies Record<ClassCode, { name: string; word: string; color: string; glyph: string }>,
+		brilliant: { name: 'Brilliant', word: 'brilliant', color: '#1bada6', glyph: '!!', icon: CLASSIFICATION_ICONS.brilliant },
+		great: { name: 'Great', word: 'a great move', color: '#1bada6', glyph: '!', icon: CLASSIFICATION_ICONS.great },
+		best: { name: 'Best', word: 'the best move', color: '#96bc4b', glyph: '★', icon: CLASSIFICATION_ICONS.best },
+		excellent: { name: 'Excellent', word: 'excellent', color: '#96bc4b', glyph: '✦', icon: CLASSIFICATION_ICONS.excellent },
+		good: { name: 'Good', word: 'a good move', color: '#96af8b', glyph: '✓', icon: CLASSIFICATION_ICONS.good },
+		book: { name: 'Book', word: 'a book move', color: '#a88865', glyph: '◈', icon: CLASSIFICATION_ICONS.book },
+		inaccuracy: { name: 'Inaccuracy', word: 'an inaccuracy', color: '#f7c045', glyph: '?!', icon: CLASSIFICATION_ICONS.inaccuracy },
+		mistake: { name: 'Mistake', word: 'a mistake', color: '#e58f2a', glyph: '?', icon: CLASSIFICATION_ICONS.mistake },
+		miss: { name: 'Miss', word: 'a miss', color: '#dbac16', glyph: '✕', icon: CLASSIFICATION_ICONS.miss },
+		blunder: { name: 'Blunder', word: 'a blunder', color: '#ca3431', glyph: '??', icon: CLASSIFICATION_ICONS.blunder }
+	} satisfies Record<ClassCode, { name: string; word: string; color: string; glyph: string; icon: string }>,
 	review: {
 		avatarWhiteBg: '#EDEFF6',
 		avatarWhiteBorder: 'rgba(255,255,255,.15)',
@@ -137,19 +138,7 @@ export const TOKENS = {
 			'drop-shadow(0 0 1px rgba(255,255,255,.55)) drop-shadow(0 0 1px rgba(255,255,255,.55))',
 		navBtnBg: '#14161F',
 		navBtnBorder: 'rgba(255,255,255,.07)',
-		navBtnStroke: '#9298A8',
-		moveTint: {
-			brilliant: '#5EF0DE',
-			great: '#8FC0FF',
-			best: '#C7CCDA',
-			excellent: '#C7CCDA',
-			good: '#C7CCDA',
-			book: '#C7B79E',
-			inaccuracy: '#F5B14C',
-			mistake: '#F97A45',
-			miss: '#C77DFF',
-			blunder: '#F26B6B'
-		} satisfies Record<ClassCode, string>
+		navBtnStroke: '#9298A8'
 	}
 } as const;
 

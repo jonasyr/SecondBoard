@@ -73,6 +73,7 @@
 			ply={appState.ply}
 			evalPerPly={appState.evalPerPly}
 			classCodes={appState.classCodes}
+			wdlPerPly={appState.wdlPerPly}
 			analyzing={appState.analysisStatus === 'loading'}
 		/>
 	{:else if appState.tab === 'analysis'}

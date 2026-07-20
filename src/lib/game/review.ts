@@ -17,6 +17,7 @@ import type { ClassCode } from '$lib/types';
 import { NOT_BEST_CODES } from '$lib/tokens';
 import { BEST_MOVES, COACH_TEXT_MAP, EVAL_PER_PLY, CLASS_CODES, PLAYERS } from './mock-data';
 import { computeGameAccuracy, resolveWinner, estimatePerformanceRating } from './accuracy';
+import type { Wdl } from './accuracy';
 
 export interface GameData {
 	sanList: string[];
@@ -193,10 +194,14 @@ function formatResultLabel(result: string | null): string {
  * AccuracyBlock) rather than a mock number when there isn't enough eval data
  * yet (analysis still loading, or a game with too few plies).
  */
-export function getAccuracySummary(game: GameData, evalPerPly: number[]): AccuracySummary {
+export function getAccuracySummary(
+	game: GameData,
+	evalPerPly: number[],
+	wdlPerPly?: (Wdl | null)[]
+): AccuracySummary {
 	const whiteName = game.whiteName ?? PLAYERS.white.name;
 	const blackName = game.blackName ?? PLAYERS.black.name;
-	const { white, black } = computeGameAccuracy(evalPerPly);
+	const { white, black } = computeGameAccuracy(evalPerPly, wdlPerPly);
 	const winner = resolveWinner(game.result);
 
 	return {

@@ -223,4 +223,14 @@ describe('getAccuracySummary', () => {
 		expect(summary.white.isWinner).toBe(false);
 		expect(summary.black.isWinner).toBe(false);
 	});
+
+	it('accepts an optional wdlPerPly and passes it through to computeGameAccuracy without changing the no-wdl result', () => {
+		const game: GameData = { ...sampleGame, result: '0-1' };
+		const withoutWdl = getAccuracySummary(game, [0, -3]);
+		const withWdl = getAccuracySummary(game, [0, -3], [
+			[500, 400, 100],
+			[0, 0, 1000]
+		]);
+		expect(withWdl.white.accuracy).not.toBe(withoutWdl.white.accuracy);
+	});
 });

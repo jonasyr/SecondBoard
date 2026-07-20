@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { appState } from '$lib/stores/app-state.svelte';
 	import { getAccuracySummary } from '$lib/game/review';
+	import { getBreakdownRows } from '$lib/game/breakdown';
 	import type { ClassCode } from '$lib/types';
+	import type { Wdl } from '$lib/game/accuracy';
 	import EvalGraph from './EvalGraph.svelte';
 	import AccuracyBlock from './AccuracyBlock.svelte';
 	import BreakdownTable from './BreakdownTable.svelte';
@@ -11,19 +13,25 @@
 		ply: number;
 		evalPerPly: number[];
 		classCodes: ClassCode[];
+		wdlPerPly: (Wdl | null)[];
 		analyzing?: boolean;
 	}
 
-	let { ply, evalPerPly, classCodes, analyzing = false }: Props = $props();
+	let { ply, evalPerPly, classCodes, wdlPerPly, analyzing = false }: Props = $props();
 
-	// Only feed the real evalPerPly in once analysis has actually finished;
-	// otherwise (idle/loading/error) pass an empty array so
+	// Only feed the real evalPerPly/wdlPerPly in once analysis has actually
+	// finished; otherwise (idle/loading/error) pass empty arrays so
 	// computeGameAccuracy's own length<2 guard returns null/null, rendering
-	// "—" instead of a fabricated 100.0 from the seeded all-zero placeholder
-	// evalPerPly that startReview() writes before analysis completes.
+	// "—" instead of a fabricated number from the seeded all-zero placeholder
+	// evalPerPly that startReview() writes before real analysis completes.
 	const accuracy = $derived(
-		getAccuracySummary(appState.game!, appState.analysisStatus === 'ready' ? evalPerPly : [])
+		getAccuracySummary(
+			appState.game!,
+			appState.analysisStatus === 'ready' ? evalPerPly : [],
+			appState.analysisStatus === 'ready' ? wdlPerPly : []
+		)
 	);
+	const breakdownRows = $derived(getBreakdownRows(classCodes));
 </script>
 
 <div class="review-tab sbscroll">
@@ -37,7 +45,7 @@
 	</div>
 	<AccuracyBlock white={accuracy.white} black={accuracy.black} resultLabel={accuracy.resultLabel} />
 	<div class="divider"></div>
-	<BreakdownTable />
+	<BreakdownTable rows={breakdownRows} />
 	<PhaseTable />
 </div>
 

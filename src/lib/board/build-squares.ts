@@ -21,6 +21,8 @@ export interface BoardSquareVM {
 	hasBadge: boolean;
 	badgeGlyph: string;
 	badgeColor: string;
+	badgeIcon: string;
+	badgeLabel: string;
 	rankLabel: string;
 	fileLabel: string;
 }
@@ -32,7 +34,7 @@ export interface BuildBoardSquaresOptions {
 	/** Destination square of a move classified 'brilliant'. */
 	brilliantSquare?: Square | null;
 	/** Classification badge, placed on its destination square only. */
-	badge?: { square: Square; glyph: string; color: string } | null;
+	badge?: { square: Square; glyph: string; color: string; icon: string; label: string } | null;
 }
 
 export function buildBoardSquares(
@@ -69,6 +71,8 @@ export function buildBoardSquares(
 				hasBadge,
 				badgeGlyph: hasBadge ? badge!.glyph : '',
 				badgeColor: hasBadge ? badge!.color : '',
+				badgeIcon: hasBadge ? badge!.icon : '',
+				badgeLabel: hasBadge ? badge!.label : '',
 				rankLabel: showRank ? String(r) : '',
 				fileLabel: showFile ? FILES[f] : ''
 			});

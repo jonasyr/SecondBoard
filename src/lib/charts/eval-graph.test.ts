@@ -25,6 +25,6 @@ describe('evalGraph', () => {
 		const codes: ClassCode[] = ['book', 'brilliant', 'good'];
 		const result = evalGraph(ev, codes, 0);
 		expect(result.evalDots).toHaveLength(1);
-		expect(result.evalDots[0]).toEqual({ cx: 440, cy: 37.6, color: '#2DE0CE' });
+		expect(result.evalDots[0]).toEqual({ cx: 440, cy: 37.6, color: '#1bada6' });
 	});
 });

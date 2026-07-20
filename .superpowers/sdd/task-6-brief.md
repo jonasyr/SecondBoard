@@ -1,164 +1,118 @@
-## Task 6: `ReviewPanel.svelte` + `ReviewTab.svelte` + `BottomBar.svelte` — real classification on the eval graph
+## Task 6: `engine-analysis.ts` — produce `wdlPerPly` (White-POV) from real analysis
 
 **Files:**
-- Modify: `src/lib/components/ReviewPanel.svelte`
-- Modify: `src/lib/components/ReviewTab.svelte`
-- Modify: `src/lib/components/ReviewTab.test.ts`
-- Modify: `src/lib/components/BottomBar.svelte`
-- Modify: `src/lib/components/BottomBar.test.ts`
+- Modify: `src/lib/game/engine-analysis.ts`
+- Modify: `src/lib/game/engine-analysis.test.ts`
 
 **Interfaces:**
-- Consumes: `appState.classCodes: ClassCode[]` (Task 2).
-- Produces: `ReviewTab`'s and `BottomBar`'s `Props` gain a `classCodes: ClassCode[]` field, passed down from `ReviewPanel.svelte`.
+- Consumes: `AnalyzeFenResult.wdl: [number, number, number] | null` (Task 3); `Wdl` type from `./accuracy` (Task 4).
+- Produces: `RealAnalysis.wdlPerPly: (Wdl | null)[]` — consumed by Task 7 (`app-state.svelte.ts`).
 
-- [ ] **Step 1: Check the existing `ReviewTab`/`BottomBar` tests for `CLASS_CODES`-dependent assertions**
+- [ ] **Step 1: Write the failing tests**
 
-Read `src/lib/components/ReviewTab.test.ts` and `src/lib/components/BottomBar.test.ts`. Neither currently asserts on evaluation-dot colors/positions (those are covered by `eval-graph.test.ts`'s unit tests, already passing pure-function tests unaffected by this task), so no test assertions need to change — only the render call's props, to supply the now-required `classCodes` prop instead of relying on the component's own `CLASS_CODES` import.
+Add to `src/lib/game/engine-analysis.test.ts`, at the end of the `describe('loadRealAnalysis', ...)` block:
 
-- [ ] **Step 2: Update `ReviewTab.test.ts`'s render calls**
+```typescript
+	it('produces one wdlPerPly entry per position, flipped to White POV', async () => {
+		analyzeFen.mockImplementation(async (fen: string) => ({
+			evalCp: 0,
+			isMate: false,
+			bestMoveUci: 'e2e4',
+			pv: [],
+			wdl: [600, 300, 100] // side-to-move POV, favorable for whoever is to move
+		}));
 
-In `src/lib/components/ReviewTab.test.ts`, add `classCodes: []` to every `render(ReviewTab, { props: { ... } })` call's props object (there are 4 such calls in the file, one per `it` block).
+		const { wdlPerPly } = await loadRealAnalysis(testPositions);
 
-- [ ] **Step 3: Update `BottomBar.test.ts`'s render calls**
+		expect(wdlPerPly).toHaveLength(testPositions.length);
+		expect(wdlPerPly[0]).toEqual([600, 300, 100]); // ply 0: White to move, so no flip
+		expect(wdlPerPly[1]).toEqual([100, 300, 600]); // ply 1: Black to move, so w/l swap to White POV
+	});
 
-Read `src/lib/components/BottomBar.test.ts` and add `classCodes: []` to every `render(BottomBar, { props: { ... } })` call's props object, the same way.
+	it('reports null wdlPerPly entries for positions where the engine did not report wdl', async () => {
+		analyzeFen.mockResolvedValue({ evalCp: 0, isMate: false, bestMoveUci: 'e2e4', pv: [], wdl: null });
 
-- [ ] **Step 4: Run tests to verify they fail**
+		const { wdlPerPly } = await loadRealAnalysis(testPositions);
 
-Run: `pnpm exec vitest run src/lib/components/ReviewTab.test.ts src/lib/components/BottomBar.test.ts`
-Expected: FAIL — both components' `Props` interfaces don't declare `classCodes` yet, so passing it does nothing useful yet and (depending on strict prop checking) Svelte may warn about an unknown prop; more importantly the components still import the mock `CLASS_CODES` directly, so this step's purpose is to lock in the target prop shape before Step 5 removes the mock import (at which point omitting the prop in a test would genuinely break the eval graph). Confirm the file still compiles/runs at this point — this is a preparatory step, not a strict red/green boundary, so "FAIL" here may simply mean "unchanged" if Svelte allows the extra prop silently; either way, do not skip ahead until Step 5's import removal is in place, because that is what makes `classCodes` mandatory.
-
-- [ ] **Step 5: Update `ReviewTab.svelte`**
-
-Replace the `<script>` block:
-
-```svelte
-<script lang="ts">
-	import { getAccuracySummary } from '$lib/game/review';
-	import type { ClassCode } from '$lib/types';
-	import EvalGraph from './EvalGraph.svelte';
-	import AccuracyBlock from './AccuracyBlock.svelte';
-	import BreakdownTable from './BreakdownTable.svelte';
-	import PhaseTable from './PhaseTable.svelte';
-
-	interface Props {
-		ply: number;
-		evalPerPly: number[];
-		classCodes: ClassCode[];
-		analyzing?: boolean;
-	}
-
-	let { ply, evalPerPly, classCodes, analyzing = false }: Props = $props();
-</script>
+		expect(wdlPerPly.every((w) => w === null)).toBe(true);
+	});
 ```
 
-Note: `appState` is no longer imported directly here — check whether it's still used elsewhere in the file (the `accuracy` derivation reads `appState.game!`/`appState.analysisStatus`). Keep that import; only the `CLASS_CODES` import from `$lib/game/mock-data` is removed. The full corrected script block, preserving the existing `accuracy` derivation:
+- [ ] **Step 2: Run tests to verify they fail**
 
-```svelte
-<script lang="ts">
-	import { appState } from '$lib/stores/app-state.svelte';
-	import { getAccuracySummary } from '$lib/game/review';
-	import type { ClassCode } from '$lib/types';
-	import EvalGraph from './EvalGraph.svelte';
-	import AccuracyBlock from './AccuracyBlock.svelte';
-	import BreakdownTable from './BreakdownTable.svelte';
-	import PhaseTable from './PhaseTable.svelte';
+Run: `pnpm exec vitest run src/lib/game/engine-analysis.test.ts`
+Expected: FAIL — `wdlPerPly` is `undefined` on the returned object (property doesn't exist yet).
 
-	interface Props {
-		ply: number;
-		evalPerPly: number[];
-		classCodes: ClassCode[];
-		analyzing?: boolean;
-	}
+- [ ] **Step 3: Implement in `src/lib/game/engine-analysis.ts`**
 
-	let { ply, evalPerPly, classCodes, analyzing = false }: Props = $props();
+Replace the top-of-file imports:
 
-	// Only feed the real evalPerPly in once analysis has actually finished;
-	// otherwise (idle/loading/error) pass an empty array so
-	// computeGameAccuracy's own length<2 guard returns null/null, rendering
-	// "—" instead of a fabricated 100.0 from the seeded all-zero placeholder
-	// evalPerPly that startReview() writes before analysis completes.
-	const accuracy = $derived(
-		getAccuracySummary(appState.game!, appState.analysisStatus === 'ready' ? evalPerPly : [])
+```typescript
+import type { Move, Position, PieceColor } from '$lib/board/types';
+import type { Wdl } from './accuracy';
+import { analyzeFen } from '$lib/api/engine';
+import { positionToFen, sideToMoveForPly, fullmoveNumberForPly, moveToSan } from './notation';
+```
+
+Update `RealAnalysis`:
+
+```typescript
+export interface RealAnalysis {
+	evalPerPly: number[];
+	bestMoves: Record<number, Move & { san: string }>;
+	wdlPerPly: (Wdl | null)[];
+}
+```
+
+Add a new pure helper right after the existing `toWhitePovEval` function:
+
+```typescript
+/** Stockfish's WDL is relative to the side to move at the analyzed FEN, exactly
+ * like its cp score -- flip win/loss (draw is symmetric) to White's POV so it
+ * matches `evalPerPly`'s convention and can be indexed identically. */
+function toWhitePovWdl(wdl: [number, number, number], sideToMove: PieceColor): Wdl {
+	return sideToMove === 'w' ? wdl : [wdl[2], wdl[1], wdl[0]];
+}
+```
+
+Modify `loadRealAnalysis`'s body to compute and return `wdlPerPly`:
+
+```typescript
+export async function loadRealAnalysis(positions: Position[]): Promise<RealAnalysis> {
+	const results = await mapWithConcurrency(positions, ANALYSIS_CONCURRENCY, (position, ply) =>
+		analyzeFen(positionToFen(position, sideToMoveForPly(ply), fullmoveNumberForPly(ply)))
 	);
-</script>
+
+	const evalPerPly = results.map((r, ply) =>
+		toWhitePovEval(r.evalCp, sideToMoveForPly(ply))
+	);
+
+	const wdlPerPly = results.map((r, ply) =>
+		r.wdl ? toWhitePovWdl(r.wdl, sideToMoveForPly(ply)) : null
+	);
+
+	const bestMoves: Record<number, Move & { san: string }> = {};
+	results.forEach((r, ply) => {
+		if (ply === positions.length - 1 || r.bestMoveUci.length < 4) return;
+		const from = r.bestMoveUci.slice(0, 2);
+		const to = r.bestMoveUci.slice(2, 4);
+		bestMoves[ply + 1] = { from, to, san: moveToSan(positions[ply], { from, to }) };
+	});
+
+	return { evalPerPly, bestMoves, wdlPerPly };
+}
 ```
 
-Update the `<EvalGraph ... />` call:
+- [ ] **Step 4: Run tests to verify they pass**
 
-```svelte
-			<EvalGraph {evalPerPly} {classCodes} {ply} height={66} />
-```
+Run: `pnpm exec vitest run src/lib/game/engine-analysis.test.ts`
+Expected: PASS — all tests green, including the full pre-existing suite (the existing mocked `analyzeFen` results in those tests never include a `wdl` field, so `r.wdl` is `undefined`, which is falsy — every pre-existing test's `wdlPerPly` comes back all-`null` automatically, with zero changes needed to those tests' bodies).
 
-- [ ] **Step 6: Update `BottomBar.svelte`**
-
-Replace the `<script>` block:
-
-```svelte
-<script lang="ts">
-	import type { ClassCode } from '$lib/types';
-	import EvalGraph from './EvalGraph.svelte';
-	import NavControls from './NavControls.svelte';
-
-	interface Props {
-		ply: number;
-		evalPerPly: number[];
-		classCodes: ClassCode[];
-		onFirst: () => void;
-		onPrev: () => void;
-		onNext: () => void;
-		onLast: () => void;
-		analyzing?: boolean;
-	}
-
-	let { ply, evalPerPly, classCodes, onFirst, onPrev, onNext, onLast, analyzing = false }: Props = $props();
-</script>
-```
-
-Update the `<EvalGraph ... />` call:
-
-```svelte
-			<EvalGraph {evalPerPly} {classCodes} {ply} height={62} />
-```
-
-- [ ] **Step 7: Update `ReviewPanel.svelte` to pass `appState.classCodes` down**
-
-Modify the `<ReviewTab ... />` call in `src/lib/components/ReviewPanel.svelte`:
-
-```svelte
-	<ReviewTab
-		ply={appState.ply}
-		evalPerPly={appState.evalPerPly}
-		classCodes={appState.classCodes}
-		analyzing={appState.analysisStatus === 'loading'}
-	/>
-```
-
-Modify the `<BottomBar ... />` call:
-
-```svelte
-		<BottomBar
-			ply={appState.ply}
-			evalPerPly={appState.evalPerPly}
-			classCodes={appState.classCodes}
-			onFirst={() => goToPly(0)}
-			onPrev={() => stepPly(-1)}
-			onNext={() => stepPly(1)}
-			onLast={() => goToPly(getMaxPly())}
-			analyzing={appState.analysisStatus === 'loading'}
-		/>
-```
-
-- [ ] **Step 8: Run tests to verify they pass**
-
-Run: `pnpm exec vitest run src/lib/components/ReviewTab.test.ts src/lib/components/BottomBar.test.ts`
-Expected: PASS — all green.
-
-- [ ] **Step 9: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/components/ReviewPanel.svelte src/lib/components/ReviewTab.svelte src/lib/components/ReviewTab.test.ts src/lib/components/BottomBar.svelte src/lib/components/BottomBar.test.ts
-git commit -m "feat: eval graph (ReviewTab/BottomBar) renders real per-move classification"
+git add src/lib/game/engine-analysis.ts src/lib/game/engine-analysis.test.ts
+git commit -m "feat: loadRealAnalysis produces White-POV wdlPerPly alongside evalPerPly"
 ```
 
 ---

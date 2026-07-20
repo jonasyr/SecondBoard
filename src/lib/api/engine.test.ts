@@ -12,7 +12,8 @@ describe('analyzeFen', () => {
 			evalCp: 34,
 			isMate: false,
 			bestMoveUci: 'e2e4',
-			pv: ['e2e4', 'e7e5']
+			pv: ['e2e4', 'e7e5'],
+			wdl: [500, 400, 100]
 		});
 
 		const result = await analyzeFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1');
@@ -22,5 +23,20 @@ describe('analyzeFen', () => {
 		});
 		expect(result.bestMoveUci).toBe('e2e4');
 		expect(result.evalCp).toBe(34);
+		expect(result.wdl).toEqual([500, 400, 100]);
+	});
+
+	it('passes through a null wdl when the engine did not report one', async () => {
+		invoke.mockResolvedValue({
+			evalCp: 34,
+			isMate: false,
+			bestMoveUci: 'e2e4',
+			pv: [],
+			wdl: null
+		});
+
+		const result = await analyzeFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1');
+
+		expect(result.wdl).toBeNull();
 	});
 });

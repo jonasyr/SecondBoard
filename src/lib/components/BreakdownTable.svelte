@@ -1,15 +1,21 @@
 <script lang="ts">
-	import { BREAKDOWN_ROWS } from '$lib/game/mock-data';
+	import type { BreakdownRow } from '$lib/game/breakdown';
 	import { TOKENS } from '$lib/tokens';
 	import ClassBadge from './ClassBadge.svelte';
+
+	interface Props {
+		rows: BreakdownRow[];
+	}
+
+	let { rows }: Props = $props();
 </script>
 
 <div class="breakdown">
-	{#each BREAKDOWN_ROWS as [code, white, black] (code)}
+	{#each rows as [code, white, black] (code)}
 		<div class="row">
 			<span class="name">{TOKENS.classification[code].name}</span>
 			<span class="count sbmono" style={`color:${TOKENS.classification[code].color};`}>{white}</span>
-			<div class="badge-col"><ClassBadge classCode={code} size={21} useDarkFg /></div>
+			<div class="badge-col"><ClassBadge classCode={code} size={21} /></div>
 			<span class="count sbmono" style={`color:${TOKENS.classification[code].color};`}>{black}</span>
 		</div>
 	{/each}
