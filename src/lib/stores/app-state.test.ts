@@ -264,6 +264,28 @@ describe('real analysis loading', () => {
 		expect(appState.classCodes).toEqual(['best']);
 	});
 
+	it('populates wdlPerPly from real analysis once it is ready, and resets it to [] on a fresh parse', async () => {
+		let resolveAnalysis!: (v: {
+			evalPerPly: number[];
+			bestMoves: Record<number, never>;
+			wdlPerPly: Array<[number, number, number] | null>;
+		}) => void;
+		loadRealAnalysis.mockReturnValue(
+			new Promise((resolve) => {
+				resolveAnalysis = resolve;
+			})
+		);
+
+		await startReview();
+		expect(appState.wdlPerPly).toEqual([]);
+
+		resolveAnalysis({ evalPerPly: [0, 1], bestMoves: {}, wdlPerPly: [[500, 400, 100], null] });
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(appState.wdlPerPly).toEqual([[500, 400, 100], null]);
+	});
+
 	it('leaves classCodes empty (not fabricated) when loadRealAnalysis rejects', async () => {
 		loadRealAnalysis.mockRejectedValue(new Error('engine offline'));
 
