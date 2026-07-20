@@ -106,7 +106,7 @@ describe('loadRealAnalysis', () => {
 	});
 
 	it('produces one wdlPerPly entry per position, flipped to White POV', async () => {
-		analyzeFen.mockImplementation(async (fen: string) => ({
+		analyzeFen.mockImplementation(async () => ({
 			evalCp: 0,
 			isMate: false,
 			bestMoveUci: 'e2e4',
