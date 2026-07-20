@@ -104,4 +104,28 @@ describe('loadRealAnalysis', () => {
 			expect(evalPerPly[ply]).toBeCloseTo((expectedFullmove / 100) * expectedSign);
 		});
 	});
+
+	it('produces one wdlPerPly entry per position, flipped to White POV', async () => {
+		analyzeFen.mockImplementation(async (fen: string) => ({
+			evalCp: 0,
+			isMate: false,
+			bestMoveUci: 'e2e4',
+			pv: [],
+			wdl: [600, 300, 100] // side-to-move POV, favorable for whoever is to move
+		}));
+
+		const { wdlPerPly } = await loadRealAnalysis(testPositions);
+
+		expect(wdlPerPly).toHaveLength(testPositions.length);
+		expect(wdlPerPly[0]).toEqual([600, 300, 100]); // ply 0: White to move, so no flip
+		expect(wdlPerPly[1]).toEqual([100, 300, 600]); // ply 1: Black to move, so w/l swap to White POV
+	});
+
+	it('reports null wdlPerPly entries for positions where the engine did not report wdl', async () => {
+		analyzeFen.mockResolvedValue({ evalCp: 0, isMate: false, bestMoveUci: 'e2e4', pv: [], wdl: null });
+
+		const { wdlPerPly } = await loadRealAnalysis(testPositions);
+
+		expect(wdlPerPly.every((w) => w === null)).toBe(true);
+	});
 });
