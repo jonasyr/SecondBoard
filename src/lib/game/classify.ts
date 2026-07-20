@@ -35,7 +35,7 @@ const BRILLIANT_MIN_WIN = 50;
 const BRILLIANT_NOT_WINNING = 97;
 const BRILLIANT_MIN_SACRIFICE_VALUE = 3;
 const GREAT_ONLY_MOVE_GAP = 20;
-const GREAT_NOT_ALREADY_DECIDED = 97; // recalibrated in Task 4 of this same plan
+const GREAT_NOT_ALREADY_DECIDED = 99;
 const MISS_WIN_BEFORE = 80;
 const MISS_WIN_AFTER = 55;
 

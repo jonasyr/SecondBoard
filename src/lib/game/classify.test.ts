@@ -197,8 +197,9 @@ describe('classifyGame with special classes', () => {
 
 	it('does not classify an only-move gap as great when the position was already decisively won', () => {
 		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
-			[970, 20, 10], // ply 0: White win% (970+10)/10 = 98 -- already decisively winning
-			[970, 20, 10] // ply 1: unchanged
+			[990, 5, 5], // ply 0: White win% (990+2.5)/10 = 99.25 -- decisively won even under the
+			// raised (99) "already decided" threshold
+			[990, 5, 5]
 		];
 		const secondWdlPerPly: (import('./accuracy').Wdl | null)[] = [
 			[500, 400, 100], // ply 0's second PV line: White win% (500+200)/10 = 70 -> gap of 28,
@@ -223,6 +224,42 @@ describe('classifyGame with special classes', () => {
 		});
 
 		expect(codes[0]).not.toBe('great');
+	});
+
+	it('classifies an only-move gap as great in a clearly-but-not-decisively winning position', () => {
+		// beforePov = 98 -- clearly better for the mover, ABOVE Iteration 11's 97 threshold
+		// (which would wrongly block this) but BELOW the raised 99 threshold (which correctly
+		// allows it). This is exactly the gap Iteration 11's 97 threshold over-corrected: it
+		// silently swallowed a real Great, matching the app's own reported under-firing after
+		// that iteration -- this test must fail under the OLD 97 value and pass under the NEW
+		// 99 value, not pass under both (a beforePov like 90 would pass under both and not
+		// actually exercise this fix).
+		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
+			[960, 40, 0], // ply 0: White win% (960+20)/10 = 98
+			[960, 40, 0]
+		];
+		const secondWdlPerPly: (import('./accuracy').Wdl | null)[] = [
+			[500, 400, 100], // ply 0's second PV line: White win% (500+200)/10 = 70 -> gap of 20
+			null
+		];
+		const evalPerPly = [0, 0];
+		const positions: Position[] = [
+			{ e1: ['K', 'w'], e8: ['K', 'b'] },
+			{ e1: ['K', 'w'], e8: ['K', 'b'] }
+		];
+		const moveMeta: Move[] = [{ from: 'e1', to: 'e2' }];
+		const bestMoves: Record<number, Move & { san: string }> = {
+			1: { from: 'e1', to: 'e2', san: 'Ke2' }
+		};
+
+		const codes = classifyGame(evalPerPly, wdlPerPly, {
+			positions,
+			moveMeta,
+			bestMoves,
+			secondWdlPerPly
+		});
+
+		expect(codes[0]).toBe('great');
 	});
 
 	it('classifies a failure to punish a winning position as miss', () => {
