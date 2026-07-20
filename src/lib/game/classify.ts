@@ -32,7 +32,8 @@ import { isMaterialSacrifice } from './material';
  * 0-100 win%-points scale (the blueprint's own numbers are on a 0-1 scale). */
 const BRILLIANT_MIN_WIN = 50;
 const BRILLIANT_NOT_WINNING = 97;
-const GREAT_ONLY_MOVE_GAP = 10;
+const GREAT_ONLY_MOVE_GAP = 20;
+const GREAT_NOT_ALREADY_DECIDED = 97;
 const MISS_WIN_BEFORE = 80;
 const MISS_WIN_AFTER = 55;
 
@@ -180,7 +181,7 @@ function classifySpecial(
 		return 'brilliant';
 	}
 
-	if (playedIsBest) {
+	if (playedIsBest && beforePov < GREAT_NOT_ALREADY_DECIDED) {
 		const secondPov = secondLineWinPercent(ply - 1, special.secondEvalPerPly, special.secondWdlPerPly);
 		if (secondPov !== null) {
 			const secondMoverPov = mover === 'w' ? secondPov : 100 - secondPov;

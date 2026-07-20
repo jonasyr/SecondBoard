@@ -232,6 +232,36 @@ describe('classifyGame with special classes', () => {
 		expect(codes).toEqual(['great']);
 	});
 
+	it('does not classify an only-move gap as great when the position was already decisively won', () => {
+		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
+			[970, 20, 10], // ply 0: White win% (970+10)/10 = 98 -- already decisively winning
+			[970, 20, 10] // ply 1: unchanged
+		];
+		const secondWdlPerPly: (import('./accuracy').Wdl | null)[] = [
+			[500, 400, 100], // ply 0's second PV line: White win% (500+200)/10 = 70 -> gap of 28,
+			// which WOULD clear the (now-raised) 20-point bar on its own
+			null
+		];
+		const evalPerPly = [0, 0];
+		const positions: Position[] = [
+			{ e1: ['K', 'w'], e8: ['K', 'b'] },
+			{ e1: ['K', 'w'], e8: ['K', 'b'] }
+		];
+		const moveMeta: Move[] = [{ from: 'e1', to: 'e2' }];
+		const bestMoves: Record<number, Move & { san: string }> = {
+			1: { from: 'e1', to: 'e2', san: 'Ke2' }
+		};
+
+		const codes = classifyGame(evalPerPly, wdlPerPly, {
+			positions,
+			moveMeta,
+			bestMoves,
+			secondWdlPerPly
+		});
+
+		expect(codes[0]).not.toBe('great');
+	});
+
 	it('classifies a failure to punish a winning position as miss', () => {
 		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
 			[850, 100, 50], // ply 0: White win% (850+50)/10 = 90 (mover POV, above the 80 miss-before threshold)
