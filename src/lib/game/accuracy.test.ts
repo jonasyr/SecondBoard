@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { winPercentFromEval, computeGameAccuracy, resolveWinner, estimatePerformanceRating } from './accuracy';
+import { winPercentFromEval, winPercentFromWdl, winPercentForPly, computeGameAccuracy, resolveWinner, estimatePerformanceRating } from './accuracy';
 
 describe('winPercentFromEval', () => {
 	it('is exactly 50 at a dead-even eval', () => {
@@ -24,6 +24,63 @@ describe('winPercentFromEval', () => {
 
 	it('matches the exact spec value at +1 pawn', () => {
 		expect(winPercentFromEval(1)).toBeCloseTo(59.102589719161294, 9);
+	});
+});
+
+describe('winPercentFromWdl', () => {
+	it('matches the blueprint\'s own worked example: wdl 500 400 100 -> 70', () => {
+		expect(winPercentFromWdl([500, 400, 100])).toBe(70);
+	});
+
+	it('is 100 for a certain win and 0 for a certain loss', () => {
+		expect(winPercentFromWdl([1000, 0, 0])).toBe(100);
+		expect(winPercentFromWdl([0, 0, 1000])).toBe(0);
+	});
+
+	it('is 50 for a certain draw', () => {
+		expect(winPercentFromWdl([0, 1000, 0])).toBe(50);
+	});
+});
+
+describe('winPercentForPly', () => {
+	it('prefers the WDL-derived win% when a real entry is present for this ply', () => {
+		const evalPerPly = [0, 1];
+		const wdlPerPly: Array<[number, number, number] | null> = [[500, 400, 100], null];
+		expect(winPercentForPly(0, evalPerPly, wdlPerPly)).toBe(70);
+	});
+
+	it('falls back to the eval sigmoid when wdlPerPly has no entry for this ply', () => {
+		const evalPerPly = [0, 1];
+		const wdlPerPly: Array<[number, number, number] | null> = [[500, 400, 100], null];
+		expect(winPercentForPly(1, evalPerPly, wdlPerPly)).toBeCloseTo(winPercentFromEval(1), 9);
+	});
+
+	it('falls back to the eval sigmoid when wdlPerPly is omitted entirely', () => {
+		const evalPerPly = [0, 1];
+		expect(winPercentForPly(0, evalPerPly)).toBe(winPercentFromEval(0));
+		expect(winPercentForPly(1, evalPerPly)).toBeCloseTo(winPercentFromEval(1), 9);
+	});
+});
+
+describe('computeGameAccuracy with WDL', () => {
+	it('produces the exact same result as before when wdlPerPly is omitted (no regression)', () => {
+		// Locks in the pre-existing exact value from this file's own
+		// "penalizes a mover..." test above -- passing no wdlPerPly must not
+		// change a single digit of the output.
+		const { white, black } = computeGameAccuracy([0, -3, -3.2, -8, -8.5]);
+		expect(white).toBeCloseTo(37.3255159268525, 9);
+		expect(black).toBe(100);
+	});
+
+	it('uses the WDL-derived win% for a ply that has one, changing the result vs. eval-only', () => {
+		const evalPerPly = [0, -3];
+		const withoutWdl = computeGameAccuracy(evalPerPly);
+		// A wdl reporting White as far more lost than the eval sigmoid implies
+		// (eval -3 pawns alone) should pull White's accuracy down further.
+		const wdlPerPly: Array<[number, number, number] | null> = [[500, 400, 100], [0, 0, 1000]];
+		const withWdl = computeGameAccuracy(evalPerPly, wdlPerPly);
+		expect(withWdl.white).not.toBeCloseTo(withoutWdl.white!, 6);
+		expect(withWdl.white!).toBeLessThan(withoutWdl.white!);
 	});
 });
 

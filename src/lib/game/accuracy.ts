@@ -23,6 +23,38 @@ export function winPercentFromEval(evalPawns: number): number {
 	return 100 / (1 + Math.exp(-0.00368208 * cp));
 }
 
+/** Win/draw/loss per-mille (`w + d + l = 1000`), always stored White-POV in
+ * this codebase — exactly like `evalPerPly` is White-POV pawns — so every
+ * consumer applies the same mover-POV flip (`mover === 'w' ? x : 100 - x`)
+ * uniformly regardless of whether a given ply's win% came from WDL or the
+ * eval sigmoid. Raw engine WDL is side-to-move POV; engine-analysis.ts's
+ * `toWhitePovWdl` is the one place that converts. */
+export type Wdl = readonly [w: number, d: number, l: number];
+
+/** Stockfish's own WDL model, converted to a White-POV win percentage
+ * (blueprint §3.2: `ExpScore = (w + 0.5*d)/1000`, expressed here on the
+ * 0-100 scale to match `winPercentFromEval`'s scale exactly). */
+export function winPercentFromWdl(wdl: Wdl): number {
+	return (wdl[0] + 0.5 * wdl[1]) / 10;
+}
+
+/** The one place that decides "WDL if the engine reported it for this ply,
+ * else the eval sigmoid" -- both `computeGameAccuracy` and `classify.ts`'s
+ * `classifyGame` call this instead of `winPercentFromEval` directly, so a
+ * future ply-level data source only needs to be taught to this function
+ * once. `wdlPerPly` is optional and index-aligned with `evalPerPly`; when
+ * omitted, or when this ply's entry is missing/null, behavior is identical
+ * to calling `winPercentFromEval` directly (byte-for-byte, existing
+ * behavior is fully preserved for engine builds/positions without WDL). */
+export function winPercentForPly(
+	ply: number,
+	evalPerPly: number[],
+	wdlPerPly?: (Wdl | null)[]
+): number {
+	const wdl = wdlPerPly?.[ply];
+	return wdl ? winPercentFromWdl(wdl) : winPercentFromEval(evalPerPly[ply]);
+}
+
 /** Population standard deviation (`Maths.standardDeviation` — lichess's own
  * comment: "using population variance", https://www.scribbr.com/statistics/standard-deviation/). */
 function standardDeviation(xs: number[]): number {
@@ -83,11 +115,11 @@ export interface GameAccuracy {
  * both) when there isn't enough data yet (e.g. analysis hasn't completed)
  * rather than a misleading number.
  */
-export function computeGameAccuracy(evalPerPly: number[]): GameAccuracy {
+export function computeGameAccuracy(evalPerPly: number[], wdlPerPly?: (Wdl | null)[]): GameAccuracy {
 	const plyCount = evalPerPly.length;
 	if (plyCount < 2) return { white: null, black: null };
 
-	const winPercents = evalPerPly.map(winPercentFromEval);
+	const winPercents = evalPerPly.map((_, ply) => winPercentForPly(ply, evalPerPly, wdlPerPly));
 	const moveCount = plyCount - 1;
 	const windowSize = Math.min(8, Math.max(2, Math.floor(moveCount / 10)));
 
