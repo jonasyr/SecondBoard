@@ -1,118 +1,125 @@
-## Task 6: `engine-analysis.ts` — produce `wdlPerPly` (White-POV) from real analysis
+### Task 6: Wire the special-class inputs through `app-state.svelte.ts`
 
 **Files:**
-- Modify: `src/lib/game/engine-analysis.ts`
-- Modify: `src/lib/game/engine-analysis.test.ts`
+- Modify: `src/lib/stores/app-state.svelte.ts`
+- Test: `src/lib/stores/app-state.test.ts` (exists — read it first with `get_symbols_overview`/`find_symbol` to confirm its exact current assertions on `defaultState`/`startReview`/`refreshRealAnalysis` before editing, since adding two new `AppState` fields may touch an existing "matches the default state shape" style assertion there).
 
 **Interfaces:**
-- Consumes: `AnalyzeFenResult.wdl: [number, number, number] | null` (Task 3); `Wdl` type from `./accuracy` (Task 4).
-- Produces: `RealAnalysis.wdlPerPly: (Wdl | null)[]` — consumed by Task 7 (`app-state.svelte.ts`).
+- Consumes: `RealAnalysis.secondEvalPerPly/secondWdlPerPly` (Task 3), `classifyGame(evalPerPly, wdlPerPly?, special?)` (Task 5).
+- Produces: `AppState.secondEvalPerPly: (number | null)[]`, `AppState.secondWdlPerPly: (Wdl | null)[]` (both default `[]`, reset in `startReview`, populated in `refreshRealAnalysis`).
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1: Add the two fields to `AppState` and `defaultState`**
 
-Add to `src/lib/game/engine-analysis.test.ts`, at the end of the `describe('loadRealAnalysis', ...)` block:
-
+Current code:
 ```typescript
-	it('produces one wdlPerPly entry per position, flipped to White POV', async () => {
-		analyzeFen.mockImplementation(async (fen: string) => ({
-			evalCp: 0,
-			isMate: false,
-			bestMoveUci: 'e2e4',
-			pv: [],
-			wdl: [600, 300, 100] // side-to-move POV, favorable for whoever is to move
-		}));
-
-		const { wdlPerPly } = await loadRealAnalysis(testPositions);
-
-		expect(wdlPerPly).toHaveLength(testPositions.length);
-		expect(wdlPerPly[0]).toEqual([600, 300, 100]); // ply 0: White to move, so no flip
-		expect(wdlPerPly[1]).toEqual([100, 300, 600]); // ply 1: Black to move, so w/l swap to White POV
-	});
-
-	it('reports null wdlPerPly entries for positions where the engine did not report wdl', async () => {
-		analyzeFen.mockResolvedValue({ evalCp: 0, isMate: false, bestMoveUci: 'e2e4', pv: [], wdl: null });
-
-		const { wdlPerPly } = await loadRealAnalysis(testPositions);
-
-		expect(wdlPerPly.every((w) => w === null)).toBe(true);
-	});
-```
-
-- [ ] **Step 2: Run tests to verify they fail**
-
-Run: `pnpm exec vitest run src/lib/game/engine-analysis.test.ts`
-Expected: FAIL — `wdlPerPly` is `undefined` on the returned object (property doesn't exist yet).
-
-- [ ] **Step 3: Implement in `src/lib/game/engine-analysis.ts`**
-
-Replace the top-of-file imports:
-
-```typescript
-import type { Move, Position, PieceColor } from '$lib/board/types';
-import type { Wdl } from './accuracy';
-import { analyzeFen } from '$lib/api/engine';
-import { positionToFen, sideToMoveForPly, fullmoveNumberForPly, moveToSan } from './notation';
-```
-
-Update `RealAnalysis`:
-
-```typescript
-export interface RealAnalysis {
+export interface AppState {
+	screen: Screen;
+	ply: number;
+	tab: Tab;
+	flipped: boolean;
+	sidebarCollapsed: boolean;
+	gameLoaded: boolean;
+	pgnText: string;
+	showLines: boolean;
+	selfAnalysis: boolean;
 	evalPerPly: number[];
 	bestMoves: Record<number, Move & { san: string }>;
+	classCodes: ClassCode[];
 	wdlPerPly: (Wdl | null)[];
+	analysisStatus: 'idle' | 'loading' | 'ready' | 'error';
+	game: GameData | null;
+	parseError: string | null;
 }
 ```
-
-Add a new pure helper right after the existing `toWhitePovEval` function:
-
+Add after `wdlPerPly: (Wdl | null)[];`:
 ```typescript
-/** Stockfish's WDL is relative to the side to move at the analyzed FEN, exactly
- * like its cp score -- flip win/loss (draw is symmetric) to White's POV so it
- * matches `evalPerPly`'s convention and can be indexed identically. */
-function toWhitePovWdl(wdl: [number, number, number], sideToMove: PieceColor): Wdl {
-	return sideToMove === 'w' ? wdl : [wdl[2], wdl[1], wdl[0]];
-}
+	secondEvalPerPly: (number | null)[];
+	secondWdlPerPly: (Wdl | null)[];
 ```
 
-Modify `loadRealAnalysis`'s body to compute and return `wdlPerPly`:
-
+Current `defaultState`:
 ```typescript
-export async function loadRealAnalysis(positions: Position[]): Promise<RealAnalysis> {
-	const results = await mapWithConcurrency(positions, ANALYSIS_CONCURRENCY, (position, ply) =>
-		analyzeFen(positionToFen(position, sideToMoveForPly(ply), fullmoveNumberForPly(ply)))
-	);
+	classCodes: [],
+	wdlPerPly: [],
+	analysisStatus: 'idle',
+```
+Add after `wdlPerPly: [],`:
+```typescript
+	secondEvalPerPly: [],
+	secondWdlPerPly: [],
+```
 
-	const evalPerPly = results.map((r, ply) =>
-		toWhitePovEval(r.evalCp, sideToMoveForPly(ply))
-	);
+- [ ] **Step 2: Reset the new fields in `startReview`**
 
-	const wdlPerPly = results.map((r, ply) =>
-		r.wdl ? toWhitePovWdl(r.wdl, sideToMoveForPly(ply)) : null
-	);
+Current code in `startReview`:
+```typescript
+		appState.classCodes = [];
+		appState.wdlPerPly = [];
+		appState.analysisStatus = 'idle';
+```
+Replace with:
+```typescript
+		appState.classCodes = [];
+		appState.wdlPerPly = [];
+		appState.secondEvalPerPly = [];
+		appState.secondWdlPerPly = [];
+		appState.analysisStatus = 'idle';
+```
 
-	const bestMoves: Record<number, Move & { san: string }> = {};
-	results.forEach((r, ply) => {
-		if (ply === positions.length - 1 || r.bestMoveUci.length < 4) return;
-		const from = r.bestMoveUci.slice(0, 2);
-		const to = r.bestMoveUci.slice(2, 4);
-		bestMoves[ply + 1] = { from, to, san: moveToSan(positions[ply], { from, to }) };
-	});
+- [ ] **Step 3: Populate the new fields and pass `special` into `classifyGame` in `refreshRealAnalysis`**
 
-	return { evalPerPly, bestMoves, wdlPerPly };
+Current code:
+```typescript
+async function refreshRealAnalysis(): Promise<void> {
+	appState.analysisStatus = 'loading';
+	try {
+		const { evalPerPly, bestMoves, wdlPerPly } = await loadRealAnalysis(appState.game!.positions);
+		appState.evalPerPly = evalPerPly;
+		appState.bestMoves = bestMoves;
+		appState.wdlPerPly = wdlPerPly;
+		appState.classCodes = classifyGame(evalPerPly, wdlPerPly);
+		appState.analysisStatus = 'ready';
+	} catch {
+		appState.analysisStatus = 'error';
+	}
+}
+```
+Replace with:
+```typescript
+async function refreshRealAnalysis(): Promise<void> {
+	appState.analysisStatus = 'loading';
+	try {
+		const { evalPerPly, bestMoves, wdlPerPly, secondEvalPerPly, secondWdlPerPly } =
+			await loadRealAnalysis(appState.game!.positions);
+		appState.evalPerPly = evalPerPly;
+		appState.bestMoves = bestMoves;
+		appState.wdlPerPly = wdlPerPly;
+		appState.secondEvalPerPly = secondEvalPerPly;
+		appState.secondWdlPerPly = secondWdlPerPly;
+		appState.classCodes = classifyGame(evalPerPly, wdlPerPly, {
+			positions: appState.game!.positions,
+			moveMeta: appState.game!.moveMeta,
+			bestMoves,
+			secondEvalPerPly,
+			secondWdlPerPly
+		});
+		appState.analysisStatus = 'ready';
+	} catch {
+		appState.analysisStatus = 'error';
+	}
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [ ] **Step 4: Run the full frontend suite to confirm nothing regressed**
 
-Run: `pnpm exec vitest run src/lib/game/engine-analysis.test.ts`
-Expected: PASS — all tests green, including the full pre-existing suite (the existing mocked `analyzeFen` results in those tests never include a `wdl` field, so `r.wdl` is `undefined`, which is falsy — every pre-existing test's `wdlPerPly` comes back all-`null` automatically, with zero changes needed to those tests' bodies).
+Run: `rtk proxy pnpm exec vitest run`
+Expected: PASS (every existing test file, since `AppState`'s new fields are purely additive and every changed call site still provides all required arguments).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/game/engine-analysis.ts src/lib/game/engine-analysis.test.ts
-git commit -m "feat: loadRealAnalysis produces White-POV wdlPerPly alongside evalPerPly"
+git add src/lib/stores/app-state.svelte.ts
+git commit -m "feat(app-state): thread the engine's second PV line into classifyGame's special-class inputs"
 ```
 
 ---

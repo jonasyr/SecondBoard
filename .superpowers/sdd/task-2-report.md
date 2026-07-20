@@ -1,84 +1,95 @@
-# Task 2 Report: Expose WDL through analyze_fen Tauri Command
+# Task 2 Report: Thread Second PV Line Through Tauri IPC and TypeScript API Layer
 
-## Implementation Summary
+## Status
+**DONE** ✓
 
-Successfully implemented Task 2 of the Stockfish WDL support feature. The task involved threading the `wdl: Option<(u32, u32, u32)>` field from `EngineAnalysis` (populated in Task 1) through the `AnalyzeFenResult` struct and its `From` impl, exposing WDL data through the `analyze_fen` Tauri command boundary.
+## Commit Hash
+`e66b502` - "feat(engine): surface the second MultiPV line through analyze_fen and its TS type"
 
-## Changes Made
+## Implementation Details
 
-File modified: `src-tauri/src/lib.rs`
+### Rust Changes (`src-tauri/src/lib.rs`)
 
-### 1. Added `wdl` field to `AnalyzeFenResult` struct (line 11)
-```rust
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct AnalyzeFenResult {
-    eval_cp: i32,
-    is_mate: bool,
-    best_move_uci: String,
-    pv: Vec<String>,
-    wdl: Option<(u32, u32, u32)>,  // NEW FIELD
-}
-```
+**Step 1: Updated `AnalyzeFenResult` struct**
+- Added three new fields to the struct:
+  - `second_eval_cp: Option<i32>` — evaluation in centipawns for second PV line (nullable)
+  - `second_is_mate: bool` — mate status for second PV line
+  - `second_wdl: Option<(u32, u32, u32)>` — Win/Draw/Loss stats for second PV line (nullable)
+- Applied `#[serde(rename_all = "camelCase")]` consistently across all fields
 
-### 2. Updated `From<engine::EngineAnalysis>` impl (lines 13-22)
-Added `wdl: a.wdl` to the struct initialization:
-```rust
-impl From<engine::EngineAnalysis> for AnalyzeFenResult {
-    fn from(a: engine::EngineAnalysis) -> Self {
-        AnalyzeFenResult {
-            eval_cp: a.eval_cp,
-            is_mate: a.is_mate,
-            best_move_uci: a.best_move_uci,
-            pv: a.pv,
-            wdl: a.wdl,  // NEW FIELD
-        }
-    }
-}
-```
+**Step 2: Updated `From<engine::EngineAnalysis>` impl**
+- Mapped the three new fields from the `EngineAnalysis` source:
+  - `second_eval_cp: a.second_eval_cp`
+  - `second_is_mate: a.second_is_mate`
+  - `second_wdl: a.second_wdl`
 
-### 3. Added test case (lines 86-96)
-Added `analyze_fen_result_carries_the_engines_wdl_field` test to verify the `wdl` field is properly carried through from the engine analysis.
+**Step 3: Added new test**
+- Added `analyze_fen_result_carries_the_engines_second_pv_line()` in `mod analyze_fen_tests`
+- Test verifies that `AnalyzeFenResult.second_eval_cp.is_some()` when Stockfish successfully analyzes the starting position
+- Mirrors the structure of existing WDL test, handles engine-not-found gracefully
+
+### TypeScript Changes (`src/lib/api/engine.ts`)
+
+**Step 4: Updated `AnalyzeFenResult` interface**
+- Added three new fields matching Rust naming (camelCase):
+  - `secondEvalCp: number | null`
+  - `secondIsMate: boolean`
+  - `secondWdl: [number, number, number] | null`
+- Type-only change; no functional code affected
 
 ## Test Results
 
-### Step 2: Failing Test (Before Implementation)
+### Rust Test Suite
 ```
-cd src-tauri && cargo test analyze_fen_tests
-error[E0609]: no field `wdl` on type `AnalyzeFenResult`
-  --> src/lib.rs:91:32
-   |
-91 |                 assert!(result.wdl.is_some());
-   |                                ^^^ unknown field
-   |
-   = note: available fields are: `eval_cp`, `is_mate`, `best_move_uci`, `pv`
+cd src-tauri && rtk cargo test
+cargo test: 38 passed (3 suites, 2.36s)
 ```
-**Status: FAILED (expected)**
+All tests pass, including:
+- `analyze_fen_command_delegates_to_the_engine_module` ✓
+- `analyze_fen_result_carries_the_engines_wdl_field` ✓
+- **`analyze_fen_result_carries_the_engines_second_pv_line` ✓ (NEW)**
+- All PGN parser tests ✓
+- All other engine module tests ✓
 
-### Step 4: Full Test Suite (After Implementation)
+### TypeScript Test Suite
 ```
-cd src-tauri && cargo test
-cargo test: 34 passed (3 suites, 1.62s)
+rtk proxy pnpm exec vitest run src/lib/api/engine.test.ts
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  18:17:04
+   Duration  757ms (transform 30ms, setup 0ms, import 52ms, tests 5ms, environment 573ms)
 ```
-**Status: PASSED**
-
-All tests including the new `analyze_fen_result_carries_the_engines_wdl_field` test pass successfully.
-
-## Commit
-
-```
-9a76d23 feat: expose engine WDL through the analyze_fen Tauri command
-```
-
-Commit message matches the specification exactly.
+- No TypeScript tests needed to modify (as noted in brief — mocks only assert on individual fields)
+- Both existing tests pass unchanged ✓
 
 ## Self-Review
 
-✓ Test-first approach: Wrote the failing test before implementing the feature  
-✓ Exact implementation: Followed the brief's code specifications precisely  
-✓ All tests pass: Full cargo test suite (34 tests) passes without errors  
-✓ Proper serialization: `wdl: Option<(u32, u32, u32)>` serializes to JSON array or null via `#[serde(rename_all = "camelCase")]`  
-✓ Type safety: No unchecked conversions; field properly threaded from engine to Tauri boundary  
-✓ Commit message: Exact match to specification  
+✓ **Correctness**: All fields correctly map from `engine::EngineAnalysis` to `AnalyzeFenResult` via the `From` impl. Nullability patterns match source (`Option<i32>` for eval, `Option<(u32, u32, u32)>` for WDL).
 
-The implementation is complete and ready for Task 3 (TypeScript/frontend integration).
+✓ **Type Safety**: Rust types are properly serialized with `camelCase` serde rename. TypeScript interface matches the serialized JSON structure exactly.
+
+✓ **Testing**: New Rust test verifies field presence and handles the engine-not-found error case. TypeScript tests remain unaffected, confirming backward compatibility.
+
+✓ **IPC Boundary**: Fields flow correctly through the Tauri invocation:
+  - Rust `AnalyzeFenResult` (serialized) → JSON IPC → TypeScript `AnalyzeFenResult` (deserialized)
+  - Serde `camelCase` rename handles naming convention conversion
+
+✓ **Consistency**: Follows existing patterns:
+  - Same test structure as WDL test (conditional on engine availability)
+  - Same nullable/non-nullable patterns as primary PV fields
+  - Same field naming conventions (Rust snake_case + serde rename, TS camelCase)
+
+## Files Modified
+- `src-tauri/src/lib.rs` — 20 lines added (struct fields, From impl, test)
+- `src/lib/api/engine.ts` — 3 lines added (type fields)
+
+## Task Completion
+All requirements from brief satisfied:
+- [x] Step 1: Added fields to Rust struct and From impl
+- [x] Step 2: Added new test for second PV line
+- [x] Step 3: Ran Rust test suite (38 passed)
+- [x] Step 4: Updated TypeScript type
+- [x] Step 5: Ran and confirmed TS tests (2 passed)
+- [x] Step 6: Committed with message
+
+No concerns. Ready for review.
