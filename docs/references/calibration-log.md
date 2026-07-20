@@ -41,69 +41,93 @@ this game.
 
 PGN: `docs/references/Kasparov/Game.pgn`
 
-Status: **not yet calibrated.** Used specifically to check whether the
-Byrne–Fischer fix (`docs/superpowers/plans/2026-07-20-value-aware-special-classification.md`)
-overfit to that one game. It did — Brilliant/Great counts and move
-attribution both diverge here.
+Used specifically to check whether the Byrne–Fischer fix
+(`docs/superpowers/plans/2026-07-20-value-aware-special-classification.md`)
+overfit to that one game. It did. The first pass below (`SecondBoard (live
+GUI, pre-fix)`) is from a real `pnpm exec tauri dev` session, screenshotted
+by the user; it necessarily reflects one particular ~1-second-per-move
+Stockfish run and can differ slightly move-to-move from any other run of
+the same engine settings (search is time-bounded, not depth-bounded, so it
+is not perfectly deterministic). To get a *reproducible* basis for
+calibration, a frozen fixture was captured the same way as Game 1's
+(`src/lib/game/fixtures/kasparov-topalov-analysis.json`, one deterministic
+Stockfish pass recorded once) and is what `SecondBoard (frozen fixture,
+post-fix)` below and `classify.kasparov-topalov.test.ts` are checked
+against.
 
-| Category   | chess.com (Kasparov / Topalov) | SecondBoard (Kasparov / Topalov) | Match? |
-|------------|----------------------------------|-------------------------------------|--------|
-| Brilliant  | 5 / 0                            | 6 / 1                               | ❌ 1 extra each side |
-| Great      | 7 / 4                            | 4 / 6                               | ❌ under by 3 (Kasparov), over by 2 (Topalov) |
-| Book       | 6 / 6                            | 0 / 0                               | ❌ same known Book gap as Game 1 |
-| Best       | 15 / 20                          | 16 / 15                             | ~ |
-| Excellent  | 5 / 3                            | 6 / 12                              | ❌ |
-| Good       | 5 / 7                            | 7 / 4                               | ❌ |
-| Inaccuracy | 1 / 0                            | 3 / 2                               | ❌ |
-| Mistake    | 0 / 1                            | 1 / 2                               | ~ |
-| Miss       | 0 / 0                            | 1 / 0                               | ❌ 1 extra false Miss (Kasparov) |
-| Blunder    | 0 / 1                            | 0 / 1                               | ✅ exact |
-| Accuracy   | 98.2 / 92.2                      | 87.6 / 83.5                         | ❌ notably lower on both sides |
-| Game Rating| 3050 / 2750                      | 2359 / 1948                         | ❌ notably lower on both sides |
+Status: **partially calibrated.** Applied one targeted, non-game-specific
+fix this session (see `classify.ts`'s `sacrificeIsCausal` comment):
+`BRILLIANT_CAUSAL_GAP` raised `20` -> `25`, and the SEE-based causal-sacrifice
+check now requires the exposure increase to be at least
+`BRILLIANT_MIN_SACRIFICE_VALUE` (a minor piece, `3`) rather than any nonzero
+delta. This does not chase full parity — see "Remaining known gaps" below.
 
-### Move-by-move Brilliant/Great attribution
+### Move-by-move Brilliant/Great attribution (frozen fixture, post-fix)
 
-| Move            | chess.com        | SecondBoard      | Verdict |
-|-----------------|-------------------|-------------------|---------|
-| 9. Qxh6         | —                 | Great             | ❌ false positive |
-| 20. Ka7         | —                 | Great             | ❌ false positive |
-| 21. Rhe1 & d4   | Great             | —                 | ❌ false negative (two plies) |
-| 22. Nbxd5       | —                 | Brilliant         | ❌ false positive |
-| 23. Qd6         | Great             | Great             | ✅ match |
-| 25. Re7+        | Brilliant         | Brilliant         | ✅ match |
-| 25...Kb6        | Great             | Great             | ✅ match |
-| 26. Kxa5        | —                 | Great             | ❌ false positive |
-| 27. b4+         | Great             | Brilliant         | ❌ over-classified |
-| 27...Ka4        | —                 | Great             | ❌ false positive |
-| 28. Qc3         | Brilliant         | Miss              | ❌ inverted (chess.com's Brilliant scored as our Miss) |
-| 29. Ra7         | Great             | —                 | ❌ false negative |
-| 29...Bb7        | Great             | —                 | ❌ false negative |
-| 30. Rxb7        | Brilliant         | Brilliant         | ✅ match |
-| 31. Qxf6        | —                 | Great             | ❌ false positive |
-| 32. Qxa6+       | Great             | —                 | ❌ false negative |
-| 33. c3+         | Great             | —                 | ❌ false negative (SecondBoard has 33. Kxc3 Great instead — different ply/side) |
-| 34. Qa1+        | Great             | Great             | ✅ match |
-| 35. Qb2+        | Great             | Great             | ✅ match |
-| 36. Bf1         | Brilliant         | Brilliant         | ✅ match |
-| 37. Rd7         | Brilliant         | Brilliant         | ✅ match |
-| 38. Bxc4        | —                 | Brilliant         | ❌ false positive |
+| Move            | chess.com | SecondBoard (frozen fixture, post-fix) | Verdict |
+|-----------------|-----------|------------------------------------------|---------|
+| 9. Qxh6         | —         | Great                                     | ❌ false positive |
+| 20...Ka7        | —         | Great                                     | ❌ false positive |
+| 21. Rhe1        | Great     | —                                          | ❌ false negative |
+| 21...d4         | Great     | —                                          | ❌ false negative |
+| 22...Nbxd5      | —         | —                                          | ✅ fixed this session (was false-positive Brilliant) |
+| 23...Qd6        | Great     | Great                                      | ✅ match |
+| 25. Re7+        | Brilliant | Brilliant                                  | ✅ match |
+| 25...Kb6        | Great     | Great                                      | ✅ match |
+| 26. Qxd4+       | —         | Brilliant                                  | ❌ false positive |
+| 26...Kxa5       | —         | —                                          | (matches: no label either side) |
+| 27. b4+         | Great     | —                                          | ✅ fixed this session (was false-positive Brilliant; still not the correct Great, see gaps) |
+| 27...Ka4        | —         | Great                                      | ❌ false positive |
+| 28. Qc3         | Brilliant | Miss                                       | ❌ inverted |
+| 29. Ra7         | Great     | —                                          | ❌ false negative |
+| 29...Bb7        | Great     | —                                          | ❌ false negative |
+| 30. Rxb7        | Brilliant | Brilliant                                  | ✅ match |
+| 31. Qxf6        | —         | Great                                      | ❌ false positive |
+| 32. Qxa6+       | Great     | —                                          | ❌ false negative |
+| 33. c3+         | Great     | —                                          | ❌ false negative |
+| 33...Kxc3       | —         | Great                                      | ❌ false positive |
+| 34. Qa1+        | Great     | Great                                      | ✅ match |
+| 35. Qb2+        | Great     | Great                                      | ✅ match |
+| 35...Kd1        | —         | Great                                      | ❌ false positive |
+| 36. Bf1         | Brilliant | Brilliant                                  | ✅ match |
+| 37. Rd7         | Brilliant | Brilliant                                  | ✅ match |
+| 38. Bxc4        | —         | Brilliant                                  | ❌ false positive |
 
-Takeaway: 8 of chess.com's 13 special-move plies match exactly (Re7+/Kb6,
-Qd6, Rxb7, Qa1+, Qb2+, Bf1, Rd7). The remaining mismatches cluster around
-two failure modes worth investigating in a follow-up iteration:
+Before/after this session's fix: Brilliant false positives dropped from 4 to
+2 (22...Nbxd5 and 27.b4+ no longer misfire); Great is unchanged (the false
+positive/negative set for Great does not respond to the fixes applied here
+— see below). 8 of chess.com's 16 special-move plies now match exactly
+(Re7+, Kb6, Qd6, Rxb7, Qa1+, Qb2+, Bf1, Rd7).
 
-1. **False positives on ordinary strong moves** (9.Qxh6, 20.Ka7, 22.Nbxd5,
-   26.Kxa5, 27...Ka4, 31.Qxf6, 38.Bxc4) — the current heuristic (moved-piece
-   SEE exposure increased, or best-move + CP gap) appears to over-trigger
-   on moves that create *some* exchange target without it being the kind of
-   deep, only-good-try sacrifice chess.com credits.
-2. **28.Qc3 inverted** (chess.com's Brilliant scored as our Miss) and
-   **21.Rhe1/29.Ra7+Bb7/32.Qxa6+/33.c3+ missed entirely** — these look like
-   genuine "only move preserves the advantage" patterns that either don't
-   expose a hanging piece (so Brilliant's exchange-target gate never fires)
-   or don't clear the current CP-gap thresholds tuned against Game 1.
+### Remaining known gaps (not actioned — documented heuristic limits)
 
-Not yet actioned — recorded here as the baseline for the next calibration
-iteration. Do not add game-specific (PGN/move-text) exceptions to
-production code to force a match; any fix must generalize the same way
-Task 3's `sacrificeIsCausal` gate did for Game 1.
+1. **Brilliant false positives (26.Qxd4+, 38.Bxc4)**: both qualify only
+   through the CP-gap fallback (`playedIsBest` + a large best-vs-second gap),
+   not through genuine SEE exposure. Their gaps (29.3 and 61.8 points) sit on
+   both sides of Game 1's real Be6 brilliancy (28.1 points) — no single
+   threshold separates them without either breaking the Fischer golden
+   fixture or leaving these two uncaught. This is a hard ceiling of a
+   CP-gap-only signal, not a tuning oversight: distinguishing "a declined
+   sacrifice" from "a crushing move in an already-overwhelming position"
+   needs information (e.g. genuine move-tree/motif detection) this heuristic
+   doesn't have.
+2. **Great's false positive/negative rate is high and does not correlate
+   well with the CP gap at all**: several of chess.com's real Great moves in
+   this game have a *near-zero* best-vs-second CP gap (e.g. 27.b4+ at 0.09,
+   32.Qxa6+ at 5.6, 21.Rhe1 at 5.9) while several false positives have large
+   gaps (e.g. 9.Qxh6 at 41.2). Raising or lowering `GREAT_ONLY_MOVE_GAP`
+   cannot fix this — the signal itself is weak for this game. Chess.com's
+   real "only good move" detection evidently isn't reducible to a two-line
+   (MultiPV=2) CP-gap comparison; closing this gap would need a materially
+   different signal (e.g. comparing against more than one alternative, or a
+   dedicated forced-sequence/motif detector), which is out of scope here.
+3. **28.Qc3 inverted** (chess.com's Brilliant scored as our Miss) and the
+   **Book gap** (6/6 on chess.com vs. 0/0 here, same as Game 1) remain
+   unactioned for the same reasons as Game 1.
+
+Do not add game-specific (PGN/move-text) exceptions to production code to
+force a match on this or any other game — any further fix must generalize
+the way this session's `sacrificeIsCausal`/`BRILLIANT_CAUSAL_GAP` change
+did (verified to hold the Fischer golden fixture exactly, see
+`classify.reference-game.test.ts`, while measurably improving this game;
+regression-locked for this game in `classify.kasparov-topalov.test.ts`).

@@ -36,11 +36,20 @@ import { hasPositiveExchangeTarget, staticExchangeGain } from './attacks';
  * the original, higher thresholds fired on persistent-but-uncapitalized-on
  * sacrifices and continuations inside an already-overwhelming position. See
  * `sacrificeIsCausal` below for why a hanging piece alone is not sufficient
- * evidence that THIS move is what created the exposure. */
+ * evidence that THIS move is what created the exposure.
+ *
+ * `BRILLIANT_CAUSAL_GAP` (25, up from 20) was further tuned against a second
+ * reference game (Kasparov-Topalov 1999, see docs/references/calibration-log.md)
+ * that exposed real false positives from the first pass -- see the
+ * calibration log for the two documented, NOT-yet-solvable failure modes
+ * this second pass left in place (Great's weak correlation with CP gap, and
+ * a small number of Brilliant/Great false positives from generically
+ * "strong" moves in a won position that this SEE-only heuristic cannot
+ * distinguish from a genuine only-good-try sacrifice). */
 const BRILLIANT_MIN_WIN = 50;
 const BRILLIANT_NOT_WINNING = 80;
 const BRILLIANT_MIN_SACRIFICE_VALUE = 3;
-const BRILLIANT_CAUSAL_GAP = 20;
+const BRILLIANT_CAUSAL_GAP = 25;
 const GREAT_ONLY_MOVE_GAP = 15;
 const GREAT_NOT_ALREADY_DECIDED = 99;
 const MISS_WIN_BEFORE = 80;
@@ -193,8 +202,14 @@ function classifySpecial(
 			playedMove && beforePosition ? staticExchangeGain(beforePosition, playedMove.from, opponent) : 0;
 		const movedGainAfter =
 			playedMove && afterPosition ? staticExchangeGain(afterPosition, playedMove.to, opponent) : 0;
+		// A one- or two-point SEE wobble (e.g. a pawn-level exchange detail) is
+		// noise, not a genuine new sacrifice -- require at least a minor piece's
+		// worth of newly-created exposure (calibrated against the Kasparov-Topalov
+		// 1999 reference game: 22...Nbxd5 and 27.b4+ both showed a small positive
+		// delta without being real sacrifices, see docs/references/calibration-log.md).
 		const sacrificeIsCausal =
-			movedGainAfter > movedGainBefore || (playedIsBest && cpGap !== null && cpGap >= BRILLIANT_CAUSAL_GAP);
+			movedGainAfter - movedGainBefore >= BRILLIANT_MIN_SACRIFICE_VALUE ||
+			(playedIsBest && cpGap !== null && cpGap >= BRILLIANT_CAUSAL_GAP);
 
 		if (sacrificeIsCausal) return 'brilliant';
 	}
