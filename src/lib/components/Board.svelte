@@ -94,9 +94,9 @@
 				stroke-width="11"
 				stroke-linecap="round"
 				stroke-linejoin="round"
-				opacity="0.82"
+				opacity="0.45"
 			/>
-			<polygon points={arrow.head} fill="#4ADEA0" opacity="0.82" />
+			<polygon points={arrow.head} fill="#4ADEA0" opacity="0.45" />
 		</svg>
 	{/if}
 </div>
