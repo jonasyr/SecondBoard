@@ -148,7 +148,26 @@ function classifySpecial(
 	// on the sacrificing move's own ply, so checking only positions[ply-1] vs positions[ply]
 	// can never see it. Falls back to the same-ply comparison (today's pre-Task-1 behavior)
 	// when the played move was the game's very last ply (positions[ply + 1] doesn't exist).
-	const materialAfter = special.positions[ply + 1] ?? special.positions[ply];
+	const widenedWindow = special.positions[ply + 1];
+	let materialAfter = widenedWindow ?? special.positions[ply];
+
+	// The widened window is causally blind: it just diffs total material balance across the
+	// two plies, so an UNRELATED capture elsewhere on the board (some other piece that was
+	// already hanging for reasons that have nothing to do with this move) would inflate the
+	// swing and wrongly look like a sacrifice caused by this move. Only trust the widened
+	// window when the square this move landed on (`playedMove.to`) no longer holds a piece of
+	// the mover's own color there -- i.e. the mover's own piece was actually captured (or is
+	// otherwise gone) on the square it just moved to, tying the material loss to THIS move's
+	// piece rather than some other exchange happening elsewhere. Otherwise, fall back to the
+	// same-ply comparison so a real over-the-board immediate sacrifice still works exactly as
+	// it did before this whole feature was added.
+	if (widenedWindow && playedMove) {
+		const pieceOnLandingSquare = widenedWindow[playedMove.to];
+		const moverStillThere = pieceOnLandingSquare?.[1] === mover;
+		if (moverStillThere) {
+			materialAfter = special.positions[ply];
+		}
+	}
 
 	if (
 		nearBest &&

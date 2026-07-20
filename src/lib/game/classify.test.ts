@@ -167,6 +167,42 @@ describe('classifyGame with special classes', () => {
 		expect(codes[0]).toBe('brilliant');
 	});
 
+	it('does NOT classify a quiet move as brilliant just because the opponent\'s reply captures an unrelated, already-hanging piece elsewhere on the board', () => {
+		// White plays a genuinely quiet king move (e1-e2, nothing captured, nothing offered).
+		// Black's reply captures an unrelated White rook on a1 that was hanging for reasons that
+		// have nothing to do with White's move -- the widened (offered-sacrifice) window still
+		// sees a >=3-point material swing across positions[0] -> positions[2], but that swing is
+		// NOT attributable to the piece White just moved (the king safely sits on e2 in
+		// positions[2], untouched), so this must NOT be brilliant. Must fall back to the
+		// same-ply (positions[0] vs positions[1]) comparison, which shows no material change at
+		// all for White's own quiet move.
+		const evalPerPly = [0, 0, 0];
+		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
+			[600, 400, 0], // ply 0: mover (White) win% 80 before White's move
+			[600, 400, 0], // ply 1: still 80 right after White's quiet move
+			[600, 400, 0] // ply 2: irrelevant to this test's assertion, array-length parity only
+		];
+		const positions: Position[] = [
+			{ e1: ['K', 'w'], e8: ['K', 'b'], a1: ['R', 'w'], a8: ['R', 'b'] }, // before: White king
+			// on e1, White rook hanging on a1
+			{ e2: ['K', 'w'], e8: ['K', 'b'], a1: ['R', 'w'], a8: ['R', 'b'] }, // after White's OWN
+			// move: king moved e1->e2, nothing else changed -- quiet, no material swing at all
+			{ e2: ['K', 'w'], e8: ['K', 'b'], a1: ['R', 'b'] } // after Black's NEXT reply: Black's
+			// rook captures the unrelated White rook on a1 (nothing to do with White's e1-e2 move)
+		];
+		const moveMeta: Move[] = [
+			{ from: 'e1', to: 'e2' }, // White's quiet move (ply 1)
+			{ from: 'a8', to: 'a1' } // Black's reply capturing the unrelated rook (ply 2)
+		];
+		const bestMoves: Record<number, Move & { san: string }> = {
+			1: { from: 'e1', to: 'e2', san: 'Ke2' } // played move IS the engine's suggestion
+		};
+
+		const codes = classifyGame(evalPerPly, wdlPerPly, { positions, moveMeta, bestMoves });
+
+		expect(codes[0]).not.toBe('brilliant');
+	});
+
 	it('classifies an only-move (large MultiPV gap) best move as great', () => {
 		const evalPerPly = [0, 0];
 		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [

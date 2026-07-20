@@ -1,8 +1,8 @@
 /**
  * Pure, no-SEE material accounting used only as Brilliant's sacrifice
  * precondition (blueprint §4/§8's `is_piece_sacrifice` guard, simplified:
- * no search-continuation lookahead, just the raw material swing the mover's
- * own move caused, measured immediately before the opponent gets to reply).
+ * no search-continuation lookahead, just the raw material swing between two
+ * given board snapshots).
  */
 import type { Position, PieceColor, PieceType } from '$lib/board/types';
 
@@ -23,12 +23,19 @@ export function materialForColor(position: Position, color: PieceColor): number 
 }
 
 /**
- * True when the mover's own move dropped their material lead over the
- * opponent (their material minus the opponent's) by at least a minor
- * piece's worth (3 points), comparing the position immediately before the
- * move to the position immediately after it. An even or favorable trade
+ * True when the mover's material lead over the opponent (their material
+ * minus the opponent's) drops by at least a minor piece's worth (3 points)
+ * between the two given board snapshots. An even or favorable trade
  * (capturing a piece of equal or greater value) does not count -- only a
- * move that gives up material net counts as a sacrifice.
+ * net material loss counts as a sacrifice.
+ *
+ * This function only diffs the two positions it's given -- it has no notion
+ * of "before/after a move" or "before/after a reply" itself. Choosing which
+ * two snapshots to compare (the position immediately before/after the
+ * mover's own move, vs. a wider window that also spans the opponent's next
+ * reply, to catch a piece deliberately left en prise) is entirely the
+ * caller's responsibility; see classify.ts's `classifySpecial` for how it
+ * picks (and validates) that window.
  */
 export function isMaterialSacrifice(before: Position, after: Position, mover: PieceColor): boolean {
 	const opponent: PieceColor = mover === 'w' ? 'b' : 'w';

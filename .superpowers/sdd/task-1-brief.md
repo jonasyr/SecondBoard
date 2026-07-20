@@ -1,193 +1,137 @@
-### Task 1: MultiPV support in the Rust engine layer
+### Task 1: Widen Brilliant's material-sacrifice detection window
 
 **Files:**
-- Modify: `src-tauri/src/engine.rs`
+- Modify: `src/lib/game/classify.ts`
+- Test: `src/lib/game/classify.test.ts`
 
 **Interfaces:**
-- Produces: `InfoLine.multipv: Option<u32>`; `EngineAnalysis.second_eval_cp: Option<i32>`, `EngineAnalysis.second_is_mate: bool`, `EngineAnalysis.second_wdl: Option<(u32, u32, u32)>`.
+- Consumes: `isMaterialSacrifice` (`./material`, unchanged signature `(before: Position, after: Position, mover: PieceColor) => boolean`).
+- No signature changes to any exported function — `classifyGame`'s and `SpecialClassInputs`'s shapes are unchanged; this task only changes which position `classifySpecial` passes as the "after" board to `isMaterialSacrifice`.
 
-Real Stockfish, when `MultiPV` is set above 1, tags every `info` line with a `multipv N` token (1-indexed) identifying which principal variation that line describes, e.g.:
-```
-info depth 16 seldepth 20 multipv 1 score cp 34 wdl 550 350 100 nodes 500000 pv e2e4 e7e5
-info depth 16 seldepth 18 multipv 2 score cp -12 wdl 400 400 200 nodes 300000 pv d2d4 d7d5
-```
-Lines without a `multipv` token (older engines / `MultiPV=1` default) describe PV line 1.
+**Root cause:** `classifySpecial` currently calls `isMaterialSacrifice(special.positions[ply - 1], special.positions[ply], mover)` — comparing the board immediately before the mover's move to the board immediately after it. A move that itself captures nothing and loses nothing (e.g. a bishop retreat/repositioning square that simply hangs a piece for the opponent to take *next* move) shows a material diff of exactly 0 at this point, so `isMaterialSacrifice` always returns `false` for this extremely common "offered sacrifice" pattern — which is what nearly every real chess brilliancy actually looks like, including this game's own `17...Be6!!` (Byrne only captures the offered material on his very next move, `18.Bxb6`).
 
-- [ ] **Step 1: Add `multipv` parsing to `InfoLine`/`parse_info_line`, write the failing tests first**
+**Fix:** when `positions[ply + 1]` exists (the position after the opponent's very next reply), pass that as the "after" board instead of `positions[ply]`, so a piece deliberately left en prise that the opponent then captures is correctly measured as a material sacrifice. Fall back to `positions[ply]` (today's behavior) when `ply + 1` is out of bounds (the played move was the game's last move) or when `positions[ply + 1]` is missing for any other reason.
 
-In `src-tauri/src/engine.rs`, add to the `InfoLine` struct (after `pub wdl: Option<(u32, u32, u32)>,`):
-```rust
-    pub multipv: Option<u32>,
-```
+- [ ] **Step 1: Write the failing tests**
 
-Add these tests inside `mod parse_tests` (after `parses_wdl_triple`):
-```rust
-    #[test]
-    fn parses_the_multipv_index() {
-        let line = "info depth 16 multipv 2 score cp -12 pv d2d4 d7d5";
-        let info = parse_info_line(line).unwrap();
-        assert_eq!(info.multipv, Some(2));
-    }
+Read the current `src/lib/game/classify.test.ts` in full first (it already has a `describe('classifyGame with special classes', ...)` block from Iteration 10 — see `git log -p -- src/lib/game/classify.test.ts` or just read the file directly) to match its existing fixture conventions. Add these two tests inside that same `describe` block, after the existing `'classifies a best/near-best sound piece sacrifice as brilliant'` test:
 
-    #[test]
-    fn defaults_multipv_to_none_when_the_engine_omits_the_token() {
-        let line = "info depth 16 score cp 34 pv e2e4";
-        let info = parse_info_line(line).unwrap();
-        assert_eq!(info.multipv, None);
-    }
-```
+```typescript
+	it('classifies an offered sacrifice (material lost only after the opponent\'s next reply) as brilliant', () => {
+		// Mirrors the PATTERN of the reference game's 17...Be6!! (a piece offered that
+		// captures/loses nothing on its own move, only taken on the opponent's very next
+		// reply) -- docs/references/DonaldByrne_RJamesFischer/. Colors are flipped from the
+		// real game (White offers here, not Black): `classifyGame`'s ply-index convention
+		// means `codes[0]` (ply 1) is always evaluated with `mover = sideToMoveForPly(0) ===
+		// 'w'` in any isolated array-based fixture like this one (ply 0 is always "White to
+		// move" by this codebase's indexing), so the sacrificed piece must belong to White
+		// for this fixture's `mover` and the sacrificed color to actually agree -- this is a
+		// test-harness detail, not a claim about who sacrifices in the real game.
+		const evalPerPly = [0, 0, 0]; // 3 plies: before the offer, after the offer, after the reply captures it
+		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
+			[600, 400, 0], // ply 0: mover (White) win% 80 before the offered move
+			[600, 400, 0], // ply 1: still 80 right after offering the piece (engine already
+			// credits the follow-up tactics, per this codebase's existing convention)
+			[600, 400, 0] // ply 2: irrelevant to this test's own assertion, included only for
+			// array-length parity with positions/moveMeta below
+		];
+		const positions: Position[] = [
+			{ e1: ['K', 'w'], e8: ['K', 'b'], e5: ['B', 'w'] }, // before: White's bishop still on e5
+			{ e1: ['K', 'w'], e8: ['K', 'b'], d6: ['B', 'w'] }, // after White's own move: bishop moved
+			// to d6, nothing captured -- material diff vs. "before" is 0 at this point
+			{ e1: ['K', 'w'], e8: ['K', 'b'] } // after Black's NEXT reply captures the bishop on d6
+		];
+		const moveMeta: Move[] = [
+			{ from: 'e5', to: 'd6' }, // White's offered move (ply 1)
+			{ from: 'e8', to: 'd6' } // Black's reply that captures it (ply 2) -- moveMeta content
+			// for ply 2 doesn't affect this test (only ply 1 is classified as White's move here)
+		];
+		const bestMoves: Record<number, Move & { san: string }> = {
+			1: { from: 'e5', to: 'd6', san: 'Bd6' } // played move IS the engine's suggestion
+		};
 
-Run: `cd src-tauri && cargo test engine::parse_tests`
-Expected: FAIL to compile — every existing `InfoLine { ... }` struct literal in the test module (the `resolve_score_*` tests) is missing the new `multipv` field, and the two new tests fail on a missing `multipv` field on `InfoLine`.
+		const codes = classifyGame(evalPerPly, wdlPerPly, { positions, moveMeta, bestMoves });
 
-- [ ] **Step 2: Parse the `multipv` token in `parse_info_line`, and add `multipv: None` to the existing struct literals**
+		expect(codes[0]).toBe('brilliant'); // codes[0] = classification of ply 1 (White's offered move)
+	});
 
-In `parse_info_line`'s `match tokens[i] { ... }`, add a new arm right after the `"wdl"` arm (before `"pv" =>`):
-```rust
-            "multipv" if i + 1 < tokens.len() => {
-                info.multipv = tokens[i + 1].parse().ok();
-                i += 2;
-            }
-```
-Note: this arm intentionally does **not** set `found_score_or_pv = true` — a bare `multipv` token without any score is not itself evidence of a usable info line (mirrors why `pv`/`cp`/`mate`/`wdl` are the only fields that set that flag).
+	it('falls back to the same-ply material diff when the move played is the very last ply', () => {
+		// No positions[ply + 1] exists at all -- must not throw, and must fall back to
+		// comparing positions[ply - 1] directly against positions[ply] (today's pre-Task-1
+		// behavior), still correctly detecting an IMMEDIATE (same-move) sacrifice.
+		const evalPerPly = [0, 0];
+		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
+			[600, 400, 0],
+			[600, 400, 0]
+		];
+		const positions: Position[] = [
+			{ e1: ['K', 'w'], e5: ['N', 'w'], e8: ['K', 'b'] }, // before: White has a knight on e5
+			{ e1: ['K', 'w'], e8: ['K', 'b'] } // after (the LAST ply of the game): the knight is
+			// simply given away in this same move, no positions[2] exists at all
+		];
+		const moveMeta: Move[] = [{ from: 'e5', to: 'd7' }];
+		const bestMoves: Record<number, Move & { san: string }> = {
+			1: { from: 'e5', to: 'd7', san: 'Nd7' }
+		};
 
-In every existing `InfoLine { score_cp: ..., score_mate: ..., wdl: ..., pv: ... }` struct literal in `mod parse_tests` (the five `resolve_score_*` tests), add `multipv: None,` as a field (Rust requires every field on explicit struct-literal construction).
+		const codes = classifyGame(evalPerPly, wdlPerPly, { positions, moveMeta, bestMoves });
 
-- [ ] **Step 3: Run tests to verify they pass**
-
-Run: `cd src-tauri && cargo test engine::parse_tests`
-Expected: PASS (16 tests: the existing 14 plus the 2 new ones).
-
-- [ ] **Step 4: Add second-PV-line fields to `EngineAnalysis`, request `MultiPV=2`, and track per-PV-index info lines in `analyze_position`**
-
-Add to the `EngineAnalysis` struct (after `pub wdl: Option<(u32, u32, u32)>,`):
-```rust
-    pub second_eval_cp: Option<i32>,
-    pub second_is_mate: bool,
-    pub second_wdl: Option<(u32, u32, u32)>,
-```
-
-In `analyze_position`, add the MultiPV option right after the existing `UCI_ShowWDL` line:
-```rust
-    write_line(&mut stdin, "setoption name UCI_ShowWDL value true")?;
-    write_line(&mut stdin, "setoption name MultiPV value 2")?;
-```
-
-Replace the analysis loop's tracking variable and the `bestmove` branch. Current code:
-```rust
-    let mut last_info: Option<InfoLine> = None;
-    let mut line = String::new();
-    loop {
-        line.clear();
-        let n = reader
-            .read_line(&mut line)
-            .map_err(|e| EngineError::Io(e.to_string()))?;
-        if n == 0 {
-            return Err(EngineError::Io("engine closed stdout mid-analysis".into()));
-        }
-        let trimmed = line.trim_end();
-        if let Some(info) = parse_info_line(trimmed) {
-            if info.score_cp.is_some() || info.score_mate.is_some() {
-                last_info = Some(info);
-            }
-        } else if let Some(best) = parse_bestmove_line(trimmed) {
-            let _ = write_line(&mut stdin, "quit");
-            let _ = child.wait();
-            let info = last_info.ok_or(EngineError::NoBestMove)?;
-            let (eval_cp, is_mate) = resolve_score(&info)?;
-            return Ok(EngineAnalysis {
-                eval_cp,
-                is_mate,
-                best_move_uci: best,
-                pv: info.pv,
-                wdl: info.wdl,
-            });
-        }
-    }
+		expect(codes[0]).toBe('brilliant');
+	});
 ```
 
+- [ ] **Step 2: Run to verify the new tests fail**
+
+Run: `rtk proxy pnpm exec vitest run src/lib/game/classify.test.ts` (or plain `pnpm exec vitest run src/lib/game/classify.test.ts` if `rtk` isn't available)
+Expected: the first new test FAILS (`codes[0]` is not `'brilliant'` under today's same-ply-only comparison — `Be6` currently falls through to the Great check instead); the second new test PASSES already (it's a regression-lock for the pre-existing fallback behavior, not a new behavior) — that's fine, it's here to prove the fallback stays correct after Step 3's change, not to itself demonstrate a bug.
+
+- [ ] **Step 3: Implement**
+
+Current code in `src/lib/game/classify.ts`:
+```typescript
+	if (
+		nearBest &&
+		special.positions[ply - 1] &&
+		special.positions[ply] &&
+		isMaterialSacrifice(special.positions[ply - 1], special.positions[ply], mover) &&
+		afterPov >= BRILLIANT_MIN_WIN &&
+		beforePov < BRILLIANT_NOT_WINNING
+	) {
+		return 'brilliant';
+	}
+```
 Replace with:
-```rust
-    let mut last_info_by_pv: std::collections::HashMap<u32, InfoLine> = std::collections::HashMap::new();
-    let mut line = String::new();
-    loop {
-        line.clear();
-        let n = reader
-            .read_line(&mut line)
-            .map_err(|e| EngineError::Io(e.to_string()))?;
-        if n == 0 {
-            return Err(EngineError::Io("engine closed stdout mid-analysis".into()));
-        }
-        let trimmed = line.trim_end();
-        if let Some(info) = parse_info_line(trimmed) {
-            if info.score_cp.is_some() || info.score_mate.is_some() {
-                // Engines that don't emit `multipv` at all (or omit it on PV 1)
-                // describe PV line 1 by convention.
-                let pv_index = info.multipv.unwrap_or(1);
-                last_info_by_pv.insert(pv_index, info);
-            }
-        } else if let Some(best) = parse_bestmove_line(trimmed) {
-            let _ = write_line(&mut stdin, "quit");
-            let _ = child.wait();
-            let primary = last_info_by_pv.get(&1).ok_or(EngineError::NoBestMove)?;
-            let (eval_cp, is_mate) = resolve_score(primary)?;
-            let second = last_info_by_pv.get(&2);
-            let (second_eval_cp, second_is_mate) = match second.map(resolve_score) {
-                Some(Ok((cp, mate))) => (Some(cp), mate),
-                _ => (None, false),
-            };
-            let second_wdl = second.and_then(|i| i.wdl);
-            return Ok(EngineAnalysis {
-                eval_cp,
-                is_mate,
-                best_move_uci: best,
-                pv: primary.pv.clone(),
-                wdl: primary.wdl,
-                second_eval_cp,
-                second_is_mate,
-                second_wdl,
-            });
-        }
-    }
+```typescript
+	// Prefer the position AFTER the opponent's next reply when it's available: a piece
+	// deliberately left en prise (the classic "offered" sacrifice -- e.g. this game's own
+	// 17...Be6!!, only captured on White's following move) shows no material change at all
+	// on the sacrificing move's own ply, so checking only positions[ply-1] vs positions[ply]
+	// can never see it. Falls back to the same-ply comparison (today's pre-Task-1 behavior)
+	// when the played move was the game's very last ply (positions[ply + 1] doesn't exist).
+	const materialAfter = special.positions[ply + 1] ?? special.positions[ply];
+
+	if (
+		nearBest &&
+		special.positions[ply - 1] &&
+		materialAfter &&
+		isMaterialSacrifice(special.positions[ply - 1], materialAfter, mover) &&
+		afterPov >= BRILLIANT_MIN_WIN &&
+		beforePov < BRILLIANT_NOT_WINNING
+	) {
+		return 'brilliant';
+	}
 ```
 
-- [ ] **Step 5: Update the real-engine tests for the new fields and add MultiPV coverage**
+- [ ] **Step 4: Run tests to verify they pass**
 
-`analyzes_the_starting_position_with_a_real_stockfish` and `analyzes_the_starting_position_and_reports_a_roughly_even_wdl` construct `EngineAnalysis` only via `analyze_position`'s return value (no struct literals to fix) — no changes needed there. Add a new test in `mod analyze_tests` (after `analyzes_the_starting_position_and_reports_a_roughly_even_wdl`):
-```rust
-    #[test]
-    fn reports_a_second_pv_line_from_the_starting_position() {
-        if !stockfish_available() {
-            eprintln!("skipping MultiPV test: stockfish not found on PATH");
-            return;
-        }
-        let opts = EngineOptions {
-            depth: 10,
-            movetime_ms: Some(1000),
-        };
-        let result = analyze_position(
-            "stockfish",
-            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1",
-            &opts,
-        )
-        .expect("analysis should succeed against a real engine");
-        assert!(
-            result.second_eval_cp.is_some(),
-            "MultiPV=2 should surface a second PV line's eval for the starting position"
-        );
-    }
-```
+Run: `rtk proxy pnpm exec vitest run src/lib/game/classify.test.ts`
+Expected: PASS (all existing tests + the 2 new ones). Pay particular attention to the pre-existing `'classifies a best/near-best sound piece sacrifice as brilliant'` test (a 2-ply fixture, `positions[ply+1]` is out of bounds there too) — it must still pass via the same fallback path.
 
-- [ ] **Step 6: Run the full engine test suite**
-
-Run: `cd src-tauri && cargo test engine::`
-Expected: PASS (all parse tests + all analyze tests, including the 2 new ones).
-
-- [ ] **Step 7: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add src-tauri/src/engine.rs
-git commit -m "feat(engine): parse a second MultiPV line's eval/WDL alongside the primary line"
+git add src/lib/game/classify.ts src/lib/game/classify.test.ts
+git commit -m "fix(classify): widen Brilliant's sacrifice check to see material given up on the opponent's next reply"
 ```
 
 ---
