@@ -1,16 +1,16 @@
 <script lang="ts">
-	import { CLASS_CODES } from '$lib/game/mock-data';
 	import { TOKENS } from '$lib/tokens';
+	import type { ClassCode } from '$lib/types';
 	import ClassBadge from './ClassBadge.svelte';
 
 	interface Props {
 		selectedPly: number;
 		onSelectPly: (ply: number) => void;
 		sanList: string[];
-		isSample: boolean;
+		classCodes: ClassCode[];
 	}
 
-	let { selectedPly, onSelectPly, sanList, isSample }: Props = $props();
+	let { selectedPly, onSelectPly, sanList, classCodes }: Props = $props();
 
 	interface Row {
 		num: string;
@@ -32,11 +32,11 @@
 		})
 	);
 
-	function cellStyle(sel: boolean, isSample: boolean, code: import('$lib/types').ClassCode | null): string {
+	function cellStyle(sel: boolean, code: ClassCode | null): string {
 		if (sel) {
 			return 'background:rgba(45,224,206,.14);color:#5EF0DE;font-weight:600;box-shadow:inset 0 0 0 1px rgba(45,224,206,.3);';
 		}
-		return isSample && code ? `color:${TOKENS.review.moveTint[code]};` : '';
+		return code ? `color:${TOKENS.review.moveTint[code]};` : '';
 	}
 
 	let listEl: HTMLDivElement | undefined = $state();
@@ -63,11 +63,11 @@
 			<div
 				class="cell"
 				data-sb-sel={selectedPly === row.wPly ? '1' : '0'}
-				style={cellStyle(selectedPly === row.wPly, isSample, isSample ? CLASS_CODES[row.wPly - 1] : null)}
+				style={cellStyle(selectedPly === row.wPly, classCodes[row.wPly - 1] ?? null)}
 				onclick={() => onSelectPly(row.wPly)}
 			>
-				{#if isSample}
-					<ClassBadge classCode={CLASS_CODES[row.wPly - 1]} size={16} />
+				{#if classCodes[row.wPly - 1]}
+					<ClassBadge classCode={classCodes[row.wPly - 1]} size={16} />
 				{/if}
 				<span class="san sbmono">{sanList[row.wPly - 1]}</span>
 			</div>
@@ -75,11 +75,11 @@
 				<div
 					class="cell"
 					data-sb-sel={selectedPly === row.bPly ? '1' : '0'}
-					style={cellStyle(selectedPly === row.bPly, isSample, isSample ? CLASS_CODES[row.bPly - 1] : null)}
+					style={cellStyle(selectedPly === row.bPly, classCodes[row.bPly - 1] ?? null)}
 					onclick={() => onSelectPly(row.bPly!)}
 				>
-					{#if isSample}
-						<ClassBadge classCode={CLASS_CODES[row.bPly - 1]} size={16} />
+					{#if classCodes[row.bPly - 1]}
+						<ClassBadge classCode={classCodes[row.bPly - 1]} size={16} />
 					{/if}
 					<span class="san sbmono">{sanList[row.bPly - 1]}</span>
 				</div>
