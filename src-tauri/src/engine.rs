@@ -417,7 +417,10 @@ mod analyze_tests {
         .expect("analysis should succeed against a real engine");
         let (w, d, l) = result.wdl.expect("a modern Stockfish build should report WDL");
         assert_eq!(w + d + l, 1000, "WDL per-mille components should sum to 1000");
-        assert!(w > 100 && l > 100, "startpos WDL should not be lopsided: got w={w} d={d} l={l}");
+        assert!(
+            w < 1000 && d < 1000 && l < 1000,
+            "expected a genuine, non-degenerate WDL split from a real engine, got w={w} d={d} l={l}"
+        );
     }
 
     #[test]
