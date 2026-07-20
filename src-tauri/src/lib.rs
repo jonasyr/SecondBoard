@@ -8,6 +8,7 @@ struct AnalyzeFenResult {
     is_mate: bool,
     best_move_uci: String,
     pv: Vec<String>,
+    wdl: Option<(u32, u32, u32)>,
 }
 
 impl From<engine::EngineAnalysis> for AnalyzeFenResult {
@@ -17,6 +18,7 @@ impl From<engine::EngineAnalysis> for AnalyzeFenResult {
             is_mate: a.is_mate,
             best_move_uci: a.best_move_uci,
             pv: a.pv,
+            wdl: a.wdl,
         }
     }
 }
@@ -77,6 +79,20 @@ mod analyze_fen_tests {
             }
             Err(msg) => {
                 // Only acceptable failure on a machine without stockfish on PATH.
+                assert!(msg.contains("failed to spawn engine"), "unexpected error: {msg}");
+            }
+        }
+    }
+
+    #[test]
+    fn analyze_fen_result_carries_the_engines_wdl_field() {
+        let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1".to_string();
+        match analyze_fen_sync(fen) {
+            Ok(result) => {
+                // Real Stockfish on this machine should report WDL for a legal position.
+                assert!(result.wdl.is_some());
+            }
+            Err(msg) => {
                 assert!(msg.contains("failed to spawn engine"), "unexpected error: {msg}");
             }
         }
