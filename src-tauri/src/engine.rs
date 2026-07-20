@@ -8,6 +8,7 @@
 pub(crate) struct InfoLine {
     pub score_cp: Option<i32>,
     pub score_mate: Option<i32>,
+    pub wdl: Option<(u32, u32, u32)>,
     pub pv: Vec<String>,
 }
 
@@ -30,6 +31,16 @@ pub(crate) fn parse_info_line(line: &str) -> Option<InfoLine> {
                 info.score_mate = tokens[i + 1].parse().ok();
                 found_score_or_pv = true;
                 i += 2;
+            }
+            "wdl" if i + 3 < tokens.len() => {
+                let w = tokens[i + 1].parse().ok();
+                let d = tokens[i + 2].parse().ok();
+                let l = tokens[i + 3].parse().ok();
+                if let (Some(w), Some(d), Some(l)) = (w, d, l) {
+                    info.wdl = Some((w, d, l));
+                    found_score_or_pv = true;
+                }
+                i += 4;
             }
             "pv" => {
                 info.pv = tokens[i + 1..].iter().map(|s| s.to_string()).collect();
@@ -76,6 +87,7 @@ pub struct EngineAnalysis {
     pub is_mate: bool,
     pub best_move_uci: String,
     pub pv: Vec<String>,
+    pub wdl: Option<(u32, u32, u32)>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -178,6 +190,7 @@ pub fn analyze_position(
         .unwrap_or(1);
     write_line(&mut stdin, &format!("setoption name Threads value {threads}"))?;
     write_line(&mut stdin, "setoption name Hash value 256")?;
+    write_line(&mut stdin, "setoption name UCI_ShowWDL value true")?;
 
     write_line(&mut stdin, "isready")?;
     wait_for(&mut reader, "readyok")?;
@@ -215,6 +228,7 @@ pub fn analyze_position(
                 is_mate,
                 best_move_uci: best,
                 pv: info.pv,
+                wdl: info.wdl,
             });
         }
     }
@@ -239,6 +253,20 @@ mod parse_tests {
         let info = parse_info_line(line).unwrap();
         assert_eq!(info.score_mate, Some(3));
         assert_eq!(info.score_cp, None);
+    }
+
+    #[test]
+    fn parses_wdl_triple() {
+        let line = "info depth 16 score cp 34 wdl 500 400 100 nodes 500000 pv e2e4";
+        let info = parse_info_line(line).unwrap();
+        assert_eq!(info.wdl, Some((500, 400, 100)));
+    }
+
+    #[test]
+    fn leaves_wdl_none_when_the_engine_does_not_report_it() {
+        let line = "info depth 16 score cp 34 pv e2e4";
+        let info = parse_info_line(line).unwrap();
+        assert_eq!(info.wdl, None);
     }
 
     #[test]
@@ -272,6 +300,7 @@ mod parse_tests {
         let info = InfoLine {
             score_cp: None,
             score_mate: Some(3),
+            wdl: None,
             pv: vec![],
         };
         assert_eq!(resolve_score(&info).unwrap(), (100_000, true));
@@ -282,6 +311,7 @@ mod parse_tests {
         let info = InfoLine {
             score_cp: None,
             score_mate: Some(-2),
+            wdl: None,
             pv: vec![],
         };
         assert_eq!(resolve_score(&info).unwrap(), (-100_000, true));
@@ -296,6 +326,7 @@ mod parse_tests {
         let info = InfoLine {
             score_cp: None,
             score_mate: Some(0),
+            wdl: None,
             pv: vec![],
         };
         assert_eq!(resolve_score(&info).unwrap(), (-100_000, true));
@@ -306,6 +337,7 @@ mod parse_tests {
         let info = InfoLine {
             score_cp: Some(34),
             score_mate: None,
+            wdl: None,
             pv: vec![],
         };
         assert_eq!(resolve_score(&info).unwrap(), (34, false));
@@ -316,6 +348,7 @@ mod parse_tests {
         let info = InfoLine {
             score_cp: None,
             score_mate: None,
+            wdl: None,
             pv: vec![],
         };
         assert!(matches!(resolve_score(&info), Err(EngineError::NoBestMove)));
@@ -364,6 +397,27 @@ mod analyze_tests {
         );
         assert_eq!(result.best_move_uci.len(), 4);
         assert!(!result.is_mate);
+    }
+
+    #[test]
+    fn analyzes_the_starting_position_and_reports_a_roughly_even_wdl() {
+        if !stockfish_available() {
+            eprintln!("skipping analyze_position WDL test: stockfish not found on PATH");
+            return;
+        }
+        let opts = EngineOptions {
+            depth: 10,
+            movetime_ms: Some(1000),
+        };
+        let result = analyze_position(
+            "stockfish",
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1",
+            &opts,
+        )
+        .expect("analysis should succeed against a real engine");
+        let (w, d, l) = result.wdl.expect("a modern Stockfish build should report WDL");
+        assert_eq!(w + d + l, 1000, "WDL per-mille components should sum to 1000");
+        assert!(w > 100 && l > 100, "startpos WDL should not be lopsided: got w={w} d={d} l={l}");
     }
 
     #[test]
