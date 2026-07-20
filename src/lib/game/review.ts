@@ -15,6 +15,7 @@ import type { Move, PieceColor, PieceType, Position } from '$lib/board/types';
 import type { ClassCode } from '$lib/types';
 import { NOT_BEST_CODES } from '$lib/tokens';
 import { BEST_MOVES, COACH_TEXT_MAP, EVAL_PER_PLY, CLASS_CODES, PLAYERS } from './mock-data';
+import { computeGameAccuracy, resolveWinner, estimatePerformanceRating } from './accuracy';
 
 export interface GameData {
 	sanList: string[];
@@ -25,6 +26,7 @@ export interface GameData {
 	blackName: string | null;
 	whiteRating: string | null;
 	blackRating: string | null;
+	result: string | null;
 }
 
 export interface ReviewPly {
@@ -159,4 +161,58 @@ export function getPlayerRows(
 
 	const whiteAtBottom = !flipped;
 	return whiteAtBottom ? { top: black, bottom: white } : { top: white, bottom: black };
+}
+
+export interface AccuracySide {
+	name: string;
+	initial: string;
+	accuracy: string | null;
+	gameRating: string | null;
+	isWinner: boolean;
+}
+
+export interface AccuracySummary {
+	white: AccuracySide;
+	black: AccuracySide;
+	resultLabel: string;
+}
+
+function formatResultLabel(result: string | null): string {
+	if (result === '1-0') return '1–0';
+	if (result === '0-1') return '0–1';
+	if (result === '1/2-1/2') return '½–½';
+	return '—';
+}
+
+/**
+ * Derives the Accuracy block's real winner + accuracy numbers (OVERVIEW §12
+ * Accuracy System) from the loaded game's PGN Result tag and real Stockfish
+ * evalPerPly. Player name/initial follow the same real-PGN-over-mock-PLAYERS
+ * fallback as getPlayerRows. Accuracy is null (rendered as "—" by
+ * AccuracyBlock) rather than a mock number when there isn't enough eval data
+ * yet (analysis still loading, or a game with too few plies).
+ */
+export function getAccuracySummary(game: GameData, evalPerPly: number[]): AccuracySummary {
+	const whiteName = game.whiteName ?? PLAYERS.white.name;
+	const blackName = game.blackName ?? PLAYERS.black.name;
+	const { white, black } = computeGameAccuracy(evalPerPly);
+	const winner = resolveWinner(game.result);
+
+	return {
+		white: {
+			name: whiteName,
+			initial: whiteName.charAt(0).toUpperCase(),
+			accuracy: white === null ? null : white.toFixed(1),
+			gameRating: estimatePerformanceRating(white)?.toString() ?? null,
+			isWinner: winner === 'white'
+		},
+		black: {
+			name: blackName,
+			initial: blackName.charAt(0).toUpperCase(),
+			accuracy: black === null ? null : black.toFixed(1),
+			gameRating: estimatePerformanceRating(black)?.toString() ?? null,
+			isWinner: winner === 'black'
+		},
+		resultLabel: formatResultLabel(game.result)
+	};
 }

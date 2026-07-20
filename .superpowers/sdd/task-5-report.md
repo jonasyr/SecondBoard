@@ -1,62 +1,114 @@
-# Task 5 Report: `review.ts` rewrite — `GameData`, real position/move consumption
+# Task 5 Report: `AccuracyBlock.svelte` — render real winner + accuracy
 
 ## Status: DONE
 
-## What was implemented (step by step)
+## What Was Implemented
 
-1. **Step 1/2** — Replaced `src/lib/game/review.test.ts` verbatim with the brief's version (local `sampleGame`/`notSampleGame` fixtures, `getReviewPly`/`getPlayerRows` now called with an explicit `game` argument). Ran `pnpm vitest run src/lib/game/review.test.ts` — confirmed failure (`TypeError: Cannot read properties of undefined (reading 'toFixed')`, since the old `getReviewPly` signature didn't accept `game`).
+Converted `AccuracyBlock.svelte` from a hardcoded mock-driven component to a props-driven component that renders real accuracy data and dynamically highlights the real winner.
 
-2. **Step 3/4** — Replaced `src/lib/game/review.ts` verbatim with the brief's version: added `export interface GameData`, `export const UNCLASSIFIED_COACH_TEXT`, changed `getReviewPly`/`getPlayerRows` to require a `game: GameData` parameter (no default), sourced `position`/`lastMove`/`sanList` lookups from `game.*` instead of `MOCK_POSITIONS`/`MOCK_MOVE_META`/`SAN_LIST`, and gated `classCode` (and therefore `best`/non-intro `coachText`) on `game.isSample`. Ran the test file again — all 10 tests passed.
+### Changes Made
 
-3. **Step 4b** — Reconciled `src/lib/stores/app-state.svelte.ts`: removed the local duplicate `export interface GameData { ... }` block, changed the import from `import type { Move, Position } from '$lib/board/types';` to `import type { Move } from '$lib/board/types';` plus a new `import type { GameData } from '$lib/game/review';`. Kept the `Move` import (not dropped) because `AppState.bestMoves: Record<number, Move & { san: string }>` still references it; dropped `Position` since nothing in the file uses it once the local `GameData` block is gone. Ran `pnpm vitest run src/lib/stores/app-state.test.ts src/lib/game/review.test.ts` — 23 passed, pure refactor confirmed with no assertion changes needed.
+**Files Modified:**
+1. `src/lib/components/AccuracyBlock.test.ts` - Replaced with new test suite
+2. `src/lib/components/AccuracyBlock.svelte` - Rewrote to accept and render props
 
-4. **Step 5** — Updated call sites:
-   - `src/lib/components/GameReviewScreen.svelte`: `getReviewPly`/`getPlayerRows` now pass `appState.game!` as the brief specifies.
-   - `src/lib/components/AnalysisTab.svelte`: `getReviewPly` now passes `appState.game!`.
+### Key Changes
 
-5. **Step 6** — Updated the two named test files plus two additional test files discovered to break under full-suite run (see "Issues" below):
-   - `src/lib/components/GameReviewScreen.test.ts`: added a `beforeEach` fixture setting `appState.game` from `SAN_LIST`/`MOCK_POSITIONS`/`MOCK_MOVE_META` (`$lib/game/mock-data`), `isSample: true`, so behavior is byte-identical to the previous mock-only wiring.
-   - `src/lib/components/AnalysisTab.test.ts`: added the same `beforeEach` fixture.
-   - Checked for the async `startReview()` heads-up mentioned in my task instructions: grepped `src/lib/components/` and `src/lib/stores/` for `startReview` call sites — confirmed `GameReviewScreen.test.ts` does **not** call `startReview()` anywhere (it only sets `appState.gameLoaded`/`screen`/`ply` etc. directly), so there was nothing to `await` there. That heads-up did not apply to this file as written; no action was needed on that specific point.
-   - Additionally discovered (running the full suite) that `src/lib/components/ReviewPanel.test.ts` and `src/routes/page.test.ts` also broke, because they render `ReviewPanel`/`+page.svelte` (which nest `AnalysisTab`/`GameReviewScreen`) without ever setting `appState.game`, previously relying on the mock defaults. These two files aren't in the brief's file list, but leaving them broken would fail the full suite and contradict the self-review checklist's expectation ("full suite passes except the one deferred `OnboardingScreen.test.ts` failure"), so I fixed them too:
-     - `ReviewPanel.test.ts`: added the same `appState.game` fixture to its `beforeEach`.
-     - `page.test.ts`: added a `loadSampleGame()` helper and called it in the two tests that set `appState.gameLoaded = true` directly (bypassing `startReview()`).
+1. **Props Introduction**
+   - Added `AccuracySide` type import from `$lib/game/review`
+   - Defined `Props` interface with `white`, `black`, and `resultLabel`
+   - Used Svelte 5 `$props()` rune to destructure props
 
-6. **Step 7** — Committed as `bbd25e7`: `feat: wire review.ts to real per-game positions/moves via GameData`, including the two additional test files (`ReviewPanel.test.ts`, `page.test.ts`) alongside the brief's listed files (excluding `app-state.test.ts`, which needed no changes).
+2. **Dynamic Rendering**
+   - Replaced hardcoded `PLAYERS.white.name/initial/accuracy` with `white.name/initial/accuracy`
+   - Replaced hardcoded `PLAYERS.black.name/initial/accuracy` with `black.name/initial/accuracy`
+   - Replaced hardcoded `0–1` result with dynamic `{resultLabel}`
 
-## Tests run and results
+3. **Dynamic Tinting (Winner Highlighting)**
+   - White avatar: `class:tinted={white.isWinner}` / `class:neutral={!white.isWinner}`
+   - Black avatar: `class:tinted={black.isWinner}` / `class:neutral={!black.isWinner}`
+   - Same applied to accuracy chips
+   - Winner gets green border/glow ring; loser/draw gets neutral border
 
-| Stage | Command | Result |
-|---|---|---|
-| Step 2 (red) | `pnpm vitest run src/lib/game/review.test.ts` | FAIL (as expected — old signature) |
-| Step 4 (green) | `pnpm vitest run src/lib/game/review.test.ts` | PASS (10/10) |
-| Step 4b | `pnpm vitest run src/lib/stores/app-state.test.ts src/lib/game/review.test.ts` | PASS (23/23) |
-| Step 6 | `pnpm vitest run src/lib/components/GameReviewScreen.test.ts src/lib/components/AnalysisTab.test.ts` | PASS (8/8) |
-| Extra fix verification | `pnpm vitest run src/lib/components/ReviewPanel.test.ts src/routes/page.test.ts src/lib/components/OnboardingScreen.test.ts` | PASS (10/11) — 1 expected failure in `OnboardingScreen.test.ts` (`"Start Review" loads the game regardless of textarea contents`, pre-existing async-timing issue from Task 4's `startReview()` becoming async; explicitly out of scope for this task) |
-| Full suite | `pnpm run test -- --run` | 186/187 passed; 1 failed (the same `OnboardingScreen.test.ts` test above, the sole expected/deferred failure) |
+4. **Null Safety**
+   - Used nullish coalescing: `{white.accuracy ?? '—'}` and `{black.accuracy ?? '—'}`
+   - Displays em-dash when accuracy is null instead of showing a fabricated number
 
-## Files changed
+5. **Preserved Scope**
+   - Kept Game Rating row exactly as-is (still uses mock `PLAYERS.white/black.gameRating`)
+   - Kept all CSS unchanged (same class names and styles)
+   - PLAYERS import retained only for the intentionally-mocked Game Rating row
 
-- `/home/jonas/Documents/Code/SecondBoard/src/lib/game/review.ts`
-- `/home/jonas/Documents/Code/SecondBoard/src/lib/game/review.test.ts`
-- `/home/jonas/Documents/Code/SecondBoard/src/lib/stores/app-state.svelte.ts`
-- `/home/jonas/Documents/Code/SecondBoard/src/lib/components/GameReviewScreen.svelte`
-- `/home/jonas/Documents/Code/SecondBoard/src/lib/components/GameReviewScreen.test.ts`
-- `/home/jonas/Documents/Code/SecondBoard/src/lib/components/AnalysisTab.svelte`
-- `/home/jonas/Documents/Code/SecondBoard/src/lib/components/AnalysisTab.test.ts`
-- `/home/jonas/Documents/Code/SecondBoard/src/lib/components/ReviewPanel.test.ts` (not in brief's file list; fixed to keep full suite green)
-- `/home/jonas/Documents/Code/SecondBoard/src/routes/page.test.ts` (not in brief's file list; fixed to keep full suite green)
+## Test Results
 
-## Self-review findings
+### RED State (Before)
+```
+PASS (0) FAIL (4)
 
-- `review.ts` exports `GameData` and `UNCLASSIFIED_COACH_TEXT`; `getReviewPly` requires `game` (no default) — confirmed by reading the final file.
-- Classification (`classCode`/`best`) is gated on `game.isSample && ply > 0`; `coachText` falls back to `UNCLASSIFIED_COACH_TEXT` for non-sample games (verified by the `notSampleGame` test case, which passed).
-- `app-state.svelte.ts` reconciled: local `GameData` duplicate removed, now imports `GameData` from `$lib/game/review`; `Move` import kept (still used by `bestMoves`), `Position` import dropped (no longer referenced).
-- `GameReviewScreen.svelte`/`AnalysisTab.svelte` both pass `appState.game!` through to `getReviewPly`/`getPlayerRows`.
-- Checked `GameReviewScreen.test.ts` for the async `startReview()` heads-up — it turned out not to call `startReview()` at all (grepped to confirm), so there was no call site to `await`. The `appState.game` fixture was added per Step 6 as required.
-- Full suite passes except the one explicitly-deferred `OnboardingScreen.test.ts` failure (the real async-`startReview()`-without-await issue, confirmed to be exactly what the task instructions anticipated for that file, tracked for a later task).
+1. AccuracyBlock renders both players' real names, accuracy, and the real result label
+   TestingLibraryElementError: Unable to find an element with the text: Donald Byrne
+   
+2. AccuracyBlock renders "—" instead of a fabricated number when accuracy is null
+   TestingLibraryElementError: Unable to find an element with the text: Robert Fischer
+   
+3. AccuracyBlock highlights the real winner's avatar/chip, not always Black
+   AssertionError: expected false to be true
+   
+4. AccuracyBlock tints neither side on a draw
+   AssertionError: expected true to be false
+```
 
-## Issues / concerns
+**Expected failures confirmed:** All 4 tests failed as expected because component still rendered hardcoded PLAYERS mock data.
 
-- The brief's Step 6 only named `GameReviewScreen.test.ts` and `AnalysisTab.test.ts`, and its file list didn't include `ReviewPanel.test.ts` or `page.test.ts`. Both broke once `getReviewPly`/`getPlayerRows` started requiring non-null `game` data, because they render components that nest `AnalysisTab`/`GameReviewScreen` without ever populating `appState.game`. I fixed both (same fixture pattern) rather than leave the full suite red, since the task's own self-review checklist expects the full suite to pass except for the one deferred `OnboardingScreen.test.ts` case. Flagging this here in case the plan wants these listed explicitly in the brief for future tasks' traceability.
-- No other concerns — the async-`startReview()` heads-up for `GameReviewScreen.test.ts` did not actually apply (no `startReview()` call site existed there); this is a discrepancy between the pre-task heads-up and the file's actual content, noted for the record but not a blocker.
+### GREEN State (After)
+```
+PASS (4) FAIL (0)
+```
+
+**All tests passing:**
+1. ✅ Renders both players' real names, accuracy, and the real result label
+2. ✅ Renders "—" instead of a fabricated number when accuracy is null
+3. ✅ Highlights the real winner's avatar/chip, not always Black
+4. ✅ Tints neither side on a draw
+
+## Self-Review Findings
+
+✅ **Winner highlighting works correctly:**
+- When `isWinner: true`, the `.tinted` class is applied (green border + glow)
+- When `isWinner: false`, the `.neutral` class is applied (light border)
+- This is dynamic based on props, not hardcoded to Black
+
+✅ **Draw handling:**
+- When both players have `isWinner: false`, both get `.neutral` class
+- Neither side is tinted on a draw (test confirms: '½–½' case with both false)
+
+✅ **Null accuracy handling:**
+- `white.accuracy ?? '—'` and `black.accuracy ?? '—'` properly render em-dash
+- Test verifies this: when accuracy is null, 3x '—' appear (2 chips + result)
+
+✅ **PLAYERS import usage:**
+- Only used for the Game Rating row (still hardcoded as per plan)
+- Name, initial, accuracy all come from props
+- No mock data used for the accuracy section
+
+✅ **Test output pristine:**
+- All 4 tests pass
+- Component correctly responds to all prop variations
+
+✅ **CSS unchanged:**
+- Style block is identical to original
+- Only the `<script>` and template markup changed
+- `class:tinted`/`class:neutral` directives properly control styling
+
+## Commit Information
+
+**SHA:** `6f6bcc2`
+**Message:** `feat: wire AccuracyBlock to the real winner and accuracy summary`
+
+**Files committed:**
+- `src/lib/components/AccuracyBlock.svelte`
+- `src/lib/components/AccuracyBlock.test.ts`
+
+## Concerns: None
+
+The implementation matches the brief exactly. All tests pass. Component is ready for Task 6 (ReviewTab integration).

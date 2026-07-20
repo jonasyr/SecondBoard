@@ -1,151 +1,135 @@
-## Task 6: Delete the mock SAN engine; trim `mock-data.ts`
+## Task 6: `ReviewTab.svelte` — wire the real summary in
 
 **Files:**
-- Delete: `src/lib/game/mock-engine.ts`
-- Delete: `src/lib/game/mock-engine.test.ts`
-- Modify: `src/lib/game/mock-data.ts`
-- Modify: `src/lib/game/mock-data.test.ts`
+- Modify: `src/lib/components/ReviewTab.svelte`
+- Modify: `src/lib/components/ReviewTab.test.ts`
 
 **Interfaces:**
-- Consumes: nothing new.
-- Produces: `mock-data.ts` no longer exports `SAN_LIST`, `MOCK_POSITIONS`, `MOCK_MOVE_META` (any remaining import of these anywhere in `src/` is now a compile error to be fixed as part of this task — there should be none left after Tasks 4/5).
+- Consumes: `appState` (`$lib/stores/app-state.svelte`, already has `game: GameData | null` per `mem:core`); `getAccuracySummary` from `$lib/game/review` (Task 4).
 
-- [ ] **Step 1: Confirm no remaining references before deleting**
+- [ ] **Step 1: Update the failing test**
 
-Run: `grep -rln "mock-engine\|MOCK_POSITIONS\|MOCK_MOVE_META\|SAN_LIST" src/ --include="*.ts" --include="*.svelte"`
-Expected: only `src/lib/game/mock-data.ts` and `src/lib/game/mock-data.test.ts` (about to be edited in this task) and `src/lib/game/mock-engine.ts`/`mock-engine.test.ts` (about to be deleted) should appear. If any OTHER file still references these, stop and report — it means an earlier task's call-site sweep was incomplete; do not silently patch around it without understanding why.
+Replace `src/lib/components/ReviewTab.test.ts` entirely (adds an `appState.game` fixture, following the exact pattern already used in `src/lib/components/AnalysisTab.test.ts:20-31`):
 
-- [ ] **Step 2: Delete the mock engine**
+```typescript
+import { describe, it, expect, beforeEach } from 'vitest';
+import { render } from '@testing-library/svelte';
+import ReviewTab from './ReviewTab.svelte';
+import { EVAL_PER_PLY } from '$lib/game/mock-data';
+import { appState } from '$lib/stores/app-state.svelte';
 
-```bash
-rm src/lib/game/mock-engine.ts src/lib/game/mock-engine.test.ts
-```
+beforeEach(() => {
+	appState.game = {
+		sanList: ['e4'],
+		positions: [{}, {}],
+		moveMeta: [{ from: 'e2', to: 'e4' }],
+		isSample: true,
+		whiteName: null,
+		blackName: null,
+		whiteRating: null,
+		blackRating: null,
+		result: '0-1'
+	};
+});
 
-- [ ] **Step 3: Write the failing test for the trimmed `mock-data.ts`**
-
-Replace `src/lib/game/mock-data.test.ts` entirely with:
-
-```ts
-import { describe, it, expect } from 'vitest';
-import {
-	CLASS_CODES,
-	EVAL_PER_PLY,
-	BEST_MOVES,
-	COACH_TEXT_MAP,
-	BREAKDOWN_ROWS,
-	PHASE_ROWS,
-	PLAYERS
-} from './mock-data';
-
-describe('mock-data', () => {
-	it('CLASS_CODES/EVAL_PER_PLY have the sample game\'s known fixed lengths (31 plies)', () => {
-		expect(CLASS_CODES).toHaveLength(31);
-		expect(EVAL_PER_PLY).toHaveLength(32); // includes ply 0
+describe('ReviewTab', () => {
+	it('renders the eval graph, accuracy block, breakdown, and phase table together', () => {
+		const { container, getByText } = render(ReviewTab, {
+			props: { ply: 31, evalPerPly: EVAL_PER_PLY }
+		});
+		expect(container.querySelector('svg')).not.toBeNull();
+		expect(getByText('Jonas')).toBeTruthy();
+		expect(getByText('Brilliant')).toBeTruthy();
+		expect(getByText('Opening')).toBeTruthy();
 	});
 
-	it('has a coach text entry for every classification code', () => {
-		for (const code of CLASS_CODES) {
-			expect(COACH_TEXT_MAP[code]).toBeTruthy();
-		}
+	it('shows the real winner (from game.result) in the accuracy block, not a hardcoded one', () => {
+		const { getByText } = render(ReviewTab, {
+			props: { ply: 31, evalPerPly: EVAL_PER_PLY }
+		});
+		expect(getByText('0–1')).toBeTruthy();
 	});
 
-	it('has 10 breakdown rows and 3 phase rows', () => {
-		expect(BREAKDOWN_ROWS).toHaveLength(10);
-		expect(PHASE_ROWS).toHaveLength(3);
+	it('shows no analyzing overlay by default', () => {
+		const { queryByText, container } = render(ReviewTab, {
+			props: { ply: 31, evalPerPly: EVAL_PER_PLY }
+		});
+		expect(queryByText('Analyzing with Stockfish…')).toBeNull();
+		expect(container.querySelector('.graph-blur')?.classList.contains('analyzing')).toBe(false);
 	});
 
-	it('defines both players with a gameRating', () => {
-		expect(PLAYERS.white.gameRating).toBe('1712');
-		expect(PLAYERS.black.gameRating).toBe('1994');
-	});
-
-	it('has bestMoves entries matching the reference (ply 14 and 30)', () => {
-		expect(BEST_MOVES[14]).toEqual({ from: 'c8', to: 'g4', san: 'Bg4' });
-		expect(BEST_MOVES[30]).toEqual({ from: 'f6', to: 'g4', san: 'Ng4' });
+	it('shows a centered analyzing overlay over the blurred graph when analyzing is true', () => {
+		const { getByText, container } = render(ReviewTab, {
+			props: { ply: 31, evalPerPly: EVAL_PER_PLY, analyzing: true }
+		});
+		expect(getByText('Analyzing with Stockfish…')).toBeTruthy();
+		expect(container.querySelector('.graph-blur')?.classList.contains('analyzing')).toBe(true);
 	});
 });
 ```
 
-- [ ] **Step 4: Run test to verify it fails**
+- [ ] **Step 2: Run tests to verify they fail**
 
-Run: `pnpm vitest run src/lib/game/mock-data.test.ts`
-Expected: FAIL — `mock-data.ts` still imports the deleted `mock-engine.ts` and still exports `SAN_LIST`/`MOCK_POSITIONS`/`MOCK_MOVE_META`, but that's fine as a starting point; the real failure to fix is the deleted-file import breaking the whole module. Proceed to Step 5.
+Run: `pnpm exec vitest run src/lib/components/ReviewTab.test.ts`
+Expected: FAIL — `AccuracyBlock` (as of Task 5) now requires `white`/`black`/`resultLabel` props that `ReviewTab.svelte` doesn't pass yet; Svelte will throw/warn on missing required props and `getByText('0–1')` won't be found.
 
-- [ ] **Step 5: Trim `mock-data.ts`**
+- [ ] **Step 3: Wire `getAccuracySummary` into `ReviewTab.svelte`**
 
-In `src/lib/game/mock-data.ts`, remove the import of `buildGame` and the `SAN_LIST`/`MOCK_POSITIONS`/`MOCK_MOVE_META` exports. Change:
+```svelte
+<script lang="ts">
+	import { appState } from '$lib/stores/app-state.svelte';
+	import { CLASS_CODES } from '$lib/game/mock-data';
+	import { getAccuracySummary } from '$lib/game/review';
+	import EvalGraph from './EvalGraph.svelte';
+	import AccuracyBlock from './AccuracyBlock.svelte';
+	import BreakdownTable from './BreakdownTable.svelte';
+	import PhaseTable from './PhaseTable.svelte';
 
-```ts
-import type { ClassCode } from '$lib/types';
-import type { Move } from '$lib/board/types';
-import { buildGame } from './mock-engine';
+	interface Props {
+		ply: number;
+		evalPerPly: number[];
+		analyzing?: boolean;
+	}
+
+	let { ply, evalPerPly, analyzing = false }: Props = $props();
+
+	const accuracy = $derived(getAccuracySummary(appState.game!, evalPerPly));
+</script>
+
+<div class="review-tab sbscroll">
+	<div class="graph-slot">
+		<div class="graph-blur" class:analyzing>
+			<EvalGraph {evalPerPly} classCodes={CLASS_CODES} {ply} height={66} />
+		</div>
+		{#if analyzing}
+			<div class="analyzing-overlay"><span>Analyzing with Stockfish…</span></div>
+		{/if}
+	</div>
+	<AccuracyBlock white={accuracy.white} black={accuracy.black} resultLabel={accuracy.resultLabel} />
+	<div class="divider"></div>
+	<BreakdownTable />
+	<PhaseTable />
+</div>
 ```
 
-to:
+(The `<style>` block is unchanged — leave it exactly as it is in the current file.)
 
-```ts
-import type { ClassCode } from '$lib/types';
-```
+- [ ] **Step 4: Run tests to verify they pass**
 
-(The `Move` type import and `buildGame` import are both dropped — nothing in this trimmed file needs them anymore.)
+Run: `pnpm exec vitest run src/lib/components/ReviewTab.test.ts`
+Expected: PASS — all green.
 
-Remove these lines from the bottom of the file:
+Run full suite to confirm nothing else broke: `pnpm exec vitest run`
+Expected: PASS across the repo.
 
-```ts
-const built = buildGame(SAN_LIST);
-export const MOCK_POSITIONS = built.positions;
-export const MOCK_MOVE_META = built.meta;
-```
+Run: `pnpm check`
+Expected: no new TypeScript errors.
 
-Remove the `SAN_LIST` export itself (the array literal near the top of the file):
-
-```ts
-export const SAN_LIST = [
-	'e4', 'e5', 'Nf3', 'Nc6', 'Bc4', 'Bc5', 'c3', 'Nf6', 'd3', 'd6', 'O-O', 'O-O',
-	'Re1', 'a6', 'Bb3', 'Ba7', 'h3', 'h6', 'Nbd2', 'Be6', 'Bxe6', 'fxe6', 'Nf1',
-	'Qe7', 'Ng3', 'Rad8', 'd4', 'exd4', 'cxd4', 'd5', 'Ne5'
-];
-```
-
-Update the file's banner doc comment (at the very top of the file) to reflect the new scope. Replace it with:
-
-```ts
-/**
- * ============================================================================
- * MOCK CONTENT — describes ONLY the built-in sample game (the Italian Game
- * shown by "Paste sample game"), applied by review.ts ONLY when the currently
- * loaded game is verified byte-identical to that sample PGN (`GameData.isSample`,
- * Iteration 6). A genuinely different real pasted/typed PGN gets real positions
- * and moves (src-tauri/src/pgn.rs via shakmaty) but none of this classification/
- * coach-text/breakdown/phase/player content, since none of it can honestly
- * apply to a game these arrays were never computed from.
- * ============================================================================
- * classCodes/evalPerPly/bestMoves/coachTextMap/breakdown/phases stand in for
- * Rust analysis+engine output (README §8 mapping table) — real move
- * classification is a later iteration (OVERVIEW §11's centipawn-loss/accuracy
- * formulas are not implemented yet). players stands in for backend-computed
- * screen content (same table) — real player names/ratings from PGN tags are
- * also a later iteration. CLS itself (name/word/color/glyph) is NOT mock —
- * that already lives in TOKENS.classification (src/lib/tokens.ts) and must
- * not be redeclared here.
- */
-```
-
-- [ ] **Step 6: Run tests to verify they pass**
-
-Run: `pnpm vitest run src/lib/game/mock-data.test.ts`
-Expected: all 5 tests pass.
-
-- [ ] **Step 7: Run the FULL test suite to confirm no dangling references anywhere**
-
-Run: `pnpm run test -- --run`
-Expected: all test files pass — this confirms Tasks 4/5's call-site sweeps were complete and nothing still imports the deleted `mock-engine.ts` or the removed `mock-data.ts` exports.
-
-- [ ] **Step 8: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add -A
-git commit -m "chore: delete the mock SAN engine and trim mock-data.ts to sample-game-only content"
+git add src/lib/components/ReviewTab.svelte src/lib/components/ReviewTab.test.ts
+git commit -m "feat: render the real accuracy/winner summary in ReviewTab"
 ```
 
 ---

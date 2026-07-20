@@ -31,7 +31,8 @@ beforeEach(() => {
 		whiteName: null,
 		blackName: null,
 		whiteRating: null,
-		blackRating: null
+		blackRating: null,
+		result: null
 	};
 });
 

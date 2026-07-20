@@ -9,6 +9,7 @@ export interface ParsedGame {
 	blackName: string | null;
 	whiteRating: string | null;
 	blackRating: string | null;
+	result: string | null;
 }
 
 /** Invokes the Rust `parse_pgn` Tauri command (LOGIC.md §7/§8; replaces the mock SAN engine). */

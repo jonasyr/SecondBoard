@@ -1,5 +1,7 @@
 <script lang="ts">
+	import { appState } from '$lib/stores/app-state.svelte';
 	import { CLASS_CODES } from '$lib/game/mock-data';
+	import { getAccuracySummary } from '$lib/game/review';
 	import EvalGraph from './EvalGraph.svelte';
 	import AccuracyBlock from './AccuracyBlock.svelte';
 	import BreakdownTable from './BreakdownTable.svelte';
@@ -12,6 +14,15 @@
 	}
 
 	let { ply, evalPerPly, analyzing = false }: Props = $props();
+
+	// Only feed the real evalPerPly in once analysis has actually finished;
+	// otherwise (idle/loading/error) pass an empty array so
+	// computeGameAccuracy's own length<2 guard returns null/null, rendering
+	// "—" instead of a fabricated 100.0 from the seeded all-zero placeholder
+	// evalPerPly that startReview() writes before analysis completes.
+	const accuracy = $derived(
+		getAccuracySummary(appState.game!, appState.analysisStatus === 'ready' ? evalPerPly : [])
+	);
 </script>
 
 <div class="review-tab sbscroll">
@@ -23,7 +34,7 @@
 			<div class="analyzing-overlay"><span>Analyzing with Stockfish…</span></div>
 		{/if}
 	</div>
-	<AccuracyBlock />
+	<AccuracyBlock white={accuracy.white} black={accuracy.black} resultLabel={accuracy.resultLabel} />
 	<div class="divider"></div>
 	<BreakdownTable />
 	<PhaseTable />

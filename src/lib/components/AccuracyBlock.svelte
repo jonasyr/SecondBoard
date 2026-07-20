@@ -1,20 +1,46 @@
 <script lang="ts">
-	import { PLAYERS } from '$lib/game/mock-data';
 	import { TOKENS } from '$lib/tokens';
+	import type { AccuracySide } from '$lib/game/review';
+
+	interface Props {
+		white: AccuracySide;
+		black: AccuracySide;
+		resultLabel: string;
+	}
+
+	let { white, black, resultLabel }: Props = $props();
 </script>
 
 <div class="accuracy-grid">
 	<div class="col">
-		<span class="name">{PLAYERS.white.name}</span>
-		<div class="avatar neutral" style={`background:${TOKENS.review.avatarWhiteBg};`}>{PLAYERS.white.initial}</div>
-		<div class="chip neutral sbmono">{PLAYERS.white.accuracy}</div>
+		<span class="name">{white.name}</span>
+		<div
+			class="avatar"
+			class:neutral={!white.isWinner}
+			class:tinted={white.isWinner}
+			style={`background:${TOKENS.review.avatarWhiteBg};`}
+		>
+			{white.initial}
+		</div>
+		<div class="chip sbmono" class:neutral={!white.isWinner} class:tinted={white.isWinner}>
+			{white.accuracy ?? '—'}
+		</div>
 		<span class="label">ACCURACY</span>
 	</div>
-	<span class="result sbmono">0–1</span>
+	<span class="result sbmono">{resultLabel}</span>
 	<div class="col">
-		<span class="name">{PLAYERS.black.name}</span>
-		<div class="avatar tinted" style={`background:${TOKENS.review.avatarBlackBg};`}>{PLAYERS.black.initial}</div>
-		<div class="chip tinted sbmono">{PLAYERS.black.accuracy}</div>
+		<span class="name">{black.name}</span>
+		<div
+			class="avatar"
+			class:neutral={!black.isWinner}
+			class:tinted={black.isWinner}
+			style={`background:${TOKENS.review.avatarBlackBg};`}
+		>
+			{black.initial}
+		</div>
+		<div class="chip sbmono" class:neutral={!black.isWinner} class:tinted={black.isWinner}>
+			{black.accuracy ?? '—'}
+		</div>
 		<span class="label">ACCURACY</span>
 	</div>
 </div>
@@ -24,9 +50,25 @@
 		<div class="rating-title">Game Rating</div>
 		<div class="rating-subtitle">Est. performance</div>
 	</div>
-	<div class="rating-col"><div class="chip neutral sbmono wide">{PLAYERS.white.gameRating}</div></div>
+	<div class="rating-col">
+		<div
+			class="chip sbmono wide"
+			class:neutral={!white.isWinner}
+			class:tinted={white.isWinner}
+		>
+			{white.gameRating ?? '—'}
+		</div>
+	</div>
 	<span></span>
-	<div class="rating-col"><div class="chip tinted sbmono wide">{PLAYERS.black.gameRating}</div></div>
+	<div class="rating-col">
+		<div
+			class="chip sbmono wide"
+			class:neutral={!black.isWinner}
+			class:tinted={black.isWinner}
+		>
+			{black.gameRating ?? '—'}
+		</div>
+	</div>
 </div>
 
 <style>

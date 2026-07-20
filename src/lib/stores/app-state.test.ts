@@ -180,6 +180,33 @@ describe('startReview (real PGN parsing)', () => {
 		expect(appState.parseError).toBe('illegal move: Kd8');
 		expect(appState.gameLoaded).toBe(false);
 	});
+
+	it('threads the parsed Result tag into game.result', async () => {
+		parsePgn.mockResolvedValue({
+			sanList: ['e4'],
+			positions: [{}, {}],
+			moves: [{ from: 'e2', to: 'e4' }],
+			result: '1-0'
+		});
+		loadRealAnalysis.mockResolvedValue({ evalPerPly: [], bestMoves: {} });
+
+		await startReview();
+
+		expect(appState.game!.result).toBe('1-0');
+	});
+
+	it('defaults game.result to null when the PGN has no Result tag', async () => {
+		parsePgn.mockResolvedValue({
+			sanList: ['e4'],
+			positions: [{}, {}],
+			moves: [{ from: 'e2', to: 'e4' }]
+		});
+		loadRealAnalysis.mockResolvedValue({ evalPerPly: [], bestMoves: {} });
+
+		await startReview();
+
+		expect(appState.game!.result).toBeNull();
+	});
 });
 
 describe('real analysis loading', () => {

@@ -1,90 +1,66 @@
-## Task 2: Rust Tauri Command `parse_pgn` — Report
+# Task 2 Report: TS API + store — thread `result` through to `GameData`
 
-### Summary
-Successfully implemented the `parse_pgn` Tauri command that exposes the existing `pgn::parse_pgn` module function to the frontend as an invokable command.
+## What was implemented
 
-### What Was Implemented
+Threaded the Rust `pgn::ParsedGame.result: Option<String>` field (added in Task 1) through the TypeScript layer end-to-end:
 
-1. **Added test module** (`parse_pgn_tests`) to `src-tauri/src/lib.rs`:
-   - Test: `parse_pgn_command_delegates_to_the_pgn_module()` — validates that the command correctly delegates to `pgn::parse_pgn` and returns properly structured results
-   - Test: `parse_pgn_command_surfaces_parse_errors_as_strings()` — validates that parsing errors are properly surfaced to the frontend
+1. `src/lib/api/pgn.ts` — added `result: string | null` to the `ParsedGame` interface.
+2. `src/lib/game/review.ts` — added `result: string | null` to the `GameData` interface.
+3. `src/lib/stores/app-state.svelte.ts` — `startReview()`'s object literal now sets `result: parsed.result ?? null` when building `appState.game`.
 
-2. **Implemented the command function**:
-   ```rust
-   #[tauri::command]
-   fn parse_pgn(pgn: String) -> Result<pgn::ParsedGame, String> {
-       pgn::parse_pgn(&pgn)
-   }
-   ```
-   - Simple delegation wrapper following the same pattern as `analyze_fen`
-   - Returns `pgn::ParsedGame` with camelCase-serialized fields: `sanList`, `positions`, `moves`
-   - Errors propagated as strings
+## What was tested and results
 
-3. **Registered command** in `run()` function's `invoke_handler`:
-   - Updated from: `.invoke_handler(tauri::generate_handler![analyze_fen])`
-   - Updated to: `.invoke_handler(tauri::generate_handler![analyze_fen, parse_pgn])`
+Added two new tests to `src/lib/stores/app-state.test.ts` in the `describe('startReview (real PGN parsing)')` block, exactly per the brief:
+- `threads the parsed Result tag into game.result` — mocks `parsePgn` resolving with `result: '1-0'`, asserts `appState.game!.result === '1-0'`.
+- `defaults game.result to null when the PGN has no Result tag` — mocks `parsePgn` resolving without a `result` field, asserts `appState.game!.result === null`.
 
-### Testing
+### TDD Evidence
 
-**Step 2 — RED** (test added, function not yet added):
+**RED** — `pnpm exec vitest run src/lib/stores/app-state.test.ts`:
+```
+PASS (14) FAIL (2)
 
-```bash
-cd src-tauri && cargo test --lib parse_pgn 2>&1 | tail -30
+1. startReview (real PGN parsing) threads the parsed Result tag into game.result
+   AssertionError: expected undefined to be '1-0'
+2. startReview (real PGN parsing) defaults game.result to null when the PGN has no Result tag
+   AssertionError: expected undefined to be null
 ```
 
-Result: compile error, as expected —
-
+**GREEN** — after adding `result` to `ParsedGame`, `GameData`, and the `startReview` assignment (`result: parsed.result ?? null`):
 ```
-error[E0425]: cannot find function `parse_pgn` in this scope
+pnpm exec vitest run src/lib/stores/app-state.test.ts src/lib/game/review.test.ts src/lib/components/AnalysisTab.test.ts src/routes/page.test.ts src/lib/components/ReviewPanel.test.ts src/lib/components/GameReviewScreen.test.ts
+EXIT:0
 ```
+All targeted suites pass; only pre-existing, unrelated svelte-compiler a11y/state warnings appear in the console output (from `.svelte` files this task never touched) — no test failures.
 
-**Step 4 — GREEN** (implementation added):
-
-```bash
-cd src-tauri && cargo test 2>&1 | tail -50
+`pnpm check`:
 ```
-
-Result:
+1784283818630 COMPLETED 468 FILES 0 ERRORS 15 WARNINGS 6 FILES_WITH_PROBLEMS
 ```
-cargo test: 20 passed (3 suites, 0.64s)
-```
+0 errors. The 15 warnings are all pre-existing (a11y click-handler warnings in MoveList/ExploreTab/OnboardingScreen, `state_referenced_locally` in Board.svelte, `Unknown property: 'app-region'` in TitleBar.svelte) and unrelated to this change.
 
-All 20 tests pass, including both new `parse_pgn_tests`.
+## Files changed
 
-**Verify no warnings or errors:**
+Per the brief:
+- `src/lib/api/pgn.ts` — added `result: string | null` to `ParsedGame`.
+- `src/lib/game/review.ts` — added `result: string | null` to `GameData`.
+- `src/lib/stores/app-state.svelte.ts` — `startReview()` now sets `result: parsed.result ?? null`.
+- `src/lib/game/review.test.ts` — added `result: null` to `sampleGame` and `notSampleGame` fixtures (the `realGame` spread-fixture inherits it via `...notSampleGame`, as the brief predicted, no direct edit needed there).
+- `src/lib/stores/app-state.test.ts` — added the two new tests specified in the brief.
+- `src/lib/components/AnalysisTab.test.ts` — added `result: null` to the `appState.game` fixture.
 
-```bash
-cd src-tauri && cargo check 2>&1 | tail -20
-```
+Extra fixtures found beyond the brief's named three (via `grep -rn "blackRating: null" src/`) and fixed the same way:
+- `src/routes/page.test.ts` — `loadSampleGame()`'s `appState.game` literal.
+- `src/lib/components/ReviewPanel.test.ts` — `beforeEach`'s `appState.game` literal.
+- `src/lib/components/GameReviewScreen.test.ts` — `beforeEach`'s `appState.game` literal.
 
-Result:
-```
-cargo build (9 crates compiled)
-Finished `dev` profile (unoptimized + debuginfo) target(s) in 6.22s
-```
+## Self-review findings
 
-- 0 compiler warnings
-- 0 compiler errors
+- `ParsedGame.result` and `GameData.result` are both typed exactly `string | null` (not `string | undefined`), matching the brief.
+- `startReview()` uses `parsed.result ?? null`, so a mocked/real response that omits the field entirely (`undefined`) still produces `null` on `appState.game.result`, not `undefined` — verified directly by the second new test.
+- Searched the whole `src/` tree for `GameData`-shaped literals (`grep -rn "blackRating: null" src/`) and found 5 total fixture sites, not just the 3 the brief named; all 5 now include `result: null`. Every `GameData` object literal in the repo includes `blackRating` as its last scalar field, so this grep is exhaustive for the shape — no other construction sites exist.
+- Full targeted test run and `pnpm check` both clean; no new warnings introduced by these changes (all warnings present both before and after are in unrelated `.svelte` files).
 
-### Files Changed
+## Concerns
 
-- `src-tauri/src/lib.rs` — added `parse_pgn` command function, registered in `invoke_handler`, and added `parse_pgn_tests` module (26 insertions, 1 deletion)
-
-### Self-Review Findings
-
-#### Issue Found & Fixed
-The test case in the brief used `"1. e4 e5 2. Qh5 Nf6 3. Qxf9"` but `f9` is not a valid square (rank 9 doesn't exist). The pgn-reader tokenizer silently truncates the game on invalid notation rather than erroring, causing the test to fail.
-
-**Resolution:** Changed to `"1. e4 e5 2. Ke2 Ke7 3. Kf3 Kd8"` — a syntactically valid but chess-illegal move (black king cannot move to d8 because the queen occupies that square). This follows the pattern in the existing pgn.rs test suite and correctly validates that illegal moves produce errors.
-
-#### Code Quality
-- ✅ Command implementation matches the brief specification exactly (except for the test case fix noted above)
-- ✅ Follows existing code patterns (simple delegation wrapper like `analyze_fen`)
-- ✅ All tests pass (RED → GREEN workflow confirmed)
-- ✅ No compiler warnings or errors
-- ✅ Properly registered in invoke_handler macro
-- ✅ Return types correctly camelCase-serialized via `pgn::ParsedGame` serde attribute
-
-### Conclusion
-
-Task 2 is complete and ready for Task 3 (frontend integration). The `parse_pgn` command is now available to the JavaScript frontend as `invoke('parse_pgn', { pgn })`.
+None. The change is a pure type/plumbing addition with no behavioral changes to existing consumers; `getReviewPly`/`getPlayerRows` and all UI components ignore the new field for now, as expected — later tasks (3-6) will consume `GameData.result`.

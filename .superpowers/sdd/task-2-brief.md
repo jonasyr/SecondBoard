@@ -1,73 +1,122 @@
-## Task 2: Rust Tauri command `parse_pgn`
+## Task 2: TS API + store — thread `result` through to `GameData`
 
 **Files:**
-- Modify: `src-tauri/src/lib.rs`
+- Modify: `src/lib/api/pgn.ts`
+- Modify: `src/lib/game/review.ts` (only the `GameData` interface, lines 19-28)
+- Modify: `src/lib/stores/app-state.svelte.ts` (only the `startReview` object literal, lines 77-86)
+- Modify: `src/lib/game/review.test.ts` (fixture objects, add `result: null` to `sampleGame`/`notSampleGame`)
+- Test: `src/lib/stores/app-state.test.ts` (add one new test)
 
 **Interfaces:**
-- Consumes: `pgn::parse_pgn`, `pgn::ParsedGame` (Task 1).
-- Produces (used by Task 3): Tauri command `parse_pgn(pgn: String) -> Result<pgn::ParsedGame, String>`, invokable from JS as `invoke('parse_pgn', { pgn })`, returning camelCase JSON `{ sanList: string[], positions: Array<Record<string, [string,string]>>, moves: Array<{from:string,to:string}> }`.
+- Consumes: `pgn::ParsedGame.result: Option<String>` from Task 1 (deserializes as `string | null` via Tauri's `invoke`).
+- Produces: `GameData.result: string | null` — consumed by Task 4's `getAccuracySummary`.
 
 - [ ] **Step 1: Write the failing test**
 
-Add to the bottom of `src-tauri/src/lib.rs` (in a new test module, alongside the existing `analyze_fen_tests` module from Iteration 5):
+Add to `src/lib/stores/app-state.test.ts`, in the same `describe` block as the other `startReview` tests (follow the existing pattern at the file's PGN-parsing tests, using the same `parsePgn.mockResolvedValue`/`loadRealAnalysis.mockResolvedValue` setup already used there):
 
-```rust
-#[cfg(test)]
-mod parse_pgn_tests {
-    use super::*;
+```typescript
+	it('threads the parsed Result tag into game.result', async () => {
+		parsePgn.mockResolvedValue({
+			sanList: ['e4'],
+			positions: [{}, {}],
+			moves: [{ from: 'e2', to: 'e4' }],
+			result: '1-0'
+		});
+		loadRealAnalysis.mockResolvedValue({ evalPerPly: [], bestMoves: {} });
 
-    #[test]
-    fn parse_pgn_command_delegates_to_the_pgn_module() {
-        let pgn = "1. e4 e5 2. Nf3 Nc6".to_string();
-        let result = parse_pgn(pgn).expect("valid PGN should parse successfully");
-        assert_eq!(result.san_list, vec!["e4", "e5", "Nf3", "Nc6"]);
-        assert_eq!(result.positions.len(), 5);
-    }
+		await startReview();
 
-    #[test]
-    fn parse_pgn_command_surfaces_parse_errors_as_strings() {
-        let bad_pgn = "1. e4 e5 2. Qh5 Nf6 3. Qxf9".to_string();
-        let result = parse_pgn(bad_pgn);
-        assert!(result.is_err());
-    }
+		expect(appState.game!.result).toBe('1-0');
+	});
+
+	it('defaults game.result to null when the PGN has no Result tag', async () => {
+		parsePgn.mockResolvedValue({
+			sanList: ['e4'],
+			positions: [{}, {}],
+			moves: [{ from: 'e2', to: 'e4' }]
+		});
+		loadRealAnalysis.mockResolvedValue({ evalPerPly: [], bestMoves: {} });
+
+		await startReview();
+
+		expect(appState.game!.result).toBeNull();
+	});
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `pnpm exec vitest run src/lib/stores/app-state.test.ts`
+Expected: FAIL — `appState.game!.result` is `undefined`, not `'1-0'`/`null` (property doesn't exist yet on the assigned object; TypeScript would also fail `pnpm check` at this point, which is expected mid-task).
+
+- [ ] **Step 3: Add `result` to `ParsedGame`, `GameData`, and the `startReview` assignment**
+
+In `src/lib/api/pgn.ts`, modify `ParsedGame`:
+
+```typescript
+export interface ParsedGame {
+	sanList: string[];
+	positions: Position[];
+	moves: Move[];
+	whiteName: string | null;
+	blackName: string | null;
+	whiteRating: string | null;
+	blackRating: string | null;
+	result: string | null;
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+In `src/lib/game/review.ts`, modify `GameData`:
 
-Run: `cd src-tauri && cargo test --lib parse_pgn 2>&1 | tail -30`
-Expected: FAIL — `cannot find function \`parse_pgn\` in this scope` (the plain top-level function doesn't exist in `lib.rs` yet — only `pgn::parse_pgn` does).
-
-- [ ] **Step 3: Implement the command**
-
-In `src-tauri/src/lib.rs`, add near the existing `analyze_fen` command:
-
-```rust
-#[tauri::command]
-fn parse_pgn(pgn: String) -> Result<pgn::ParsedGame, String> {
-    pgn::parse_pgn(&pgn)
+```typescript
+export interface GameData {
+	sanList: string[];
+	positions: Position[];
+	moveMeta: Move[];
+	isSample: boolean;
+	whiteName: string | null;
+	blackName: string | null;
+	whiteRating: string | null;
+	blackRating: string | null;
+	result: string | null;
 }
 ```
 
-Update the `run()` function's `invoke_handler` to also register it:
+In `src/lib/stores/app-state.svelte.ts`, modify the object literal inside `startReview`:
 
-```rust
-        .invoke_handler(tauri::generate_handler![analyze_fen, parse_pgn])
+```typescript
+		appState.game = {
+			sanList: parsed.sanList,
+			positions: parsed.positions,
+			moveMeta: parsed.moves,
+			isSample: pgnToParse.trim() === SAMPLE_PGN.trim(),
+			whiteName: parsed.whiteName,
+			blackName: parsed.blackName,
+			whiteRating: parsed.whiteRating,
+			blackRating: parsed.blackRating,
+			result: parsed.result ?? null
+		};
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [ ] **Step 4: Fix now-broken `GameData` fixtures**
 
-Run: `cd src-tauri && cargo test 2>&1 | tail -50`
-Expected: all tests pass, including both new `parse_pgn_tests`.
+In `src/lib/game/review.test.ts`, add `result: null` to both `sampleGame` (after `blackRating: null,` around line 24) and `notSampleGame` (after `blackRating: null,` around line 38), and to the `realGame` spread-fixture inside the `'uses real PGN White/Black/*Elo tags...'` test — since it uses `...notSampleGame`, it inherits `result: null` automatically and needs no direct edit.
 
-Also run: `cd src-tauri && cargo check 2>&1 | tail -20`
-Expected: no errors or warnings.
+Also check `src/lib/components/AnalysisTab.test.ts`'s `appState.game = {...}` fixture (lines 21-30) and add `result: null` after `blackRating: null,`.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run: `pnpm exec vitest run src/lib/stores/app-state.test.ts src/lib/game/review.test.ts src/lib/components/AnalysisTab.test.ts`
+Expected: PASS — all green.
+
+Run: `pnpm check`
+Expected: no new TypeScript errors (the `ParsedGame`/`GameData` shapes now agree end-to-end).
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add src-tauri/src/lib.rs
-git commit -m "feat: expose parse_pgn as a Tauri command"
+git add src/lib/api/pgn.ts src/lib/game/review.ts src/lib/stores/app-state.svelte.ts src/lib/game/review.test.ts src/lib/stores/app-state.test.ts src/lib/components/AnalysisTab.test.ts
+git commit -m "feat: thread the PGN Result tag into GameData.result"
 ```
 
 ---
