@@ -13,7 +13,7 @@
  * (4,0) score-table cases -- not a bug we should "fix", since fixing it would
  * make this no longer match lichess's actual behavior).
  */
-import type { Piece, PieceColor, Position, Square } from '$lib/board/types';
+import type { Piece, Position, Square } from '$lib/board/types';
 
 const FILES = 'abcdefgh';
 
