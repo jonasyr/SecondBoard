@@ -193,7 +193,14 @@ export function getPhaseRows(
 	wdlPerPly?: (Wdl | null)[]
 ): PhaseRow[] {
 	const division = dividePhases(positions);
-	const openingEnd = division.middlePly ?? division.totalPlies;
+	// division.middlePly is only null when division.endPly is also null for
+	// any position stream produced by this app's own PGN parser (games always
+	// start at the standard 14-majors/minors position, so the <=10 midgame
+	// trigger always fires before the <=6 endgame one) -- but guard the
+	// opposite ordering anyway (endPly non-null, middlePly null) so a future
+	// custom-start-position source can't make the Opening and Endgame ranges
+	// silently overlap and double-count plies.
+	const openingEnd = division.middlePly ?? division.endPly ?? division.totalPlies;
 	const middleEnd = division.endPly ?? division.totalPlies;
 
 	const ranges: Array<[PhaseRow['name'], number, number]> = [
