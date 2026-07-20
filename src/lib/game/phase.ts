@@ -14,6 +14,7 @@
  * make this no longer match lichess's actual behavior).
  */
 import type { Piece, Position, Square } from '$lib/board/types';
+import { computeGameAccuracy, type Wdl } from './accuracy';
 
 const FILES = 'abcdefgh';
 
@@ -144,4 +145,73 @@ export function dividePhases(positions: Position[]): PhaseDivision {
 	const middlePly = midGame !== null && (endGame === null || midGame < endGame) ? midGame : null;
 
 	return { middlePly, endPly: endGame, totalPlies: positions.length };
+}
+
+/**
+ * Which of the 3 existing chess.com-style classification badges to show for
+ * a phase's accuracy. Reuses the existing `best`/`good`/`inaccuracy`
+ * ClassCode/TOKENS.classification entries (green star / green check / amber
+ * "?!") rather than inventing new icons. chess.com's own real thresholds for
+ * its Opening/Middlegame/Endgame phase icons are NOT publicly documented
+ * anywhere (confirmed via chess.com's own support articles and forum threads
+ * -- a chess.com moderator, asked directly, replied "I'm not seeing anything
+ * documented. I'm asking about it") -- these thresholds are SecondBoard's own
+ * design choice, not a chess.com or lichess port.
+ */
+export type PhaseBadgeCode = 'best' | 'good' | 'inaccuracy';
+
+const PHASE_BEST_THRESHOLD = 90;
+const PHASE_GOOD_THRESHOLD = 75;
+
+function phaseBadgeCode(accuracy: number): PhaseBadgeCode {
+	if (accuracy >= PHASE_BEST_THRESHOLD) return 'best';
+	if (accuracy >= PHASE_GOOD_THRESHOLD) return 'good';
+	return 'inaccuracy';
+}
+
+export interface PhaseRow {
+	name: 'Opening' | 'Middlegame' | 'Endgame';
+	white: { code: PhaseBadgeCode; accuracy: number } | null;
+	black: { code: PhaseBadgeCode; accuracy: number } | null;
+}
+
+/**
+ * Real per-phase, per-side accuracy and badge rows, replacing mock-data.ts's
+ * PHASE_ROWS. Phase boundaries come from `dividePhases` (Task 1, a lichess
+ * `Divider` port); each phase's accuracy reuses this codebase's existing
+ * lichess-ported `computeGameAccuracy`, applied only to that phase's ply
+ * range (via `startPly` so mover-color attribution stays correct across the
+ * slice boundary -- see accuracy.ts). This composition -- computing accuracy
+ * separately per phase bucket -- is SecondBoard's own design choice; lichess
+ * itself only exposes a similar per-phase breakdown in its separate,
+ * account-gated "Insights" feature, whose exact source could not be
+ * confirmed this session.
+ */
+export function getPhaseRows(
+	positions: Position[],
+	evalPerPly: number[],
+	wdlPerPly?: (Wdl | null)[]
+): PhaseRow[] {
+	const division = dividePhases(positions);
+	const openingEnd = division.middlePly ?? division.totalPlies;
+	const middleEnd = division.endPly ?? division.totalPlies;
+
+	const ranges: Array<[PhaseRow['name'], number, number]> = [
+		['Opening', 0, openingEnd],
+		['Middlegame', openingEnd, middleEnd],
+		['Endgame', middleEnd, division.totalPlies]
+	];
+
+	return ranges.map(([name, start, end]) => {
+		const { white, black } = computeGameAccuracy(
+			evalPerPly.slice(start, end),
+			wdlPerPly?.slice(start, end),
+			start
+		);
+		return {
+			name,
+			white: white === null ? null : { code: phaseBadgeCode(white), accuracy: white },
+			black: black === null ? null : { code: phaseBadgeCode(black), accuracy: black }
+		};
+	});
 }

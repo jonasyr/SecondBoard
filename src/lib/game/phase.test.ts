@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { dividePhases } from './phase';
+import { dividePhases, getPhaseRows } from './phase';
 import type { Position } from '$lib/board/types';
 
 /** Full starting position, White's home rank first, matching this codebase's
@@ -138,5 +138,49 @@ describe('dividePhases', () => {
 		const positions = [STARTING_POSITION, interleaved];
 		const division = dividePhases(positions);
 		expect(division.middlePly).toBe(1);
+	});
+});
+
+describe('getPhaseRows', () => {
+	it('always returns exactly 3 rows in Opening/Middlegame/Endgame order', () => {
+		const rows = getPhaseRows([STARTING_POSITION, STARTING_POSITION], [0, 0]);
+		expect(rows.map((r) => r.name)).toEqual(['Opening', 'Middlegame', 'Endgame']);
+	});
+
+	it('returns null for both sides of a phase with fewer than 2 analyzed plies', () => {
+		// A 2-position (1-ply) game never leaves the opening (dividePhases
+		// returns middlePly: null), so Middlegame and Endgame each get a
+		// zero-length slice -- no data, not a fabricated badge.
+		const rows = getPhaseRows([STARTING_POSITION, STARTING_POSITION], [0, 0.2]);
+		const middlegame = rows.find((r) => r.name === 'Middlegame')!;
+		const endgame = rows.find((r) => r.name === 'Endgame')!;
+		expect(middlegame.white).toBeNull();
+		expect(middlegame.black).toBeNull();
+		expect(endgame.white).toBeNull();
+		expect(endgame.black).toBeNull();
+	});
+
+	it('assigns the "best" badge code for high accuracy and "inaccuracy" for low accuracy', () => {
+		// Opening-only game (dividePhases never leaves the opening for a
+		// repeated starting position, 4 plies = 2 White + 1 Black move).
+		// evalPerPly: ply0=0, ply1=0 (White's move: 0->0, perfect, "best"),
+		// ply2=9 (Black's move: 0->9, White-POV eval swinging hugely AGAINST
+		// Black is a catastrophic self-inflicted drop in Black's own win% --
+		// "inaccuracy"), ply3=9 (White's 2nd move: 9->9, unchanged, "best",
+		// averaged with White's 1st move -> still "best" overall).
+		const positions = [STARTING_POSITION, STARTING_POSITION, STARTING_POSITION, STARTING_POSITION];
+		const evalPerPly = [0, 0, 9, 9];
+		const rows = getPhaseRows(positions, evalPerPly);
+		const opening = rows.find((r) => r.name === 'Opening')!;
+		expect(opening.white?.code).toBe('best');
+		expect(opening.black?.code).toBe('inaccuracy');
+	});
+
+	it('includes the exact accuracy value alongside the badge code (for the UI tooltip)', () => {
+		const positions = [STARTING_POSITION, STARTING_POSITION];
+		const evalPerPly = [0, 0];
+		const rows = getPhaseRows(positions, evalPerPly);
+		const opening = rows.find((r) => r.name === 'Opening')!;
+		expect(opening.white?.accuracy).toBe(100);
 	});
 });
