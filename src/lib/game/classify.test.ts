@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { classifyMoveByEpLoss, classifyGame } from './classify';
+import type { Move, Position } from '$lib/board/types';
 
 describe('classifyMoveByEpLoss', () => {
 	it('classifies exactly 0 loss as best', () => {
@@ -75,5 +76,87 @@ describe('classifyGame', () => {
 		const withWdl = classifyGame(evalPerPly, wdlPerPly);
 		expect(withoutWdl[0]).not.toBe('blunder');
 		expect(withWdl[0]).toBe('blunder');
+	});
+});
+
+describe('classifyGame with special classes', () => {
+	// 3 plies: ply0 (before any move) -> ply1 (after White's move) -> ply2 (after Black's move).
+	// evalPerPly / wdlPerPly are White-POV win% inputs; the fixture positions/moves below are
+	// only wired up to exercise the Brilliant/Great/Miss branches, not to represent a legal game.
+
+	it('classifies a best/near-best sound piece sacrifice as brilliant', () => {
+		const evalPerPly = [0, 0]; // win% 50 before and after (via the sigmoid) is not what
+		// matters here -- use wdlPerPly to pin exact mover-POV win% values instead.
+		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
+			[600, 400, 0], // ply 0: White win% 80 (mover POV, White to move)
+			[600, 400, 0] // ply 1: White win% 80 after the move (stays >= 50, well under 97)
+		];
+		const positions: Position[] = [
+			{ e1: ['K', 'w'], e5: ['N', 'w'], e8: ['K', 'b'] }, // before: White has a knight on e5
+			{ e1: ['K', 'w'], e8: ['K', 'b'] } // after: the knight is gone -- a sacrifice
+		];
+		const moveMeta: Move[] = [{ from: 'e5', to: 'd7' }];
+		const bestMoves: Record<number, Move & { san: string }> = {
+			1: { from: 'e5', to: 'd7', san: 'Nd7' } // played move IS the engine's suggestion
+		};
+
+		const codes = classifyGame(evalPerPly, wdlPerPly, { positions, moveMeta, bestMoves });
+
+		expect(codes).toEqual(['brilliant']);
+	});
+
+	it('classifies an only-move (large MultiPV gap) best move as great', () => {
+		const evalPerPly = [0, 0];
+		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
+			[550, 400, 50], // ply 0: White win% (550+200)/10 = 75 (mover POV)
+			[550, 400, 50] // ply 1: unchanged -- no sacrifice/miss condition applies
+		];
+		const secondWdlPerPly: (import('./accuracy').Wdl | null)[] = [
+			[350, 400, 250], // ply 0's second PV line: White win% (350+200)/10 = 55 -> gap of 20 >= 10
+			null
+		];
+		const positions: Position[] = [
+			{ e1: ['K', 'w'], e8: ['K', 'b'] },
+			{ e1: ['K', 'w'], e8: ['K', 'b'] }
+		];
+		const moveMeta: Move[] = [{ from: 'e1', to: 'e2' }];
+		const bestMoves: Record<number, Move & { san: string }> = {
+			1: { from: 'e1', to: 'e2', san: 'Ke2' }
+		};
+
+		const codes = classifyGame(evalPerPly, wdlPerPly, {
+			positions,
+			moveMeta,
+			bestMoves,
+			secondWdlPerPly
+		});
+
+		expect(codes).toEqual(['great']);
+	});
+
+	it('classifies a failure to punish a winning position as miss', () => {
+		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
+			[850, 100, 50], // ply 0: White win% (850+50)/10 = 90 (mover POV, above the 80 miss-before threshold)
+			[300, 400, 300] // ply 1: White win% (300+200)/10 = 50 (below the 55 miss-after threshold)
+		];
+		const evalPerPly = [0, 0];
+		const positions: Position[] = [
+			{ e1: ['K', 'w'], e8: ['K', 'b'] },
+			{ e1: ['K', 'w'], e8: ['K', 'b'] }
+		];
+		const moveMeta: Move[] = [{ from: 'e1', to: 'e2' }];
+		const bestMoves: Record<number, Move & { san: string }> = {}; // played move need not be "best" for Miss
+
+		const codes = classifyGame(evalPerPly, wdlPerPly, { positions, moveMeta, bestMoves });
+
+		expect(codes).toEqual(['miss']);
+	});
+
+	it('falls back to the EP-cutoff table when no special condition matches', () => {
+		const evalPerPly = [0, -0.6]; // a small eval drop, no WDL provided
+		const codes = classifyGame(evalPerPly);
+		// No `special` argument at all -- must reproduce today's exact (pre-Task-5) behavior.
+		expect(codes).toHaveLength(1);
+		expect(['best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder']).toContain(codes[0]);
 	});
 });

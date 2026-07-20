@@ -1,127 +1,99 @@
-# Task 5 Implementation Report: classifyGame WDL Support
+# Task 5 Report: Extend `classifyGame` with Brilliant/Great/Miss
 
 ## Summary
-Successfully implemented WDL (win/draw/loss) support in `classifyGame` function to prefer Stockfish's own win-probability estimates over the eval sigmoid when available. This mirrors the Task 4 implementation for `computeGameAccuracy`.
 
-## What Was Implemented
+Extended `src/lib/game/classify.ts` so `classifyGame` can produce `'brilliant'`,
+`'great'`, and `'miss'` classifications in addition to the existing 6 EP-cutoff
+classes, gated behind a new optional third parameter (`special?:
+SpecialClassInputs`). The existing 2-argument call signature is unchanged —
+omitting `special` reproduces the pre-Task-5 behavior byte-for-byte (verified
+by the pre-existing regression test plus a new explicit fallback test).
 
-### 1. Updated imports in `src/lib/game/classify.ts`
-- Added: `import type { Wdl } from './accuracy';`
-- Changed: `import { winPercentFromEval }` → `import { winPercentForPly }`
-- These imports enable the function to consume the WDL type and the helper that decides between eval sigmoid and WDL-derived win% on a per-ply basis.
+Note: an earlier, stale version of this report file (from a prior plan
+iteration's differently-numbered "Task 5", which added WDL support to
+`classifyGame` — that work is already merged into `main` separately) has been
+replaced by this report.
 
-### 2. Updated `classifyGame` function signature
-- Added optional 2nd parameter: `wdlPerPly?: (Wdl | null)[]`
-- This parameter is index-aligned with `evalPerPly`, exactly like in Task 4's `computeGameAccuracy`
+## Process (TDD)
 
-### 3. Updated `classifyGame` implementation
-- Changed from: `evalPerPly.map(winPercentFromEval)` 
-- Changed to: `evalPerPly.map((_, ply) => winPercentForPly(ply, evalPerPly, wdlPerPly))`
-- This delegates the WDL-vs-eval decision to the centralized `winPercentForPly` helper
+1. Read `src/lib/game/classify.test.ts` in full first (via the `Read` tool) to
+   confirm its exact existing imports/conventions (plain `describe`/`it`/`expect`
+   from `vitest`, fixtures constructed inline per test, no shared fixture
+   helpers) before adding to it.
+2. Appended the `describe('classifyGame with special classes', ...)` block
+   from the brief verbatim (4 tests: brilliant, great, miss, EP-cutoff
+   fallback), and added one import at the top of the test file:
+   `import type { Move, Position } from '$lib/board/types';` (needed for the
+   `Position[]`/`Move[]` fixture type annotations used by the new tests; no
+   existing import in the file covered these types).
+3. Ran `pnpm exec vitest run src/lib/game/classify.test.ts` before touching
+   `classify.ts` — confirmed 3 of the 4 new tests failed as expected (all
+   fell through to the pre-existing EP-cutoff table, producing `best`,
+   `best`, and `blunder` instead of `brilliant`, `great`, `miss`
+   respectively); the 4th new test (fallback) and all 11 pre-existing tests
+   passed, since they exercise the unchanged 2-arg path.
+4. Implemented the code from the brief in `classify.ts`:
+   - Added imports: `Move`, `Position` from `$lib/board/types`; `isMaterialSacrifice` from `./material` (Task 4).
+   - Added constants `BRILLIANT_MIN_WIN` (50), `BRILLIANT_NOT_WINNING` (97), `GREAT_ONLY_MOVE_GAP` (10), `MISS_WIN_BEFORE` (80), `MISS_WIN_AFTER` (55).
+   - Added `export interface SpecialClassInputs { positions, moveMeta, bestMoves, secondEvalPerPly?, secondWdlPerPly? }`.
+   - Added `secondLineWinPercent()` helper — prefers the second PV line's WDL data, falling back to its eval (sigmoid) when WDL is absent.
+   - Added a third optional parameter `special?: SpecialClassInputs` to `classifyGame`, threading `classifySpecial(...) ?? classifyMoveByEpLoss(epLoss)` per ply instead of calling `classifyMoveByEpLoss` unconditionally.
+   - Added `classifySpecial()`: checks Brilliant first (near-best played move + a material sacrifice on that ply + the mover's win% stays at/above 50 afterward + wasn't already >=97 before, i.e. not a "free" sac in an already-won position), then Great (played move exactly matches the engine's top suggestion AND the gap to the second-best PV line's win% is >=10 points), then Miss (mover's win% was >=80 before and drops below 55 after) — each returns `null` when its condition doesn't hold, falling through to the next check and ultimately to the deterministic cutoff table.
+   - Updated the module's header doc comment to state the new override order (Brilliant > Great > Miss > cutoffs) and note that Book/Forced remain future work.
+5. Re-ran `pnpm exec vitest run src/lib/game/classify.test.ts` — all 15 tests (11 pre-existing + 4 new) passed.
+6. Ran `pnpm exec tsc --noEmit -p .` — no type errors.
+7. Ran the full suite `pnpm exec vitest run` — 50 test files, 274 tests, all passed (pre-existing Svelte a11y/reactivity warnings from unrelated components in the console output; no new warnings introduced by this change).
 
-### 4. Updated header documentation
-- Replaced outdated reference to `winPercentFromEval` with `winPercentForPly`
-- Clarified that the function now uses "whether from the eval sigmoid or Stockfish's own WDL model"
-- Updated the phrase about "win-probability math" consistency (instead of "eval math")
+## Exact test output (final, passing run)
 
-### 5. Added comprehensive tests to `src/lib/game/classify.test.ts`
-Two new tests were added at the end of the `describe('classifyGame', ...)` block:
-
-#### Test 1: Regression check
-```typescript
-it('produces the exact same classifications as before when wdlPerPly is omitted (no regression)', () => {
-	expect(classifyGame([0, 1, 0.5])).toEqual(['best', 'best']);
-	expect(classifyGame([0, -8])).toEqual(['blunder']);
-});
+Targeted file:
 ```
-This ensures that when `wdlPerPly` is not provided, behavior is identical to before the change.
+ RUN  v4.1.10 /home/jonas/Documents/Code/SecondBoard
 
-#### Test 2: WDL integration
-```typescript
-it('uses the WDL-derived win% for a ply that has one, changing the classification vs. eval-only', () => {
-	const evalPerPly = [0, -0.3];
-	const withoutWdl = classifyGame(evalPerPly);
-	const wdlPerPly: Array<[number, number, number] | null> = [[600, 300, 100], [0, 0, 1000]];
-	const withWdl = classifyGame(evalPerPly, wdlPerPly);
-	expect(withoutWdl[0]).not.toBe('blunder');
-	expect(withWdl[0]).toBe('blunder');
-});
-```
-This verifies that WDL data can override eval-only classifications. With eval alone, the move is 'good'; with WDL showing a complete loss (0, 0, 1000), it becomes 'blunder'.
 
-## Test Execution
-
-### Initial test run (Step 2 - Expected failures)
-```
-Command: pnpm exec vitest run src/lib/game/classify.test.ts
-Result: PASS (10) FAIL (1)
-
-Failure:
-- "classifyGame uses the WDL-derived win% for a ply that has one, changing the classification vs. eval-only"
-  AssertionError: expected 'good' to be 'blunder'
-  
-Expected: FAIL as designed (function didn't yet support wdlPerPly parameter)
+ Test Files  1 passed (1)
+      Tests  15 passed (15)
+   Start at  18:32:04
+   Duration  698ms (transform 47ms, setup 0ms, import 64ms, tests 6ms, environment 508ms)
 ```
 
-### Final test run (Step 4 - After implementation)
+Full suite:
 ```
-Command: pnpm exec vitest run src/lib/game/classify.test.ts
-Result: PASS (11) FAIL (0)
-
-All tests passing:
-✓ classifyMoveByEpLoss: all 6 tests passing
-✓ classifyGame: all 5 tests passing (4 original + 2 new)
-
-Test suite confidence:
-- 2 new tests validate WDL integration works correctly
-- 4 original tests confirm no regression (including the omitted wdlPerPly test)
-- All 11 tests green
+ Test Files  50 passed (50)
+      Tests  274 passed (274)
+   Start at  18:32:17
+   Duration  10.84s (transform 13.06s, setup 0ms, import 29.22s, tests 8.93s, environment 62.02s)
 ```
+
+Pre-implementation (failing) run, for the record:
+```
+ ❯ src/lib/game/classify.test.ts (15 tests | 3 failed) 13ms
+     × classifies a best/near-best sound piece sacrifice as brilliant
+         expected [ 'best' ] to deeply equal [ 'brilliant' ]
+     × classifies an only-move (large MultiPV gap) best move as great
+         expected [ 'best' ] to deeply equal [ 'great' ]
+     × classifies a failure to punish a winning position as miss
+         expected [ 'blunder' ] to deeply equal [ 'miss' ]
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 12 passed (15)
+```
+
+## Self-review
+
+- Confirmed the 2-arg call signature is preserved exactly: `classifyGame(evalPerPly, wdlPerPly)` and `classifyGame(evalPerPly)` both still work, and the "falls back to the EP-cutoff table when no special condition matches" test (which calls `classifyGame(evalPerPly)` with no `special` arg) passes — `special` defaults to `undefined` and `classifySpecial` short-circuits via `if (!special) return null;`, so the fallback path is byte-for-byte the pre-existing behavior.
+- Verified the override order matches the brief/blueprint: Brilliant is checked before Great, which is checked before Miss, each returning early on a match; `classifyMoveByEpLoss(epLoss)` only runs when `classifySpecial` returns `null`.
+- Verified `isMaterialSacrifice` (Task 4's `material.ts`) is consumed exactly per its documented contract (mover-relative material swing between the before/after positions of that ply, >=3 points net loss), and `secondLineWinPercent` prefers WDL over the eval-sigmoid fallback consistent with how `winPercentForPly` in `accuracy.ts` already does this for the primary line (same sigmoid coefficient, `0.00368208`).
+- Ran `tsc --noEmit` — no errors, confirming `Move & { san: string }` and `Record<number, ...>` for `bestMoves` line up with how `RealAnalysis.bestMoves`/`AppState.bestMoves` are typed elsewhere (Task 3).
+- `ClassCode` already included `'brilliant'`, `'great'`, and `'miss'` in `src/lib/types/index.ts` from an earlier commit, so no type-union changes were needed there.
+- No other call sites of `classifyGame` needed changes (Task 6, per the brief, is the consumer that will pass `special` from `app-state.svelte.ts`; that wiring is explicitly out of scope for this task).
+
+## Files changed
+
+- `/home/jonas/Documents/Code/SecondBoard/src/lib/game/classify.ts` — implementation (new `SpecialClassInputs` interface, `secondLineWinPercent` helper, `classifySpecial` function; `classifyGame`'s signature and body updated; header doc comment updated).
+- `/home/jonas/Documents/Code/SecondBoard/src/lib/game/classify.test.ts` — new `describe('classifyGame with special classes', ...)` block (4 tests) plus one added type-only import (`Move`, `Position` from `$lib/board/types`).
+- `/home/jonas/Documents/Code/SecondBoard/.superpowers/sdd/task-5-report.md` — this report (replaces a stale report left over from an earlier, differently-scoped plan iteration).
 
 ## Commit
 
-**Hash:** `32e1a1c`
-
-**Message:** `feat: classifyGame prefers WDL-derived win% over the eval sigmoid when available`
-
-**Files changed:**
-- `src/lib/game/classify.ts`: Updated imports, function signature, implementation, and documentation header
-- `src/lib/game/classify.test.ts`: Added 2 new test cases
-
-**Diff summary:**
-- 7 insertions (new import, parameter, new tests)
-- 25 insertions total (implementation + tests + doc updates)
-
-## Self-Review
-
-### Correctness
-- ✅ Implementation exactly mirrors Task 4's approach to `computeGameAccuracy`
-- ✅ Uses the centralized `winPercentForPly` helper (single source of truth for WDL-vs-eval decision)
-- ✅ Optional parameter maintains backward compatibility (when omitted, behavior is byte-for-byte identical)
-- ✅ WDL test case correctly demonstrates the eval sigmoid would classify move as 'good', but WDL data (0,0,1000 = total loss for White) overrides it to 'blunder'
-
-### Testing
-- ✅ New tests written before implementation (TDD discipline)
-- ✅ Tests failed as expected when implementation was absent
-- ✅ All tests pass after implementation
-- ✅ Regression test confirms existing tests unchanged in output
-- ✅ Coverage: both the no-wdlPerPly path (backward compat) and the with-wdlPerPly path (new feature)
-
-### Code Quality
-- ✅ Follows existing code style and patterns
-- ✅ Documentation updated to reflect new behavior
-- ✅ No duplication: reuses existing `winPercentForPly` helper instead of reimplementing WDL logic
-- ✅ Type safety: properly typed optional `Wdl | null` array parameter
-
-### Architecture
-- ✅ Maintains separation of concerns: `accuracy.ts` owns the win-probability logic
-- ✅ Makes `classifyGame` a consumer of the same `winPercentForPly` helper as `computeGameAccuracy`
-- ✅ Parameter alignment with `computeGameAccuracy` makes the API consistent across the module
-
-### Documentation
-- ✅ Header comment updated to reflect new capability
-- ✅ References new function name (`winPercentForPly` instead of `winPercentFromEval`)
-- ✅ Explains what the function now does (WDL preference) without becoming verbose
-
-## Next Steps
-Task 5 is complete and ready for integration. The Task 7 consumer (`app-state.svelte.ts`) can now call `classifyGame(evalPerPly, wdlPerPly)` and will receive classifications that respect Stockfish's own WDL model when available.
+Committed to branch `feat/special-move-classes`.
