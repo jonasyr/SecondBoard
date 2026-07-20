@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/svelte';
+import { fireEvent, render } from '@testing-library/svelte';
 import ClassBadge from './ClassBadge.svelte';
 
 describe('ClassBadge', () => {
-	it('renders the glyph and background color for the given classification', () => {
+	it('renders the official classification SVG with an accessible name', () => {
 		const { container } = render(ClassBadge, { props: { classCode: 'brilliant', size: 16 } });
-		const el = container.firstElementChild as HTMLElement;
-		expect(el.textContent).toBe('!!');
-		expect(el.getAttribute('style')).toContain('45, 224, 206'); // #2DE0CE
+		const icon = container.querySelector('.classification-icon') as HTMLImageElement;
+		expect(icon).not.toBeNull();
+		expect(icon.getAttribute('src')).toContain("id='Brilliant'");
+		expect(icon.getAttribute('alt')).toBe('Brilliant');
 	});
 
 	it('sizes the badge in pixels via the size prop', () => {
@@ -17,19 +18,24 @@ describe('ClassBadge', () => {
 		expect(el.getAttribute('style')).toContain('height: 21px');
 	});
 
-	it('uses dark foreground text only when useDarkFg is set and the code is in DARK_FG_CODES', () => {
-		const { container: withDark } = render(ClassBadge, {
-			props: { classCode: 'best', size: 21, useDarkFg: true }
-		});
-		expect((withDark.firstElementChild as HTMLElement).getAttribute('style')).toContain(
-			'11, 18, 15'
-		); // #0B120F
+	it('uses the mapped Chess.com aliases for Great and Miss', () => {
+		const { container: great } = render(ClassBadge, { props: { classCode: 'great', size: 21 } });
+		expect(great.querySelector('img')?.getAttribute('src')).toContain("id='great_find'");
 
-		const { container: withoutDark } = render(ClassBadge, {
-			props: { classCode: 'best', size: 16, useDarkFg: false }
-		});
-		expect((withoutDark.firstElementChild as HTMLElement).getAttribute('style')).toContain(
-			'255, 255, 255'
-		);
+		const { container: miss } = render(ClassBadge, { props: { classCode: 'miss', size: 22 } });
+		expect(miss.querySelector('img')?.getAttribute('src')).toContain("id='missed_win'");
+	});
+
+	it('reveals the glyph fallback when the SVG cannot load', async () => {
+		const { container } = render(ClassBadge, { props: { classCode: 'brilliant', size: 16 } });
+		const icon = container.querySelector('.classification-icon') as HTMLImageElement;
+
+		await fireEvent.error(icon);
+
+		expect(icon.classList.contains('hidden')).toBe(true);
+		const fallback = container.querySelector('.glyph-fallback') as HTMLElement;
+		expect(fallback.classList.contains('visible')).toBe(true);
+		expect(fallback.getAttribute('aria-hidden')).toBe('false');
+		expect(fallback.textContent).toBe('!!');
 	});
 });

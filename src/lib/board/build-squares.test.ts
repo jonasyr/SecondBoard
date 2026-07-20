@@ -52,17 +52,21 @@ describe('buildBoardSquares', () => {
 		expect(squares.find((s) => s.id === 'd5')!.isBrilliant).toBe(false);
 	});
 
-	it('places the badge glyph/color only on the badge square', () => {
+	it('places the badge glyph/color/icon only on the badge square', () => {
 		const squares = buildBoardSquares(EMPTY, {
-			badge: { square: 'g4', glyph: '★', color: '#4ADEA0' }
+			badge: { square: 'g4', glyph: '★', color: '#96bc4b', icon: '/best.svg', label: 'Best' }
 		});
 		const g4 = squares.find((s) => s.id === 'g4')!;
 		expect(g4.hasBadge).toBe(true);
 		expect(g4.badgeGlyph).toBe('★');
-		expect(g4.badgeColor).toBe('#4ADEA0');
+		expect(g4.badgeColor).toBe('#96bc4b');
+		expect(g4.badgeIcon).toBe('/best.svg');
+		expect(g4.badgeLabel).toBe('Best');
 		const other = squares.find((s) => s.id === 'g3')!;
 		expect(other.hasBadge).toBe(false);
 		expect(other.badgeGlyph).toBe('');
+		expect(other.badgeIcon).toBe('');
+		expect(other.badgeLabel).toBe('');
 	});
 
 	it('shows rank labels only on the left-most file (unflipped) and file labels only on the bottom-most rank', () => {

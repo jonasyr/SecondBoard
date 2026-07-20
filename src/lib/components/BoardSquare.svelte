@@ -13,6 +13,8 @@
 	const spriteKey = $derived(
 		square.piece ? ((square.piece[1] + square.piece[0]) as PieceSpriteKey) : null
 	);
+	let failedBadgeIcon = $state('');
+	const badgeIconFailed = $derived(failedBadgeIcon === square.badgeIcon);
 </script>
 
 <div class="square" class:dark={square.isDark} class:light={!square.isDark} data-sq={square.id}>
@@ -37,7 +39,21 @@
 		<span class="file-label sbmono">{square.fileLabel}</span>
 	{/if}
 	{#if square.hasBadge}
-		<div class="badge" style={`background:${square.badgeColor};`}>{square.badgeGlyph}</div>
+		<div
+			class="badge"
+			class:fallback={badgeIconFailed}
+			style={`--badge-color:${square.badgeColor};`}
+		>
+			{#if badgeIconFailed}
+				<span class="badge-fallback" aria-hidden="true">{square.badgeGlyph}</span>
+			{:else}
+				<img
+					src={square.badgeIcon}
+					alt={square.badgeLabel}
+					onerror={() => (failedBadgeIcon = square.badgeIcon)}
+				/>
+			{/if}
+		</div>
 	{/if}
 </div>
 
@@ -78,7 +94,7 @@
 		position: absolute;
 		inset: 5px;
 		border-radius: 9px;
-		border: 2px solid rgba(45, 224, 206, 0.9);
+		border: 2px solid rgba(27, 173, 166, 0.9);
 		animation: bpulse 2.4s ease-in-out infinite;
 	}
 	.rank-label {
@@ -110,19 +126,23 @@
 		z-index: 4;
 		width: 36px;
 		height: 36px;
-		border-radius: 50%;
+	}
+	.badge img {
+		display: block;
+		width: 100%;
+		height: 100%;
+		filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.5));
+	}
+	.badge.fallback {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-weight: 900;
-		font-size: 19px;
-		line-height: 1;
-		letter-spacing: 1.5px;
-		text-indent: 1.5px;
+		border-radius: 50%;
+		background: var(--badge-color);
 		color: #fff;
-		text-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
-		box-shadow:
-			0 3px 9px rgba(0, 0, 0, 0.5),
-			inset 0 0 0 2px rgba(255, 255, 255, 0.22);
+		font-size: 18px;
+		font-weight: 800;
+		line-height: 1;
+		filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.5));
 	}
 </style>

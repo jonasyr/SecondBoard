@@ -37,12 +37,29 @@ describe('TOKENS', () => {
 		expect(TOKENS.board.evalBarTrack).toBe('#26232E');
 	});
 
-	it('matches the exact classification color spec from README §5', () => {
-		expect(TOKENS.classification.brilliant.color).toBe('#2DE0CE');
+	it('matches the exact Chess.com classification colors and icon files', () => {
+		expect(TOKENS.classification.brilliant.color).toBe('#1bada6');
+		expect(TOKENS.classification.great.color).toBe('#1bada6');
+		expect(TOKENS.classification.best.color).toBe('#96bc4b');
+		expect(TOKENS.classification.excellent.color).toBe('#96bc4b');
+		expect(TOKENS.classification.good.color).toBe('#96af8b');
+		expect(TOKENS.classification.book.color).toBe('#a88865');
+		expect(TOKENS.classification.inaccuracy.color).toBe('#f7c045');
+		expect(TOKENS.classification.mistake.color).toBe('#e58f2a');
+		expect(TOKENS.classification.miss.color).toBe('#dbac16');
+		expect(TOKENS.classification.blunder.color).toBe('#ca3431');
+		expect(TOKENS.classification.brilliant.icon).toContain("id='Brilliant'");
+		expect(TOKENS.classification.great.icon).toContain("id='great_find'");
+		expect(TOKENS.classification.best.icon).toContain("id='best'");
+		expect(TOKENS.classification.excellent.icon).toContain("id='excellent'");
+		expect(TOKENS.classification.good.icon).toContain("id='good'");
+		expect(TOKENS.classification.book.icon).toContain("id='book'");
+		expect(TOKENS.classification.inaccuracy.icon).toContain("id='inaccuracy'");
+		expect(TOKENS.classification.mistake.icon).toContain("id='mistake'");
+		expect(TOKENS.classification.miss.icon).toContain("id='missed_win'");
+		expect(TOKENS.classification.blunder.icon).toContain('blunder.svg');
 		expect(TOKENS.classification.brilliant.glyph).toBe('!!');
-		expect(TOKENS.classification.best.color).toBe('#4ADEA0');
 		expect(TOKENS.classification.best.glyph).toBe('★');
-		expect(TOKENS.classification.blunder.color).toBe('#F26B6B');
 		expect(TOKENS.classification.blunder.glyph).toBe('??');
 		expect(Object.keys(TOKENS.classification)).toHaveLength(10);
 	});

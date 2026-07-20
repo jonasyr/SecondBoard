@@ -69,4 +69,20 @@ describe('MoveList', () => {
 		expect(selected).not.toBeNull();
 		expect(selected.getAttribute('style')).toContain('background: rgba(45, 224, 206, 0.14)');
 	});
+
+	it('highlights a selected classified move with its official classification color', () => {
+		const { container } = render(MoveList, {
+			props: {
+				selectedPly: 1,
+				onSelectPly: () => {},
+				sanList: ['e4', 'e5'],
+				classCodes: ['mistake', 'best']
+			}
+		});
+		const selected = container.querySelector('[data-sb-sel="1"]') as HTMLElement;
+		const style = selected.getAttribute('style')!;
+		expect(style).toContain('background: rgba(229, 143, 42, 0.14)');
+		expect(style).toContain('color: rgb(229, 143, 42)');
+		expect(style).toContain('box-shadow: inset 0 0 0 1px #e58f2a4d');
+	});
 });

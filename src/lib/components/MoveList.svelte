@@ -34,9 +34,13 @@
 
 	function cellStyle(sel: boolean, code: ClassCode | null): string {
 		if (sel) {
+			if (code) {
+				const color = TOKENS.classification[code].color;
+				return `background:${color}24;color:${color};font-weight:600;box-shadow:inset 0 0 0 1px ${color}4d;`;
+			}
 			return 'background:rgba(45,224,206,.14);color:#5EF0DE;font-weight:600;box-shadow:inset 0 0 0 1px rgba(45,224,206,.3);';
 		}
-		return code ? `color:${TOKENS.review.moveTint[code]};` : '';
+		return code ? `color:${TOKENS.classification[code].color};` : '';
 	}
 
 	let listEl: HTMLDivElement | undefined = $state();

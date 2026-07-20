@@ -15,7 +15,7 @@
 		<div class="row">
 			<span class="name">{TOKENS.classification[code].name}</span>
 			<span class="count sbmono" style={`color:${TOKENS.classification[code].color};`}>{white}</span>
-			<div class="badge-col"><ClassBadge classCode={code} size={21} useDarkFg /></div>
+			<div class="badge-col"><ClassBadge classCode={code} size={21} /></div>
 			<span class="count sbmono" style={`color:${TOKENS.classification[code].color};`}>{black}</span>
 		</div>
 	{/each}

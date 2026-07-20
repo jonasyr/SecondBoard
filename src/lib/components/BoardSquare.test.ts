@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render } from '@testing-library/svelte';
+import { fireEvent, render } from '@testing-library/svelte';
 
 vi.mock('$lib/board/pieces', () => ({
 	PIECE_SPRITES: {
@@ -30,6 +30,8 @@ const baseSquare: BoardSquareVM = {
 	hasBadge: false,
 	badgeGlyph: '',
 	badgeColor: '',
+	badgeIcon: '',
+	badgeLabel: '',
 	rankLabel: '',
 	fileLabel: ''
 };
@@ -101,17 +103,27 @@ describe('BoardSquare', () => {
 		expect(container.querySelector('.brilliant-ring')).not.toBeNull();
 	});
 
-	it('renders the 36px classification badge with its glyph and color when hasBadge', () => {
+	it('renders the official 36px classification icon when hasBadge', async () => {
 		const { container } = render(BoardSquare, {
 			props: {
-				square: { ...baseSquare, hasBadge: true, badgeGlyph: '★', badgeColor: '#4ADEA0' },
-				lastMoveColor: '#4ADEA0',
+				square: {
+					...baseSquare,
+					hasBadge: true,
+					badgeGlyph: '★',
+					badgeColor: '#96bc4b',
+					badgeIcon: '/best.svg',
+					badgeLabel: 'Best'
+				},
+				lastMoveColor: '#96bc4b',
 				showCoords: true
 			}
 		});
-		const badge = container.querySelector('.badge') as HTMLElement;
-		expect(badge.textContent).toBe('★');
-		expect(badge.getAttribute('style')).toContain(hexToRgbPrefix('#4ADEA0'));
+		const icon = container.querySelector('.badge img') as HTMLImageElement;
+		expect(icon).not.toBeNull();
+		expect(icon.getAttribute('src')).toBe('/best.svg');
+		expect(icon.getAttribute('alt')).toBe('Best');
+		await fireEvent.error(icon);
+		expect(container.querySelector('.badge-fallback')?.textContent).toBe('★');
 	});
 
 	it('renders rank/file labels only when non-empty and showCoords is true', () => {

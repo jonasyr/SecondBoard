@@ -46,7 +46,9 @@
 					? {
 							square: lastMove.to,
 							glyph: TOKENS.classification[classCode].glyph,
-							color: TOKENS.classification[classCode].color
+							color: TOKENS.classification[classCode].color,
+							icon: TOKENS.classification[classCode].icon,
+							label: TOKENS.classification[classCode].name
 						}
 					: null
 		})
