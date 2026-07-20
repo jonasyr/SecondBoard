@@ -5,6 +5,7 @@ export interface AnalyzeFenResult {
 	isMate: boolean;
 	bestMoveUci: string;
 	pv: string[];
+	wdl: [number, number, number] | null;
 }
 
 /** Invokes the Rust `analyze_fen` Tauri command (LOGIC.md §7 Phase-0 spike). */
