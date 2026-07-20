@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { appState } from '$lib/stores/app-state.svelte';
 	import { getAccuracySummary } from '$lib/game/review';
+	import { getPhaseRows } from '$lib/game/phase';
 	import { getBreakdownRows } from '$lib/game/breakdown';
 	import type { ClassCode } from '$lib/types';
 	import type { Wdl } from '$lib/game/accuracy';
@@ -32,6 +33,13 @@
 		)
 	);
 	const breakdownRows = $derived(getBreakdownRows(classCodes));
+	const phaseRows = $derived(
+		getPhaseRows(
+			appState.game!.positions,
+			appState.analysisStatus === 'ready' ? evalPerPly : [],
+			appState.analysisStatus === 'ready' ? wdlPerPly : []
+		)
+	);
 </script>
 
 <div class="review-tab sbscroll">
@@ -46,7 +54,7 @@
 	<AccuracyBlock white={accuracy.white} black={accuracy.black} resultLabel={accuracy.resultLabel} />
 	<div class="divider"></div>
 	<BreakdownTable rows={breakdownRows} />
-	<PhaseTable />
+	<PhaseTable rows={phaseRows} />
 </div>
 
 <style>

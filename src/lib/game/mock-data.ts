@@ -65,12 +65,6 @@ export const BREAKDOWN_ROWS: Array<[ClassCode, number, number]> = [
 	['blunder', 2, 1]
 ];
 
-export const PHASE_ROWS: Array<[string, ClassCode, ClassCode]> = [
-	['Opening', 'great', 'good'],
-	['Middlegame', 'best', 'excellent'],
-	['Endgame', 'inaccuracy', 'good']
-];
-
 export interface PlayerInfo {
 	name: string;
 	rating: string;
