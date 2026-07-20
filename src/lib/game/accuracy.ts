@@ -113,9 +113,17 @@ export interface GameAccuracy {
  * accuracy is the mean of that side's volatility-weighted mean and harmonic
  * mean of its own per-move accuracy scores. Returns null for a side (or
  * both) when there isn't enough data yet (e.g. analysis hasn't completed)
- * rather than a misleading number.
+ * rather than a misleading number. `startPly` (default 0) shifts the
+ * mover-color attribution for callers passing a SLICE of a larger game's
+ * evalPerPly/wdlPerPly (e.g. one phase's ply range) rather than the whole
+ * game from ply 0 -- see phase.ts's `getPhaseRows` for the motivating
+ * caller.
  */
-export function computeGameAccuracy(evalPerPly: number[], wdlPerPly?: (Wdl | null)[]): GameAccuracy {
+export function computeGameAccuracy(
+	evalPerPly: number[],
+	wdlPerPly?: (Wdl | null)[],
+	startPly = 0
+): GameAccuracy {
 	const plyCount = evalPerPly.length;
 	if (plyCount < 2) return { white: null, black: null };
 
@@ -135,7 +143,7 @@ export function computeGameAccuracy(evalPerPly: number[], wdlPerPly?: (Wdl | nul
 	const blackAccuracies: number[] = [];
 
 	for (let ply = 0; ply < moveCount; ply++) {
-		const mover = sideToMoveForPly(ply);
+		const mover = sideToMoveForPly(startPly + ply);
 		const beforeWhitePov = winPercents[ply];
 		const afterWhitePov = winPercents[ply + 1];
 		const beforePov = mover === 'w' ? beforeWhitePov : 100 - beforeWhitePov;

@@ -114,6 +114,41 @@ describe('computeGameAccuracy', () => {
 		expect(white).toBe(100);
 		expect(black).toBeNull();
 	});
+
+	it('attributes movers correctly when startPly shifts an odd-indexed slice (Black moves first in the slice)', () => {
+		// Move index `m` (0-indexed from the game's own start, White=even,
+		// Black=odd per sideToMoveForPly) goes FROM evalPerPly[m] TO
+		// evalPerPly[m+1]. A slice that starts at global ply 1 represents move
+		// index 1 (Black's 1st move, since sideToMoveForPly(1) === 'b').
+		// Full-game evalPerPly: ply0(start)=0, ply1=5 (White up a bit after its
+		// own 1st move), ply2=-5 (White-POV eval swings hugely in Black's
+		// favor after Black's 1st move).
+		const evalPerPly = [0, 5, -5];
+		const slice = evalPerPly.slice(1, 3); // [5, -5] -- just Black's move, ply1->ply2
+
+		const withoutStartPly = computeGameAccuracy(slice); // WRONG: treats local index 0 as White's move
+		const withStartPly = computeGameAccuracy(slice, undefined, 1); // correct: local index 0 is global ply1, Black to move
+
+		// Without startPly, the single move in this slice is misattributed to
+		// White: White-POV win% drops from ~86.3 (eval +5) to ~13.7 (eval -5),
+		// a big self-inflicted loss -- some real (non-null) low accuracy, with
+		// Black getting no data (null, zero moves attributed to it).
+		// With startPly=1, the mover is correctly Black, and the SAME eval
+		// swing (+5 -> -5) IMPROVES Black's own win% (13.7 -> 86.3), so
+		// Black's accuracy must be exactly 100 (moveAccuracyFromWinPercents
+		// returns 100 whenever afterPov >= beforePov) and White gets no data.
+		expect(withoutStartPly.white).not.toBeNull();
+		expect(withoutStartPly.black).toBeNull();
+		expect(withStartPly.white).toBeNull();
+		expect(withStartPly.black).toBe(100);
+	});
+
+	it('defaults startPly to 0, reproducing existing behavior byte-for-byte when omitted', () => {
+		const evalPerPly = [0, 1, 0.5];
+		const withDefault = computeGameAccuracy(evalPerPly);
+		const withExplicitZero = computeGameAccuracy(evalPerPly, undefined, 0);
+		expect(withDefault).toEqual(withExplicitZero);
+	});
 });
 
 describe('resolveWinner', () => {
