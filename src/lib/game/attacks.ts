@@ -19,7 +19,7 @@
  * count-only heuristic, even though the value math may actually favor the
  * defender in a real exchange sequence.
  */
-import type { Piece, PieceColor, Position, Square } from '$lib/board/types';
+import type { Piece, PieceColor, PieceType, Position, Square } from '$lib/board/types';
 
 const FILES = 'abcdefgh';
 
@@ -84,62 +84,130 @@ function pieceAt(position: Position, file: number, rank: number): Piece | undefi
  * of the wrong type/color at that blocking square stops the ray entirely
  * (no attack from beyond it), matching how a blocked file/diagonal works.
  */
-export function countAttackers(position: Position, target: Square, byColor: PieceColor): number {
+export function findAttackers(
+	position: Position,
+	target: Square,
+	byColor: PieceColor
+): Square[] {
 	const tf = fileOf(target);
 	const tr = rankOf(target);
-	let count = 0;
+	const attackers: Square[] = [];
 
 	for (const [df, dr] of KNIGHT_OFFSETS) {
-		const piece = pieceAt(position, tf + df, tr + dr);
-		if (piece && piece[0] === 'N' && piece[1] === byColor) count++;
+		const square = squareAt(tf + df, tr + dr);
+		const piece = square ? position[square] : undefined;
+		if (square && piece?.[0] === 'N' && piece[1] === byColor) attackers.push(square);
 	}
-
 	for (const [df, dr] of KING_OFFSETS) {
-		const piece = pieceAt(position, tf + df, tr + dr);
-		if (piece && piece[0] === 'K' && piece[1] === byColor) count++;
+		const square = squareAt(tf + df, tr + dr);
+		const piece = square ? position[square] : undefined;
+		if (square && piece?.[0] === 'K' && piece[1] === byColor) attackers.push(square);
 	}
 
 	for (const [df, dr] of ORTHOGONAL_DIRS) {
-		let f = tf + df;
-		let r = tr + dr;
+		let file = tf + df;
+		let rank = tr + dr;
 		while (true) {
-			const piece = pieceAt(position, f, r);
+			const square = squareAt(file, rank);
+			if (!square) break;
+			const piece = position[square];
 			if (piece) {
-				if (piece[1] === byColor && (piece[0] === 'R' || piece[0] === 'Q')) count++;
+				if (piece[1] === byColor && (piece[0] === 'R' || piece[0] === 'Q')) {
+					attackers.push(square);
+				}
 				break;
 			}
-			if (squareAt(f, r) === null) break;
-			f += df;
-			r += dr;
+			file += df;
+			rank += dr;
 		}
 	}
-
 	for (const [df, dr] of DIAGONAL_DIRS) {
-		let f = tf + df;
-		let r = tr + dr;
+		let file = tf + df;
+		let rank = tr + dr;
 		while (true) {
-			const piece = pieceAt(position, f, r);
+			const square = squareAt(file, rank);
+			if (!square) break;
+			const piece = position[square];
 			if (piece) {
-				if (piece[1] === byColor && (piece[0] === 'B' || piece[0] === 'Q')) count++;
+				if (piece[1] === byColor && (piece[0] === 'B' || piece[0] === 'Q')) {
+					attackers.push(square);
+				}
 				break;
 			}
-			if (squareAt(f, r) === null) break;
-			f += df;
-			r += dr;
+			file += df;
+			rank += dr;
 		}
 	}
 
-	// A pawn of `byColor` attacks `target` if it sits diagonally "behind" it from the
-	// capturing pawn's own point of view: a White pawn captures toward higher ranks, so an
-	// attacking White pawn sits one rank BELOW target; a Black pawn captures toward lower
-	// ranks, so an attacking Black pawn sits one rank ABOVE target.
 	const pawnRankOffset = byColor === 'w' ? -1 : 1;
 	for (const df of [-1, 1]) {
-		const piece = pieceAt(position, tf + df, tr + pawnRankOffset);
-		if (piece && piece[0] === 'P' && piece[1] === byColor) count++;
+		const square = squareAt(tf + df, tr + pawnRankOffset);
+		const piece = square ? position[square] : undefined;
+		if (square && piece?.[0] === 'P' && piece[1] === byColor) attackers.push(square);
 	}
+	return attackers;
+}
 
-	return count;
+export function countAttackers(
+	position: Position,
+	target: Square,
+	byColor: PieceColor
+): number {
+	return findAttackers(position, target, byColor).length;
+}
+
+const EXCHANGE_VALUES: Record<PieceType, number> = {
+	P: 1,
+	N: 3,
+	B: 3,
+	R: 5,
+	Q: 9,
+	K: 100
+};
+
+function opposite(color: PieceColor): PieceColor {
+	return color === 'w' ? 'b' : 'w';
+}
+
+function captureOn(position: Position, from: Square, target: Square): Position {
+	const next = { ...position };
+	const attacker = next[from];
+	if (!attacker) return next;
+	delete next[from];
+	next[target] = attacker;
+	return next;
+}
+
+export function staticExchangeGain(
+	position: Position,
+	target: Square,
+	byColor: PieceColor
+): number {
+	const targetPiece = position[target];
+	if (!targetPiece || targetPiece[1] === byColor || targetPiece[0] === 'K') return 0;
+
+	let best = 0;
+	for (const attackerSquare of findAttackers(position, target, byColor)) {
+		const next = captureOn(position, attackerSquare, target);
+		const gain =
+			EXCHANGE_VALUES[targetPiece[0]] - staticExchangeGain(next, target, opposite(byColor));
+		best = Math.max(best, gain);
+	}
+	return best;
+}
+
+export function hasPositiveExchangeTarget(
+	position: Position,
+	ownerColor: PieceColor,
+	minimumPieceValue = 3
+): boolean {
+	const opponent = opposite(ownerColor);
+	return Object.entries(position).some(([square, piece]) => {
+		if (piece[1] !== ownerColor || piece[0] === 'P' || piece[0] === 'K') return false;
+		if (EXCHANGE_VALUES[piece[0]] < minimumPieceValue) return false;
+		if (findAttackers(position, square, opponent).length === 0) return false;
+		return staticExchangeGain(position, square, opponent) > 0;
+	});
 }
 
 /**

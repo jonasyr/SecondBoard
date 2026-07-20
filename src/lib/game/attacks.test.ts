@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { countAttackers, isPieceHanging } from './attacks';
+import {
+	countAttackers,
+	findAttackers,
+	hasPositiveExchangeTarget,
+	isPieceHanging,
+	staticExchangeGain
+} from './attacks';
 import type { Position } from '$lib/board/types';
 
 describe('countAttackers', () => {
@@ -122,5 +128,105 @@ describe('isPieceHanging', () => {
 	it('is false when the square holds a piece of the wrong color for the given owner', () => {
 		const position: Position = { e1: ['K', 'w'], a4: ['N', 'b'], a8: ['Q', 'b'], e8: ['K', 'b'] };
 		expect(isPieceHanging(position, 'a4', 'w')).toBe(false); // the piece there is Black's, not White's
+	});
+});
+
+describe('findAttackers', () => {
+	it('returns the attacking squares and preserves blocked rays', () => {
+		const position: Position = {
+			e1: ['K', 'w'],
+			b5: ['N', 'b'],
+			a4: ['R', 'b'],
+			a2: ['P', 'w'],
+			e8: ['K', 'b']
+		};
+		expect(findAttackers(position, 'd4', 'b')).toEqual(['b5', 'a4']);
+		expect(findAttackers(position, 'a1', 'b')).toEqual([]);
+	});
+});
+
+describe('staticExchangeGain', () => {
+	it('returns the value of an undefended capturable piece', () => {
+		const position: Position = {
+			e1: ['K', 'w'],
+			c4: ['B', 'w'],
+			b5: ['N', 'b'],
+			e8: ['K', 'b']
+		};
+		expect(staticExchangeGain(position, 'b5', 'w')).toBe(3);
+	});
+
+	it('values queen-for-bishop after a pawn recapture as +6', () => {
+		const position: Position = {
+			e1: ['K', 'w'],
+			c5: ['B', 'w'],
+			b6: ['Q', 'b'],
+			a7: ['P', 'b'],
+			e8: ['K', 'b']
+		};
+		expect(staticExchangeGain(position, 'b6', 'w')).toBe(6);
+	});
+
+	it('allows the initiating side to stop at zero after an equal recapture', () => {
+		const position: Position = {
+			e1: ['K', 'w'],
+			c4: ['B', 'w'],
+			b5: ['B', 'b'],
+			a6: ['P', 'b'],
+			e8: ['K', 'b']
+		};
+		expect(staticExchangeGain(position, 'b5', 'w')).toBe(0);
+	});
+
+	it('recomputes sliding attacks after a blocker is removed', () => {
+		const position: Position = {
+			e1: ['K', 'w'],
+			a1: ['R', 'w'],
+			a3: ['R', 'w'],
+			a4: ['Q', 'b'],
+			a5: ['R', 'b'],
+			e8: ['K', 'b']
+		};
+		expect(staticExchangeGain(position, 'a4', 'w')).toBeGreaterThan(0);
+	});
+
+	it('rejects empty, wrong-color, and king targets without mutation', () => {
+		const position: Position = {
+			e1: ['K', 'w'],
+			c4: ['B', 'w'],
+			e8: ['K', 'b']
+		};
+		const snapshot = structuredClone(position);
+		expect(staticExchangeGain(position, 'b5', 'w')).toBe(0);
+		expect(staticExchangeGain(position, 'c4', 'w')).toBe(0);
+		expect(staticExchangeGain(position, 'e8', 'w')).toBe(0);
+		expect(position).toEqual(snapshot);
+	});
+});
+
+describe('hasPositiveExchangeTarget', () => {
+	it('finds a profitable attack on any valuable owner piece, not only the moved piece', () => {
+		const position: Position = {
+			e1: ['K', 'w'],
+			c5: ['B', 'w'],
+			b6: ['Q', 'b'],
+			a7: ['P', 'b'],
+			e6: ['B', 'b'],
+			e8: ['K', 'b']
+		};
+		expect(staticExchangeGain(position, 'e6', 'w')).toBe(0);
+		expect(staticExchangeGain(position, 'b6', 'w')).toBe(6);
+		expect(hasPositiveExchangeTarget(position, 'b')).toBe(true);
+	});
+
+	it('does not treat pawns or kings as Brilliant sacrifice targets', () => {
+		const position: Position = {
+			e1: ['K', 'w'],
+			c4: ['B', 'w'],
+			b5: ['P', 'b'],
+			e8: ['K', 'b']
+		};
+		expect(staticExchangeGain(position, 'b5', 'w')).toBe(1);
+		expect(hasPositiveExchangeTarget(position, 'b')).toBe(false);
 	});
 });
