@@ -1,93 +1,107 @@
-# Task 4: Pure Material-Sacrifice Detector — Implementation Report
+# Iteration 12 Task 4: Loosen Great's Not-Already-Decided Guard
 
-## Summary
-Successfully implemented the pure material-sacrifice detector module (`src/lib/game/material.ts`) with accompanying test suite (`src/lib/game/material.test.ts`). All 4 test cases pass (5 assertions total).
+## Status
 
-## Implementation Details
+Complete.
 
-### Files Created
-1. **`src/lib/game/material.test.ts`** (55 lines)
-   - 4 test cases across 2 describe blocks
-   - All tests follow TDD pattern: written first, confirmed failing, then passing after implementation
+## Implementation
 
-2. **`src/lib/game/material.ts`** (34 lines)
-   - Two exported functions: `materialForColor` and `isMaterialSacrifice`
-   - Pure functions with no side effects
-   - Implements simplified, no-SEE material accounting
+- Updated the existing decisively-won fixture from a mover win percentage of 98 to 99.25 so it still exercises the raised guard.
+- Added a discriminating regression test at `beforePov = 98`, with an exact 20-point second-line gap.
+- Changed only `GREAT_NOT_ALREADY_DECIDED` in production code, from 97 to 99.
+- Preserved `BRILLIANT_NOT_WINNING = 97`, all Brilliant classification logic, and `GREAT_ONLY_MOVE_GAP = 20`.
 
-### Function Signatures
+## RED Evidence
 
-```typescript
-export function materialForColor(position: Position, color: PieceColor): number
-```
-- Sums standard chess piece values (Q=9, R=5, B=3, N=3, P=1, K=0) for one side
-- Returns total material value excluding the king
+Command:
 
-```typescript
-export function isMaterialSacrifice(before: Position, after: Position, mover: PieceColor): boolean
-```
-- Detects whether the mover's own move dropped their material lead by 3+ points
-- Compares material differential (mover - opponent) before and after the move
-- Returns true only when material swing is -3 or worse (a real sacrifice)
-- Threshold is set to 3 points (one minor piece), preventing minor pawn trades from being classified as sacrifices
-
-### Test Results
-
-**Test Output:**
-```
-PASS (5) FAIL (0)
+```text
+rtk proxy pnpm exec vitest run src/lib/game/classify.test.ts
 ```
 
-**Test Cases:**
-1. ✅ `materialForColor: sums standard piece values for one side, ignoring the king`
-   - White queen + rooks + bishop + knight + pawn = 26 points
-   - Black only king = 0 points
+Result: exit 1; 1 test file failed; 1 failed and 18 passed out of 19 tests.
 
-2. ✅ `materialForColor: returns 0 for a side with no pieces on the board`
-   - Black with only king on board = 0 points
+```text
+FAIL  src/lib/game/classify.test.ts > classifyGame with special classes > classifies an only-move gap as great in a clearly-but-not-decisively winning position
+AssertionError: expected 'best' to be 'great' // Object.is equality
 
-3. ✅ `isMaterialSacrifice: is true when the mover gives up a piece worth 3+ points net`
-   - White sacrifices knight (3 points) with no compensation = true
-
-4. ✅ `isMaterialSacrifice: is false for an even trade (capturing a piece of equal value)`
-   - White bishop takes Black bishop = no sacrifice (trade neutral, differential improves)
-
-5. ✅ `isMaterialSacrifice: is false for a small material swing under the 3-point sacrifice threshold`
-   - White pawn takes Black pawn = no sacrifice (only 1 point swing)
-
-## Implementation Correctness
-
-### Algorithm Verification
-- **materialForColor**: Iterates object.values, filters by color, sums piece values via reduce
-- **isMaterialSacrifice**: Computes differential before and after, checks if swing <= -3
-  - Example: Before: White 3pts, Black 0pts (diff +3), After: White 0pts, Black 0pts (diff 0)
-  - Swing: 0 - 3 = -3, which triggers sacrifice detection ✓
-
-### Edge Cases Handled
-- King value correctly set to 0 (contributes nothing to material)
-- Both colors in position object correctly filtered
-- Empty positions for a side correctly return 0
-- Threshold of 3 correctly distinguishes minor sacrifices from major ones
-
-## Commit Details
-
-**Commit Hash:** `376753a`
-
-**Commit Message:**
-```
-feat(material): add a pure material-sacrifice detector for Brilliant classification
+Expected: "great"
+Received: "best"
 ```
 
-**Files Changed:**
-- `src/lib/game/material.ts` (new) — 34 lines
-- `src/lib/game/material.test.ts` (new) — 55 lines
+This is the expected failure under `GREAT_NOT_ALREADY_DECIDED = 97`: `beforePov = 98` is blocked by the old guard.
 
-**Total Lines Added:** 89
+## GREEN Evidence
 
-## Notes
+Command:
 
-- Follows the exact test code and implementation code from the task brief
-- Pure functions with no external dependencies or side effects
-- Module is ready to be consumed by Task 5's `classify.ts`
-- No lookahead or search-extension logic; simplified material accounting only
-- Uses standard piece values: P=1, N=3, B=3, R=5, Q=9, K=0
+```text
+rtk proxy pnpm exec vitest run src/lib/game/classify.test.ts
+```
+
+Result: exit 0; 1 test file passed; 19/19 tests passed.
+
+## Full JavaScript Suite
+
+Command (run once after focused GREEN and before commit):
+
+```text
+rtk proxy pnpm exec vitest run
+```
+
+Result: exit 0; 52/52 test files passed; 292/292 tests passed.
+
+## Files
+
+- `src/lib/game/classify.ts`
+- `src/lib/game/classify.test.ts`
+
+Only these two files were included in commit `f1c9f87`:
+
+```text
+fix(classify): loosen Great's not-already-decided guard from 97 to 99
+```
+
+This report and pre-existing `.superpowers` / `.codebase-memory` working-tree changes were not committed.
+
+## Self-Review
+
+- Confirmed the new test is discriminating: it failed under 97 and passed under 99.
+- Confirmed the updated 99.25 fixture remains outside the strict `beforePov < 99` Great guard.
+- Confirmed the production diff is a single constant-value change.
+- Confirmed Brilliant behavior and thresholds are untouched.
+- Confirmed `GREAT_ONLY_MOVE_GAP` remains 20.
+- `git diff --check` passed before commit.
+- Confirmed the commit contains only the two requested source files.
+
+## Concerns
+
+The full suite passed but emitted existing Svelte compiler accessibility/reactivity warnings in `MoveList.svelte`, `Board.svelte`, `OnboardingScreen.svelte`, `ExploreTab.svelte`, and `NavControls.svelte`. They are unrelated to this classifier-only change. No Task 4 correctness concerns remain.
+
+## Fix Round: Great Gap Fixture Boundary
+
+Reviewer verification found that the new `beforePov = 98` test's second-PV fixture produced 70, making the actual gap 28 rather than the documented threshold boundary of 20. The fixture is now `[600, 360, 40]`, producing 78 and an exact `98 - 78 = 20` gap. The decisive-position fixture's stale comment was also corrected from 28 to the actual `99.25 - 70 = 29.25` gap. No production code changed.
+
+Command:
+
+```text
+rtk proxy pnpm exec vitest run src/lib/game/classify.test.ts
+```
+
+Output:
+
+```text
+RUN  v4.1.10 /home/jonas/Documents/Code/SecondBoard
+
+Test Files  1 passed (1)
+     Tests  19 passed (19)
+  Duration  694ms (transform 56ms, setup 0ms, import 74ms, tests 7ms, environment 501ms)
+```
+
+Result: exit 0.
+
+Separate focused fix commit:
+
+```text
+bad7a72 test(classify): correct Great gap fixtures at the threshold boundary
+```

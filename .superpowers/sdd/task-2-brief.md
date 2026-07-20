@@ -1,103 +1,118 @@
-### Task 2: Recalibrate Great's only-move threshold
+### Task 2: Export `PIECE_VALUES` and remove the now-superseded `isMaterialSacrifice`
 
 **Files:**
-- Modify: `src/lib/game/classify.ts`
-- Test: `src/lib/game/classify.test.ts`
+- Modify: `src/lib/game/material.ts`
+- Modify: `src/lib/game/material.test.ts`
 
-**Interfaces:** none changed — constant value changes and one added guard condition inside `classifySpecial`.
+**Interfaces:**
+- Produces: `export const PIECE_VALUES: Record<PieceType, number>` (was previously module-private) — consumed by Task 3's `classify.ts`.
+- Removes: `isMaterialSacrifice` (its only caller, `classify.ts`, is rewritten in Task 3 to use Task 1's `isPieceHanging` instead).
 
-**Root cause:** `GREAT_ONLY_MOVE_GAP = 10` (win%-points) is too lenient given that `MultiPV=2` splits Stockfish's ~1s movetime across two lines — PV2 (the second-best line) gets much less effective search than PV1, so it comes out systematically noisier and worse than its "true" strength, inflating the gap on plenty of merely-clearly-correct-but-unremarkable moves. There's also no guard against firing in an already-decisively-won-or-lost position, where "only move" isn't a noteworthy finding.
-
-**Fix:** raise the gap threshold to `20`, and add a `beforePov < GREAT_NOT_ALREADY_DECIDED` (`97`) guard mirroring Brilliant's own "not already crushing" condition.
-
-- [ ] **Step 1: Write the failing test**
-
-Add to `classify.test.ts`'s `describe('classifyGame with special classes', ...)` block, after the existing `'classifies an only-move (large MultiPV gap) best move as great'` test:
-
-```typescript
-	it('does not classify an only-move gap as great when the position was already decisively won', () => {
-		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
-			[970, 20, 10], // ply 0: White win% (970+10)/10 = 98 -- already decisively winning
-			[970, 20, 10] // ply 1: unchanged
-		];
-		const secondWdlPerPly: (import('./accuracy').Wdl | null)[] = [
-			[500, 400, 100], // ply 0's second PV line: White win% (500+200)/10 = 70 -> gap of 28,
-			// which WOULD clear the (now-raised) 20-point bar on its own
-			null
-		];
-		const evalPerPly = [0, 0];
-		const positions: Position[] = [
-			{ e1: ['K', 'w'], e8: ['K', 'b'] },
-			{ e1: ['K', 'w'], e8: ['K', 'b'] }
-		];
-		const moveMeta: Move[] = [{ from: 'e1', to: 'e2' }];
-		const bestMoves: Record<number, Move & { san: string }> = {
-			1: { from: 'e1', to: 'e2', san: 'Ke2' }
-		};
-
-		const codes = classifyGame(evalPerPly, wdlPerPly, {
-			positions,
-			moveMeta,
-			bestMoves,
-			secondWdlPerPly
-		});
-
-		expect(codes[0]).not.toBe('great');
-	});
-```
-
-- [ ] **Step 2: Run to verify it fails**
-
-Run: `rtk proxy pnpm exec vitest run src/lib/game/classify.test.ts`
-Expected: FAIL — under today's code (no "already decided" guard), this gap of 28 clears the old 10-point bar and `codes[0]` comes out `'great'`.
-
-- [ ] **Step 3: Implement**
+- [ ] **Step 1: Update `material.ts`**
 
 Current code:
 ```typescript
-const GREAT_ONLY_MOVE_GAP = 10;
+/**
+ * Pure, no-SEE material accounting used only as Brilliant's sacrifice
+ * precondition (blueprint §4/§8's `is_piece_sacrifice` guard, simplified:
+ * no search-continuation lookahead, just the raw material swing between two
+ * given board snapshots).
+ */
+import type { Position, PieceColor, PieceType } from '$lib/board/types';
+
+const PIECE_VALUES: Record<PieceType, number> = {
+	P: 1,
+	N: 3,
+	B: 3,
+	R: 5,
+	Q: 9,
+	K: 0
+};
+
+/** Sums standard piece values for one side on a board (king excluded, value 0). */
+export function materialForColor(position: Position, color: PieceColor): number {
+	return Object.values(position)
+		.filter(([, pieceColor]) => pieceColor === color)
+		.reduce((sum, [type]) => sum + PIECE_VALUES[type], 0);
+}
+
+/**
+ * True when the mover's material lead over the opponent (their material
+ * minus the opponent's) drops by at least a minor piece's worth (3 points)
+ * between the two given board snapshots. An even or favorable trade
+ * (capturing a piece of equal or greater value) does not count -- only a
+ * net material loss counts as a sacrifice.
+ *
+ * This function only diffs the two positions it's given -- it has no notion
+ * of "before/after a move" or "before/after a reply" itself. Choosing which
+ * two snapshots to compare (the position immediately before/after the
+ * mover's own move, vs. a wider window that also spans the opponent's next
+ * reply, to catch a piece deliberately left en prise) is entirely the
+ * caller's responsibility; see classify.ts's `classifySpecial` for how it
+ * picks (and validates) that window.
+ */
+export function isMaterialSacrifice(before: Position, after: Position, mover: PieceColor): boolean {
+	const opponent: PieceColor = mover === 'w' ? 'b' : 'w';
+	const diffBefore = materialForColor(before, mover) - materialForColor(before, opponent);
+	const diffAfter = materialForColor(after, mover) - materialForColor(after, opponent);
+	return diffAfter - diffBefore <= -3;
+}
+```
+
+Replace with:
+```typescript
+/**
+ * Pure standard chess piece values, reused wherever a move's material
+ * significance needs checking (currently: classify.ts's Brilliant guard,
+ * which combines a piece-value floor with attacks.ts's hanging-piece check
+ * rather than this module's own former material-diff approach -- see git
+ * history for Iteration 10/11's now-superseded `isMaterialSacrifice`).
+ */
+import type { Position, PieceColor, PieceType } from '$lib/board/types';
+
+export const PIECE_VALUES: Record<PieceType, number> = {
+	P: 1,
+	N: 3,
+	B: 3,
+	R: 5,
+	Q: 9,
+	K: 0
+};
+
+/** Sums standard piece values for one side on a board (king excluded, value 0). */
+export function materialForColor(position: Position, color: PieceColor): number {
+	return Object.values(position)
+		.filter(([, pieceColor]) => pieceColor === color)
+		.reduce((sum, [type]) => sum + PIECE_VALUES[type], 0);
+}
+```
+
+- [ ] **Step 2: Update `material.test.ts`**
+
+Remove the entire `describe('isMaterialSacrifice', ...)` block (all three `it` cases) and its now-unused `isMaterialSacrifice` import. Current top of file:
+```typescript
+import { describe, it, expect } from 'vitest';
+import { materialForColor, isMaterialSacrifice } from './material';
+import type { Position } from '$lib/board/types';
 ```
 Replace with:
 ```typescript
-const GREAT_ONLY_MOVE_GAP = 20;
-const GREAT_NOT_ALREADY_DECIDED = 97;
+import { describe, it, expect } from 'vitest';
+import { materialForColor } from './material';
+import type { Position } from '$lib/board/types';
 ```
+Delete everything from `describe('isMaterialSacrifice', ...)` through its closing `});` at the end of the file (the `describe('materialForColor', ...)` block above it is unchanged and stays).
 
-Current code in `classifySpecial`:
-```typescript
-	if (playedIsBest) {
-		const secondPov = secondLineWinPercent(ply - 1, special.secondEvalPerPly, special.secondWdlPerPly);
-		if (secondPov !== null) {
-			const secondMoverPov = mover === 'w' ? secondPov : 100 - secondPov;
-			if (beforePov - secondMoverPov >= GREAT_ONLY_MOVE_GAP) {
-				return 'great';
-			}
-		}
-	}
-```
-Replace with:
-```typescript
-	if (playedIsBest && beforePov < GREAT_NOT_ALREADY_DECIDED) {
-		const secondPov = secondLineWinPercent(ply - 1, special.secondEvalPerPly, special.secondWdlPerPly);
-		if (secondPov !== null) {
-			const secondMoverPov = mover === 'w' ? secondPov : 100 - secondPov;
-			if (beforePov - secondMoverPov >= GREAT_ONLY_MOVE_GAP) {
-				return 'great';
-			}
-		}
-	}
-```
+- [ ] **Step 3: Run tests to verify they pass**
 
-- [ ] **Step 4: Run tests to verify they pass, including the pre-existing Great test**
+Run: `rtk proxy pnpm exec vitest run src/lib/game/material.test.ts`
+Expected: PASS (2/2 — just the two `materialForColor` tests remain).
 
-Run: `rtk proxy pnpm exec vitest run src/lib/game/classify.test.ts`
-Expected: PASS (all existing tests + the new one). Specifically confirm the pre-existing `'classifies an only-move (large MultiPV gap) best move as great'` test still passes: its fixture has `beforePov = 75` (well under the new 97 guard) and a gap of exactly `20` (`75 - 55`), which still clears the raised `>= 20` bar exactly.
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add src/lib/game/classify.ts src/lib/game/classify.test.ts
-git commit -m "fix(classify): raise Great's only-move gap threshold and add a not-already-decided guard"
+git add src/lib/game/material.ts src/lib/game/material.test.ts
+git commit -m "refactor(material): export PIECE_VALUES, remove isMaterialSacrifice (superseded by attacks.ts)"
 ```
 
 ---

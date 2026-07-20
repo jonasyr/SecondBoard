@@ -1,157 +1,92 @@
-### Task 4: Pure material-sacrifice detector
+### Task 4: Loosen Great's "not already decided" guard
 
 **Files:**
-- Create: `src/lib/game/material.ts`
-- Test: `src/lib/game/material.test.ts`
+- Modify: `src/lib/game/classify.ts`
+- Test: `src/lib/game/classify.test.ts`
 
-**Interfaces:**
-- Consumes: `Position`, `PieceColor`, `PieceType` (from `$lib/board/types`).
-- Produces: `materialForColor(position: Position, color: PieceColor): number`, `isMaterialSacrifice(before: Position, after: Position, mover: PieceColor): boolean` — consumed by Task 5's `classify.ts`.
+**Interfaces:** none changed -- a single constant value change plus one updated test.
 
-This is a simplified, no-SEE, no-lookahead sacrifice check (Global Constraints): it measures whether the mover's own move dropped their material lead over the opponent by at least a minor piece's worth (3 points), comparing the position immediately before the move to the position immediately after it (before the opponent has a chance to reply).
+**Root cause:** the real app run after Iteration 11 showed Fischer's Great count collapse from 5 (over-firing, the original bug) all the way to 0 -- not the expected ~1. The `beforePov < 97` guard, combined with the raised `20`-point gap threshold, apparently suppresses `19...Ne2+` (the one legitimate Great chess.com credits), which likely occurs in a position our engine already scores above 97 (Fischer's position is very strong for much of the game's second half after the earlier combination). Raising the threshold to `99` keeps the guard's purpose (exclude truly-decided, resignation-worthy positions) while allowing Great to fire in merely "clearly better" positions, which is closer to how chess.com's own Great appears to behave here.
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1: Update the existing "already decided" test's fixture to the new threshold**
 
-Create `src/lib/game/material.test.ts`:
+Read the current test named `'does not classify an only-move gap as great when the position was already decisively won'` in `classify.test.ts` (added in Iteration 11). Its fixture uses `beforePov = 98` (via `wdlPerPly: [[970, 20, 10], ...]`, giving `(970+10)/10 = 98`). Under the new `99` threshold, `98 < 99` would make the guard NOT block it, breaking this test's intent. Update its `wdlPerPly` first entry so `beforePov` clears the NEW threshold instead:
 ```typescript
-import { describe, it, expect } from 'vitest';
-import { materialForColor, isMaterialSacrifice } from './material';
-import type { Position } from '$lib/board/types';
+		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
+			[990, 5, 5], // ply 0: White win% (990+2.5)/10 = 99.25 -- decisively won even under the
+			// raised (99) "already decided" threshold
+			[990, 5, 5]
+		];
+```
+(Replace only that one array literal in the existing test; leave the rest of the test -- `secondWdlPerPly`, `positions`, `moveMeta`, `bestMoves`, the assertion -- unchanged.)
 
-describe('materialForColor', () => {
-	it('sums standard piece values for one side, ignoring the king', () => {
-		const position: Position = {
-			e1: ['K', 'w'],
-			d1: ['Q', 'w'],
-			a1: ['R', 'w'],
-			h1: ['R', 'w'],
-			c1: ['B', 'w'],
-			b1: ['N', 'w'],
-			a2: ['P', 'w'],
-			e8: ['K', 'b']
-		};
-		// Q(9) + R(5) + R(5) + B(3) + N(3) + P(1) = 26; king contributes 0.
-		expect(materialForColor(position, 'w')).toBe(26);
-		expect(materialForColor(position, 'b')).toBe(0);
-	});
+- [ ] **Step 2: Add a new test locking in the loosened guard's intent**
 
-	it('returns 0 for a side with no pieces on the board', () => {
-		const position: Position = { e1: ['K', 'w'] };
-		expect(materialForColor(position, 'b')).toBe(0);
-	});
-});
+Add this test to the same `describe('classifyGame with special classes', ...)` block, right after the updated test from Step 1:
+```typescript
+	it('classifies an only-move gap as great in a clearly-but-not-decisively winning position', () => {
+		// beforePov = 98 -- clearly better for the mover, ABOVE Iteration 11's 97 threshold
+		// (which would wrongly block this) but BELOW the raised 99 threshold (which correctly
+		// allows it). This is exactly the gap Iteration 11's 97 threshold over-corrected: it
+		// silently swallowed a real Great, matching the app's own reported under-firing after
+		// that iteration -- this test must fail under the OLD 97 value and pass under the NEW
+		// 99 value, not pass under both (a beforePov like 90 would pass under both and not
+		// actually exercise this fix).
+		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
+			[960, 40, 0], // ply 0: White win% (960+20)/10 = 98
+			[960, 40, 0]
+		];
+		const secondWdlPerPly: (import('./accuracy').Wdl | null)[] = [
+			[500, 400, 100], // ply 0's second PV line: White win% (500+200)/10 = 70 -> gap of 20
+			null
+		];
+		const evalPerPly = [0, 0];
+		const positions: Position[] = [
+			{ e1: ['K', 'w'], e8: ['K', 'b'] },
+			{ e1: ['K', 'w'], e8: ['K', 'b'] }
+		];
+		const moveMeta: Move[] = [{ from: 'e1', to: 'e2' }];
+		const bestMoves: Record<number, Move & { san: string }> = {
+			1: { from: 'e1', to: 'e2', san: 'Ke2' }
+		};
 
-describe('isMaterialSacrifice', () => {
-	it('is true when the mover gives up a piece worth 3+ points net, relative to the opponent', () => {
-		// White has a knight on e5 that simply vanishes (given away) -- no
-		// White capture compensates, and Black's material is unchanged.
-		const before: Position = {
-			e1: ['K', 'w'],
-			e5: ['N', 'w'],
-			e8: ['K', 'b']
-		};
-		const after: Position = {
-			e1: ['K', 'w'],
-			e8: ['K', 'b']
-		};
-		expect(isMaterialSacrifice(before, after, 'w')).toBe(true);
-	});
+		const codes = classifyGame(evalPerPly, wdlPerPly, {
+			positions,
+			moveMeta,
+			bestMoves,
+			secondWdlPerPly
+		});
 
-	it('is false for an even trade (capturing a piece of equal value)', () => {
-		// White's bishop captures Black's bishop: White's own material is
-		// unchanged, Black's material drops by 3 -- the DIFFERENTIAL (mover
-		// minus opponent) goes up, not down, so this is not a sacrifice.
-		const before: Position = {
-			e1: ['K', 'w'],
-			c4: ['B', 'w'],
-			f7: ['B', 'b'],
-			e8: ['K', 'b']
-		};
-		const after: Position = {
-			e1: ['K', 'w'],
-			f7: ['B', 'w'],
-			e8: ['K', 'b']
-		};
-		expect(isMaterialSacrifice(before, after, 'w')).toBe(false);
+		expect(codes[0]).toBe('great');
 	});
-
-	it('is false for a small material swing under the 3-point sacrifice threshold', () => {
-		// White's pawn captures Black's pawn: only a 1-point swing.
-		const before: Position = {
-			e1: ['K', 'w'],
-			d4: ['P', 'w'],
-			e5: ['P', 'b'],
-			e8: ['K', 'b']
-		};
-		const after: Position = {
-			e1: ['K', 'w'],
-			e5: ['P', 'w'],
-			e8: ['K', 'b']
-		};
-		expect(isMaterialSacrifice(before, after, 'w')).toBe(false);
-	});
-});
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [ ] **Step 3: Run to verify the new test fails, confirming the current 97 threshold blocks it**
 
-Run: `rtk proxy pnpm exec vitest run src/lib/game/material.test.ts`
-Expected: FAIL — `./material` does not exist yet.
+Run: `rtk proxy pnpm exec vitest run src/lib/game/classify.test.ts`
+Expected: FAIL on the new test (`beforePov=98 >= 97`'s guard blocks it under the current threshold) -- the updated "already decided" test from Step 1 should already pass (99.25 clears 99 either way).
 
-- [ ] **Step 3: Implement**
+- [ ] **Step 4: Implement**
 
-Create `src/lib/game/material.ts`:
+Current code:
 ```typescript
-/**
- * Pure, no-SEE material accounting used only as Brilliant's sacrifice
- * precondition (blueprint §4/§8's `is_piece_sacrifice` guard, simplified:
- * no search-continuation lookahead, just the raw material swing the mover's
- * own move caused, measured immediately before the opponent gets to reply).
- */
-import type { Position, PieceColor, PieceType } from '$lib/board/types';
-
-const PIECE_VALUES: Record<PieceType, number> = {
-	P: 1,
-	N: 3,
-	B: 3,
-	R: 5,
-	Q: 9,
-	K: 0
-};
-
-/** Sums standard piece values for one side on a board (king excluded, value 0). */
-export function materialForColor(position: Position, color: PieceColor): number {
-	return Object.values(position)
-		.filter(([, pieceColor]) => pieceColor === color)
-		.reduce((sum, [type]) => sum + PIECE_VALUES[type], 0);
-}
-
-/**
- * True when the mover's own move dropped their material lead over the
- * opponent (their material minus the opponent's) by at least a minor
- * piece's worth (3 points), comparing the position immediately before the
- * move to the position immediately after it. An even or favorable trade
- * (capturing a piece of equal or greater value) does not count -- only a
- * move that gives up material net counts as a sacrifice.
- */
-export function isMaterialSacrifice(before: Position, after: Position, mover: PieceColor): boolean {
-	const opponent: PieceColor = mover === 'w' ? 'b' : 'w';
-	const diffBefore = materialForColor(before, mover) - materialForColor(before, opponent);
-	const diffAfter = materialForColor(after, mover) - materialForColor(after, opponent);
-	return diffAfter - diffBefore <= -3;
-}
+const GREAT_NOT_ALREADY_DECIDED = 97; // recalibrated in Task 4 of this same plan
+```
+Replace with:
+```typescript
+const GREAT_NOT_ALREADY_DECIDED = 99;
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [ ] **Step 5: Run tests to verify they pass**
 
-Run: `rtk proxy pnpm exec vitest run src/lib/game/material.test.ts`
-Expected: PASS (4/4).
+Run: `rtk proxy pnpm exec vitest run src/lib/game/classify.test.ts`
+Expected: PASS (all tests, including both from this task).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add src/lib/game/material.ts src/lib/game/material.test.ts
-git commit -m "feat(material): add a pure material-sacrifice detector for Brilliant classification"
+git add src/lib/game/classify.ts src/lib/game/classify.test.ts
+git commit -m "fix(classify): loosen Great's not-already-decided guard from 97 to 99"
 ```
 
 ---
