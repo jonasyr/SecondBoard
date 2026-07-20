@@ -1,25 +1,15 @@
 /**
- * Pure, simplified attack-detection geometry used only as Brilliant's
- * "is this piece currently hanging" precondition (blueprint §4/§8's
- * `is_piece_sacrifice` guard). A real chess.com-style Brilliant is a piece
- * left ATTACKED (en prise) that's still fine for the mover whether or not the
- * opponent actually captures it -- e.g. the reference game's 11...Na4
- * (docs/references/DonaldByrne_RJamesFischer/), which is never captured at
- * all (White correctly declines). Detecting this requires an attack-square
- * query, not a diff of material across subsequent board snapshots (which can
- * only ever see a sacrifice the opponent actually accepts).
+ * Pure attack geometry and value-aware static exchange evaluation.
  *
- * Simplifications (explicitly out of scope, matching material.ts's own
- * no-SEE disclosure): no full legal-move generation (no check/pin awareness
- * -- a "pinned" attacker is still counted as an attacker here), no Static
- * Exchange Evaluation ordering or piece-value weighting among attackers/
- * defenders themselves. "Hanging" is defined purely as attacker COUNT
- * exceeding defender COUNT on the target square -- a piece defended once by
- * a queen against two pawn attackers is still flagged "hanging" under this
- * count-only heuristic, even though the value math may actually favor the
- * defender in a real exchange sequence.
+ * `countAttackers` and `isPieceHanging` preserve the legacy count-based API,
+ * while `staticExchangeGain` recursively evaluates capture sequences using
+ * piece values and a freshly computed set of geometric attackers at each ply.
+ *
+ * This module does not generate legal moves or account for check, pins,
+ * promotions, or en passant. A geometrically attacking piece is considered
+ * available even when moving it would be illegal in a complete chess engine.
  */
-import type { Piece, PieceColor, PieceType, Position, Square } from '$lib/board/types';
+import type { PieceColor, PieceType, Position, Square } from '$lib/board/types';
 
 const FILES = 'abcdefgh';
 
@@ -72,13 +62,8 @@ const DIAGONAL_DIRS: Array<[number, number]> = [
 	[-1, -1]
 ];
 
-function pieceAt(position: Position, file: number, rank: number): Piece | undefined {
-	const sq = squareAt(file, rank);
-	return sq ? position[sq] : undefined;
-}
-
 /**
- * Counts how many pieces of `byColor` currently attack `target` on this
+ * Finds the squares of pieces of `byColor` that currently attack `target` on this
  * board. Sliding pieces (rook/bishop/queen) are blocked by the first piece
  * encountered in each direction, exactly like real chess movement -- a piece
  * of the wrong type/color at that blocking square stops the ray entirely
