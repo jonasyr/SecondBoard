@@ -33,3 +33,6 @@ src-tauri/target
 
 # Local debugging artifacts (WebKit inspector exports, etc.)
 /logs
+
+# codebase-memory-mcp local index cache
+/.codebase-memory

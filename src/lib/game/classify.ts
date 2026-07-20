@@ -26,14 +26,22 @@ import type { Move, Position } from '$lib/board/types';
 import type { Wdl } from './accuracy';
 import { winPercentForPly, winPercentFromEval } from './accuracy';
 import { sideToMoveForPly } from './notation';
-import { hasPositiveExchangeTarget } from './attacks';
+import { hasPositiveExchangeTarget, staticExchangeGain } from './attacks';
 
 /** blueprint §8's `ClassificationConfig` defaults, expressed on this codebase's
- * 0-100 win%-points scale (the blueprint's own numbers are on a 0-1 scale). */
+ * 0-100 win%-points scale (the blueprint's own numbers are on a 0-1 scale).
+ * Brilliant's ceiling (80, not the deterministic table's own headroom) and
+ * Great's gap (15) were both recalibrated against a complete golden-fixture
+ * run of the Byrne-Fischer 1956 reference game (classify.reference-game.test.ts):
+ * the original, higher thresholds fired on persistent-but-uncapitalized-on
+ * sacrifices and continuations inside an already-overwhelming position. See
+ * `sacrificeIsCausal` below for why a hanging piece alone is not sufficient
+ * evidence that THIS move is what created the exposure. */
 const BRILLIANT_MIN_WIN = 50;
-const BRILLIANT_NOT_WINNING = 97;
+const BRILLIANT_NOT_WINNING = 80;
 const BRILLIANT_MIN_SACRIFICE_VALUE = 3;
-const GREAT_ONLY_MOVE_GAP = 20;
+const BRILLIANT_CAUSAL_GAP = 20;
+const GREAT_ONLY_MOVE_GAP = 15;
 const GREAT_NOT_ALREADY_DECIDED = 99;
 const MISS_WIN_BEFORE = 80;
 const MISS_WIN_AFTER = 55;
@@ -154,28 +162,54 @@ function classifySpecial(
 	);
 	const nearBest = epLoss <= 2 || playedIsBest;
 
+	const beforePosition = special.positions[ply - 1];
 	const afterPosition = special.positions[ply];
+	const opponent: 'w' | 'b' = mover === 'w' ? 'b' : 'w';
 
-	if (
-		nearBest &&
-		afterPosition &&
-		hasPositiveExchangeTarget(afterPosition, mover, BRILLIANT_MIN_SACRIFICE_VALUE) &&
-		afterCpPov >= BRILLIANT_MIN_WIN &&
-		beforeCpPov < BRILLIANT_NOT_WINNING
-	) {
-		return 'brilliant';
+	// A position can contain a hanging piece that has nothing to do with the
+	// move just played (e.g. it was already exposed several moves earlier and
+	// simply never got captured). Requiring the moved piece's own SEE exposure
+	// to have gotten worse (from == not attacked-for-more / to == attacked)
+	// ties the sacrifice to THIS move -- exactly what distinguishes chess.com's
+	// "Brilliant" from an ordinary continuation inside a won position. Best
+	// moves with a large second-line CP gap (an "only good try") also qualify,
+	// covering offered sacrifices whose value shows up in the engine gap
+	// rather than in the moved piece's own exposure (17...Be6 in the reference
+	// game: the bishop itself isn't what's hanging, the queen on b6 is).
+	const secondWhitePov = secondLineWinPercent(
+		ply - 1,
+		special.secondEvalPerPly,
+		special.secondWdlPerPly
+	);
+	const secondMoverPov = secondWhitePov === null ? null : mover === 'w' ? secondWhitePov : 100 - secondWhitePov;
+	const cpGap = secondMoverPov === null ? null : beforeCpPov - secondMoverPov;
+
+	const qualifyingAfterTarget = Boolean(
+		afterPosition && hasPositiveExchangeTarget(afterPosition, mover, BRILLIANT_MIN_SACRIFICE_VALUE)
+	);
+
+	if (nearBest && qualifyingAfterTarget && afterCpPov >= BRILLIANT_MIN_WIN && beforeCpPov < BRILLIANT_NOT_WINNING) {
+		const movedGainBefore =
+			playedMove && beforePosition ? staticExchangeGain(beforePosition, playedMove.from, opponent) : 0;
+		const movedGainAfter =
+			playedMove && afterPosition ? staticExchangeGain(afterPosition, playedMove.to, opponent) : 0;
+		const sacrificeIsCausal =
+			movedGainAfter > movedGainBefore || (playedIsBest && cpGap !== null && cpGap >= BRILLIANT_CAUSAL_GAP);
+
+		if (sacrificeIsCausal) return 'brilliant';
 	}
 
-	if (playedIsBest && beforeCpPov < GREAT_NOT_ALREADY_DECIDED) {
-		const secondWhitePov = secondLineWinPercent(
-			ply - 1,
-			special.secondEvalPerPly,
-			special.secondWdlPerPly
-		);
-		if (secondWhitePov !== null) {
-			const secondMoverPov = mover === 'w' ? secondWhitePov : 100 - secondWhitePov;
-			if (beforeCpPov - secondMoverPov >= GREAT_ONLY_MOVE_GAP) return 'great';
-		}
+	// A move that leaves the mover's own material hanging isn't "the only good
+	// move" in the sense chess.com means by Great -- that pattern is already
+	// covered (or rejected) by the Brilliant check above.
+	if (
+		playedIsBest &&
+		!qualifyingAfterTarget &&
+		beforeCpPov < GREAT_NOT_ALREADY_DECIDED &&
+		cpGap !== null &&
+		cpGap >= GREAT_ONLY_MOVE_GAP
+	) {
+		return 'great';
 	}
 
 	if (beforeWdlPov >= MISS_WIN_BEFORE && afterWdlPov < MISS_WIN_AFTER) return 'miss';
