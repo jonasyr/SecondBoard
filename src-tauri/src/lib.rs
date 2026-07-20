@@ -9,6 +9,9 @@ struct AnalyzeFenResult {
     best_move_uci: String,
     pv: Vec<String>,
     wdl: Option<(u32, u32, u32)>,
+    second_eval_cp: Option<i32>,
+    second_is_mate: bool,
+    second_wdl: Option<(u32, u32, u32)>,
 }
 
 impl From<engine::EngineAnalysis> for AnalyzeFenResult {
@@ -19,6 +22,9 @@ impl From<engine::EngineAnalysis> for AnalyzeFenResult {
             best_move_uci: a.best_move_uci,
             pv: a.pv,
             wdl: a.wdl,
+            second_eval_cp: a.second_eval_cp,
+            second_is_mate: a.second_is_mate,
+            second_wdl: a.second_wdl,
         }
     }
 }
@@ -91,6 +97,19 @@ mod analyze_fen_tests {
             Ok(result) => {
                 // Real Stockfish on this machine should report WDL for a legal position.
                 assert!(result.wdl.is_some());
+            }
+            Err(msg) => {
+                assert!(msg.contains("failed to spawn engine"), "unexpected error: {msg}");
+            }
+        }
+    }
+
+    #[test]
+    fn analyze_fen_result_carries_the_engines_second_pv_line() {
+        let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1".to_string();
+        match analyze_fen_sync(fen) {
+            Ok(result) => {
+                assert!(result.second_eval_cp.is_some());
             }
             Err(msg) => {
                 assert!(msg.contains("failed to spawn engine"), "unexpected error: {msg}");
