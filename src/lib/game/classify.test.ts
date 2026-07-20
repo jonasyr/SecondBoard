@@ -105,6 +105,68 @@ describe('classifyGame with special classes', () => {
 		expect(codes).toEqual(['brilliant']);
 	});
 
+	it('classifies an offered sacrifice (material lost only after the opponent\'s next reply) as brilliant', () => {
+		// Mirrors the PATTERN of the reference game's 17...Be6!! (a piece offered that
+		// captures/loses nothing on its own move, only taken on the opponent's very next
+		// reply) -- docs/references/DonaldByrne_RJamesFischer/. Colors are flipped from the
+		// real game (White offers here, not Black): `classifyGame`'s ply-index convention
+		// means `codes[0]` (ply 1) is always evaluated with `mover = sideToMoveForPly(0) ===
+		// 'w'` in any isolated array-based fixture like this one (ply 0 is always "White to
+		// move" by this codebase's indexing), so the sacrificed piece must belong to White
+		// for this fixture's `mover` and the sacrificed color to actually agree -- this is a
+		// test-harness detail, not a claim about who sacrifices in the real game.
+		const evalPerPly = [0, 0, 0]; // 3 plies: before the offer, after the offer, after the reply captures it
+		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
+			[600, 400, 0], // ply 0: mover (White) win% 80 before the offered move
+			[600, 400, 0], // ply 1: still 80 right after offering the piece (engine already
+			// credits the follow-up tactics, per this codebase's existing convention)
+			[600, 400, 0] // ply 2: irrelevant to this test's own assertion, included only for
+			// array-length parity with positions/moveMeta below
+		];
+		const positions: Position[] = [
+			{ e1: ['K', 'w'], e8: ['K', 'b'], e5: ['B', 'w'] }, // before: White's bishop still on e5
+			{ e1: ['K', 'w'], e8: ['K', 'b'], d6: ['B', 'w'] }, // after White's own move: bishop moved
+			// to d6, nothing captured -- material diff vs. "before" is 0 at this point
+			{ e1: ['K', 'w'], e8: ['K', 'b'] } // after Black's NEXT reply captures the bishop on d6
+		];
+		const moveMeta: Move[] = [
+			{ from: 'e5', to: 'd6' }, // White's offered move (ply 1)
+			{ from: 'e8', to: 'd6' } // Black's reply that captures it (ply 2) -- moveMeta content
+			// for ply 2 doesn't affect this test (only ply 1 is classified as White's move here)
+		];
+		const bestMoves: Record<number, Move & { san: string }> = {
+			1: { from: 'e5', to: 'd6', san: 'Bd6' } // played move IS the engine's suggestion
+		};
+
+		const codes = classifyGame(evalPerPly, wdlPerPly, { positions, moveMeta, bestMoves });
+
+		expect(codes[0]).toBe('brilliant'); // codes[0] = classification of ply 1 (White's offered move)
+	});
+
+	it('falls back to the same-ply material diff when the move played is the very last ply', () => {
+		// No positions[ply + 1] exists at all -- must not throw, and must fall back to
+		// comparing positions[ply - 1] directly against positions[ply] (today's pre-Task-1
+		// behavior), still correctly detecting an IMMEDIATE (same-move) sacrifice.
+		const evalPerPly = [0, 0];
+		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
+			[600, 400, 0],
+			[600, 400, 0]
+		];
+		const positions: Position[] = [
+			{ e1: ['K', 'w'], e5: ['N', 'w'], e8: ['K', 'b'] }, // before: White has a knight on e5
+			{ e1: ['K', 'w'], e8: ['K', 'b'] } // after (the LAST ply of the game): the knight is
+			// simply given away in this same move, no positions[2] exists at all
+		];
+		const moveMeta: Move[] = [{ from: 'e5', to: 'd7' }];
+		const bestMoves: Record<number, Move & { san: string }> = {
+			1: { from: 'e5', to: 'd7', san: 'Nd7' }
+		};
+
+		const codes = classifyGame(evalPerPly, wdlPerPly, { positions, moveMeta, bestMoves });
+
+		expect(codes[0]).toBe('brilliant');
+	});
+
 	it('classifies an only-move (large MultiPV gap) best move as great', () => {
 		const evalPerPly = [0, 0];
 		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [

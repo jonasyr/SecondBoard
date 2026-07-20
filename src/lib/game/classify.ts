@@ -142,11 +142,19 @@ function classifySpecial(
 	);
 	const nearBest = epLoss <= 2 || playedIsBest;
 
+	// Prefer the position AFTER the opponent's next reply when it's available: a piece
+	// deliberately left en prise (the classic "offered" sacrifice -- e.g. this game's own
+	// 17...Be6!!, only captured on White's following move) shows no material change at all
+	// on the sacrificing move's own ply, so checking only positions[ply-1] vs positions[ply]
+	// can never see it. Falls back to the same-ply comparison (today's pre-Task-1 behavior)
+	// when the played move was the game's very last ply (positions[ply + 1] doesn't exist).
+	const materialAfter = special.positions[ply + 1] ?? special.positions[ply];
+
 	if (
 		nearBest &&
 		special.positions[ply - 1] &&
-		special.positions[ply] &&
-		isMaterialSacrifice(special.positions[ply - 1], special.positions[ply], mover) &&
+		materialAfter &&
+		isMaterialSacrifice(special.positions[ply - 1], materialAfter, mover) &&
 		afterPov >= BRILLIANT_MIN_WIN &&
 		beforePov < BRILLIANT_NOT_WINNING
 	) {
