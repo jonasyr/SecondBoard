@@ -21,7 +21,7 @@ beforeEach(() => {
 describe('ReviewTab', () => {
 	it('renders the eval graph, accuracy block, breakdown, and phase table together', () => {
 		const { container, getByText } = render(ReviewTab, {
-			props: { ply: 31, evalPerPly: EVAL_PER_PLY }
+			props: { ply: 31, evalPerPly: EVAL_PER_PLY, classCodes: [] }
 		});
 		expect(container.querySelector('svg')).not.toBeNull();
 		expect(getByText('Jonas')).toBeTruthy();
@@ -31,14 +31,14 @@ describe('ReviewTab', () => {
 
 	it('shows the real winner (from game.result) in the accuracy block, not a hardcoded one', () => {
 		const { getByText } = render(ReviewTab, {
-			props: { ply: 31, evalPerPly: EVAL_PER_PLY }
+			props: { ply: 31, evalPerPly: EVAL_PER_PLY, classCodes: [] }
 		});
 		expect(getByText('0–1')).toBeTruthy();
 	});
 
 	it('shows no analyzing overlay by default', () => {
 		const { queryByText, container } = render(ReviewTab, {
-			props: { ply: 31, evalPerPly: EVAL_PER_PLY }
+			props: { ply: 31, evalPerPly: EVAL_PER_PLY, classCodes: [] }
 		});
 		expect(queryByText('Analyzing with Stockfish…')).toBeNull();
 		expect(container.querySelector('.graph-blur')?.classList.contains('analyzing')).toBe(false);
@@ -46,7 +46,7 @@ describe('ReviewTab', () => {
 
 	it('shows a centered analyzing overlay over the blurred graph when analyzing is true', () => {
 		const { getByText, container } = render(ReviewTab, {
-			props: { ply: 31, evalPerPly: EVAL_PER_PLY, analyzing: true }
+			props: { ply: 31, evalPerPly: EVAL_PER_PLY, classCodes: [], analyzing: true }
 		});
 		expect(getByText('Analyzing with Stockfish…')).toBeTruthy();
 		expect(container.querySelector('.graph-blur')?.classList.contains('analyzing')).toBe(true);
@@ -55,7 +55,7 @@ describe('ReviewTab', () => {
 	it('does not show a fabricated 100.0 accuracy while analysis is not ready, even when evalPerPly is a full-length placeholder of zeros', () => {
 		appState.analysisStatus = 'loading';
 		const { container, queryByText } = render(ReviewTab, {
-			props: { ply: 1, evalPerPly: new Array(2).fill(0) }
+			props: { ply: 1, evalPerPly: new Array(2).fill(0), classCodes: [] }
 		});
 		expect(queryByText('100.0')).toBeNull();
 		const chips = container.querySelectorAll('.accuracy-grid .chip.sbmono');

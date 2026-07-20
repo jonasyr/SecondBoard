@@ -1,11 +1,12 @@
 <script lang="ts">
-	import { CLASS_CODES } from '$lib/game/mock-data';
+	import type { ClassCode } from '$lib/types';
 	import EvalGraph from './EvalGraph.svelte';
 	import NavControls from './NavControls.svelte';
 
 	interface Props {
 		ply: number;
 		evalPerPly: number[];
+		classCodes: ClassCode[];
 		onFirst: () => void;
 		onPrev: () => void;
 		onNext: () => void;
@@ -13,13 +14,13 @@
 		analyzing?: boolean;
 	}
 
-	let { ply, evalPerPly, onFirst, onPrev, onNext, onLast, analyzing = false }: Props = $props();
+	let { ply, evalPerPly, classCodes, onFirst, onPrev, onNext, onLast, analyzing = false }: Props = $props();
 </script>
 
 <div class="bottom-bar">
 	<div class="graph-slot">
 		<div class="graph-blur" class:analyzing>
-			<EvalGraph {evalPerPly} classCodes={CLASS_CODES} {ply} height={62} />
+			<EvalGraph {evalPerPly} {classCodes} {ply} height={62} />
 		</div>
 		{#if analyzing}
 			<div class="analyzing-overlay"><span>Analyzing with Stockfish…</span></div>
