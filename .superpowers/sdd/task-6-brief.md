@@ -1,85 +1,41 @@
-## Task 6: `ReviewTab.svelte` — wire the real summary in
+## Task 6: `ReviewPanel.svelte` + `ReviewTab.svelte` + `BottomBar.svelte` — real classification on the eval graph
 
 **Files:**
+- Modify: `src/lib/components/ReviewPanel.svelte`
 - Modify: `src/lib/components/ReviewTab.svelte`
 - Modify: `src/lib/components/ReviewTab.test.ts`
+- Modify: `src/lib/components/BottomBar.svelte`
+- Modify: `src/lib/components/BottomBar.test.ts`
 
 **Interfaces:**
-- Consumes: `appState` (`$lib/stores/app-state.svelte`, already has `game: GameData | null` per `mem:core`); `getAccuracySummary` from `$lib/game/review` (Task 4).
+- Consumes: `appState.classCodes: ClassCode[]` (Task 2).
+- Produces: `ReviewTab`'s and `BottomBar`'s `Props` gain a `classCodes: ClassCode[]` field, passed down from `ReviewPanel.svelte`.
 
-- [ ] **Step 1: Update the failing test**
+- [ ] **Step 1: Check the existing `ReviewTab`/`BottomBar` tests for `CLASS_CODES`-dependent assertions**
 
-Replace `src/lib/components/ReviewTab.test.ts` entirely (adds an `appState.game` fixture, following the exact pattern already used in `src/lib/components/AnalysisTab.test.ts:20-31`):
+Read `src/lib/components/ReviewTab.test.ts` and `src/lib/components/BottomBar.test.ts`. Neither currently asserts on evaluation-dot colors/positions (those are covered by `eval-graph.test.ts`'s unit tests, already passing pure-function tests unaffected by this task), so no test assertions need to change — only the render call's props, to supply the now-required `classCodes` prop instead of relying on the component's own `CLASS_CODES` import.
 
-```typescript
-import { describe, it, expect, beforeEach } from 'vitest';
-import { render } from '@testing-library/svelte';
-import ReviewTab from './ReviewTab.svelte';
-import { EVAL_PER_PLY } from '$lib/game/mock-data';
-import { appState } from '$lib/stores/app-state.svelte';
+- [ ] **Step 2: Update `ReviewTab.test.ts`'s render calls**
 
-beforeEach(() => {
-	appState.game = {
-		sanList: ['e4'],
-		positions: [{}, {}],
-		moveMeta: [{ from: 'e2', to: 'e4' }],
-		isSample: true,
-		whiteName: null,
-		blackName: null,
-		whiteRating: null,
-		blackRating: null,
-		result: '0-1'
-	};
-});
+In `src/lib/components/ReviewTab.test.ts`, add `classCodes: []` to every `render(ReviewTab, { props: { ... } })` call's props object (there are 4 such calls in the file, one per `it` block).
 
-describe('ReviewTab', () => {
-	it('renders the eval graph, accuracy block, breakdown, and phase table together', () => {
-		const { container, getByText } = render(ReviewTab, {
-			props: { ply: 31, evalPerPly: EVAL_PER_PLY }
-		});
-		expect(container.querySelector('svg')).not.toBeNull();
-		expect(getByText('Jonas')).toBeTruthy();
-		expect(getByText('Brilliant')).toBeTruthy();
-		expect(getByText('Opening')).toBeTruthy();
-	});
+- [ ] **Step 3: Update `BottomBar.test.ts`'s render calls**
 
-	it('shows the real winner (from game.result) in the accuracy block, not a hardcoded one', () => {
-		const { getByText } = render(ReviewTab, {
-			props: { ply: 31, evalPerPly: EVAL_PER_PLY }
-		});
-		expect(getByText('0–1')).toBeTruthy();
-	});
+Read `src/lib/components/BottomBar.test.ts` and add `classCodes: []` to every `render(BottomBar, { props: { ... } })` call's props object, the same way.
 
-	it('shows no analyzing overlay by default', () => {
-		const { queryByText, container } = render(ReviewTab, {
-			props: { ply: 31, evalPerPly: EVAL_PER_PLY }
-		});
-		expect(queryByText('Analyzing with Stockfish…')).toBeNull();
-		expect(container.querySelector('.graph-blur')?.classList.contains('analyzing')).toBe(false);
-	});
+- [ ] **Step 4: Run tests to verify they fail**
 
-	it('shows a centered analyzing overlay over the blurred graph when analyzing is true', () => {
-		const { getByText, container } = render(ReviewTab, {
-			props: { ply: 31, evalPerPly: EVAL_PER_PLY, analyzing: true }
-		});
-		expect(getByText('Analyzing with Stockfish…')).toBeTruthy();
-		expect(container.querySelector('.graph-blur')?.classList.contains('analyzing')).toBe(true);
-	});
-});
-```
+Run: `pnpm exec vitest run src/lib/components/ReviewTab.test.ts src/lib/components/BottomBar.test.ts`
+Expected: FAIL — both components' `Props` interfaces don't declare `classCodes` yet, so passing it does nothing useful yet and (depending on strict prop checking) Svelte may warn about an unknown prop; more importantly the components still import the mock `CLASS_CODES` directly, so this step's purpose is to lock in the target prop shape before Step 5 removes the mock import (at which point omitting the prop in a test would genuinely break the eval graph). Confirm the file still compiles/runs at this point — this is a preparatory step, not a strict red/green boundary, so "FAIL" here may simply mean "unchanged" if Svelte allows the extra prop silently; either way, do not skip ahead until Step 5's import removal is in place, because that is what makes `classCodes` mandatory.
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [ ] **Step 5: Update `ReviewTab.svelte`**
 
-Run: `pnpm exec vitest run src/lib/components/ReviewTab.test.ts`
-Expected: FAIL — `AccuracyBlock` (as of Task 5) now requires `white`/`black`/`resultLabel` props that `ReviewTab.svelte` doesn't pass yet; Svelte will throw/warn on missing required props and `getByText('0–1')` won't be found.
-
-- [ ] **Step 3: Wire `getAccuracySummary` into `ReviewTab.svelte`**
+Replace the `<script>` block:
 
 ```svelte
 <script lang="ts">
-	import { appState } from '$lib/stores/app-state.svelte';
-	import { CLASS_CODES } from '$lib/game/mock-data';
 	import { getAccuracySummary } from '$lib/game/review';
+	import type { ClassCode } from '$lib/types';
 	import EvalGraph from './EvalGraph.svelte';
 	import AccuracyBlock from './AccuracyBlock.svelte';
 	import BreakdownTable from './BreakdownTable.svelte';
@@ -88,48 +44,121 @@ Expected: FAIL — `AccuracyBlock` (as of Task 5) now requires `white`/`black`/`
 	interface Props {
 		ply: number;
 		evalPerPly: number[];
+		classCodes: ClassCode[];
 		analyzing?: boolean;
 	}
 
-	let { ply, evalPerPly, analyzing = false }: Props = $props();
-
-	const accuracy = $derived(getAccuracySummary(appState.game!, evalPerPly));
+	let { ply, evalPerPly, classCodes, analyzing = false }: Props = $props();
 </script>
-
-<div class="review-tab sbscroll">
-	<div class="graph-slot">
-		<div class="graph-blur" class:analyzing>
-			<EvalGraph {evalPerPly} classCodes={CLASS_CODES} {ply} height={66} />
-		</div>
-		{#if analyzing}
-			<div class="analyzing-overlay"><span>Analyzing with Stockfish…</span></div>
-		{/if}
-	</div>
-	<AccuracyBlock white={accuracy.white} black={accuracy.black} resultLabel={accuracy.resultLabel} />
-	<div class="divider"></div>
-	<BreakdownTable />
-	<PhaseTable />
-</div>
 ```
 
-(The `<style>` block is unchanged — leave it exactly as it is in the current file.)
+Note: `appState` is no longer imported directly here — check whether it's still used elsewhere in the file (the `accuracy` derivation reads `appState.game!`/`appState.analysisStatus`). Keep that import; only the `CLASS_CODES` import from `$lib/game/mock-data` is removed. The full corrected script block, preserving the existing `accuracy` derivation:
 
-- [ ] **Step 4: Run tests to verify they pass**
+```svelte
+<script lang="ts">
+	import { appState } from '$lib/stores/app-state.svelte';
+	import { getAccuracySummary } from '$lib/game/review';
+	import type { ClassCode } from '$lib/types';
+	import EvalGraph from './EvalGraph.svelte';
+	import AccuracyBlock from './AccuracyBlock.svelte';
+	import BreakdownTable from './BreakdownTable.svelte';
+	import PhaseTable from './PhaseTable.svelte';
 
-Run: `pnpm exec vitest run src/lib/components/ReviewTab.test.ts`
+	interface Props {
+		ply: number;
+		evalPerPly: number[];
+		classCodes: ClassCode[];
+		analyzing?: boolean;
+	}
+
+	let { ply, evalPerPly, classCodes, analyzing = false }: Props = $props();
+
+	// Only feed the real evalPerPly in once analysis has actually finished;
+	// otherwise (idle/loading/error) pass an empty array so
+	// computeGameAccuracy's own length<2 guard returns null/null, rendering
+	// "—" instead of a fabricated 100.0 from the seeded all-zero placeholder
+	// evalPerPly that startReview() writes before analysis completes.
+	const accuracy = $derived(
+		getAccuracySummary(appState.game!, appState.analysisStatus === 'ready' ? evalPerPly : [])
+	);
+</script>
+```
+
+Update the `<EvalGraph ... />` call:
+
+```svelte
+			<EvalGraph {evalPerPly} {classCodes} {ply} height={66} />
+```
+
+- [ ] **Step 6: Update `BottomBar.svelte`**
+
+Replace the `<script>` block:
+
+```svelte
+<script lang="ts">
+	import type { ClassCode } from '$lib/types';
+	import EvalGraph from './EvalGraph.svelte';
+	import NavControls from './NavControls.svelte';
+
+	interface Props {
+		ply: number;
+		evalPerPly: number[];
+		classCodes: ClassCode[];
+		onFirst: () => void;
+		onPrev: () => void;
+		onNext: () => void;
+		onLast: () => void;
+		analyzing?: boolean;
+	}
+
+	let { ply, evalPerPly, classCodes, onFirst, onPrev, onNext, onLast, analyzing = false }: Props = $props();
+</script>
+```
+
+Update the `<EvalGraph ... />` call:
+
+```svelte
+			<EvalGraph {evalPerPly} {classCodes} {ply} height={62} />
+```
+
+- [ ] **Step 7: Update `ReviewPanel.svelte` to pass `appState.classCodes` down**
+
+Modify the `<ReviewTab ... />` call in `src/lib/components/ReviewPanel.svelte`:
+
+```svelte
+	<ReviewTab
+		ply={appState.ply}
+		evalPerPly={appState.evalPerPly}
+		classCodes={appState.classCodes}
+		analyzing={appState.analysisStatus === 'loading'}
+	/>
+```
+
+Modify the `<BottomBar ... />` call:
+
+```svelte
+		<BottomBar
+			ply={appState.ply}
+			evalPerPly={appState.evalPerPly}
+			classCodes={appState.classCodes}
+			onFirst={() => goToPly(0)}
+			onPrev={() => stepPly(-1)}
+			onNext={() => stepPly(1)}
+			onLast={() => goToPly(getMaxPly())}
+			analyzing={appState.analysisStatus === 'loading'}
+		/>
+```
+
+- [ ] **Step 8: Run tests to verify they pass**
+
+Run: `pnpm exec vitest run src/lib/components/ReviewTab.test.ts src/lib/components/BottomBar.test.ts`
 Expected: PASS — all green.
 
-Run full suite to confirm nothing else broke: `pnpm exec vitest run`
-Expected: PASS across the repo.
-
-Run: `pnpm check`
-Expected: no new TypeScript errors.
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add src/lib/components/ReviewTab.svelte src/lib/components/ReviewTab.test.ts
-git commit -m "feat: render the real accuracy/winner summary in ReviewTab"
+git add src/lib/components/ReviewPanel.svelte src/lib/components/ReviewTab.svelte src/lib/components/ReviewTab.test.ts src/lib/components/BottomBar.svelte src/lib/components/BottomBar.test.ts
+git commit -m "feat: eval graph (ReviewTab/BottomBar) renders real per-move classification"
 ```
 
 ---

@@ -1,136 +1,173 @@
-## Task 1: Rust — extract the PGN `Result` tag
+## Task 1: `src/lib/game/classify.ts` — pure EP-cutoff classifier
 
 **Files:**
-- Modify: `src-tauri/src/pgn.rs`
+- Create: `src/lib/game/classify.ts`
+- Test: `src/lib/game/classify.test.ts`
 
 **Interfaces:**
-- Produces: `pgn::ParsedGame.result: Option<String>` — camelCase-serialized as `result` (e.g. `Some("0-1".to_string())`, or `None` if the tag is absent/unknown, reusing the existing `decode_known_tag` helper).
+- Consumes: `winPercentFromEval(evalPawns: number): number` from `./accuracy` (already exists, White-POV win% 0–100); `sideToMoveForPly(ply: number): PieceColor` from `./notation` (already exists, `'w'` for even ply, `'b'` for odd); `ClassCode` type from `$lib/types`.
+- Produces:
+  - `classifyMoveByEpLoss(epLossPoints: number): ClassCode` — pure cutoff-table lookup.
+  - `classifyGame(evalPerPly: number[]): ClassCode[]` — one entry per move (index `i` = classification of ply `i + 1`), consumed by Task 2.
 
 - [ ] **Step 1: Write the failing tests**
 
-Add to the `#[cfg(test)] mod tests` block in `src-tauri/src/pgn.rs`, right after the existing `extracts_player_names_and_ratings_from_tags` test:
+Create `src/lib/game/classify.test.ts`:
 
-```rust
-    #[test]
-    fn extracts_the_result_tag() {
-        let game = parse_pgn(SAMPLE_PGN).expect("sample PGN should parse");
-        assert_eq!(game.result, Some("0-1".to_string()));
-    }
+```typescript
+import { describe, it, expect } from 'vitest';
+import { classifyMoveByEpLoss, classifyGame } from './classify';
 
-    #[test]
-    fn treats_a_missing_result_tag_as_none() {
-        let pgn = "[Event \"Casual Game\"]\n[White \"Alice\"]\n[Black \"Bob\"]\n\n1. e4 e5";
-        let game = parse_pgn(pgn).expect("PGN with no Result tag should still parse");
-        assert_eq!(game.result, None);
-    }
+describe('classifyMoveByEpLoss', () => {
+	it('classifies exactly 0 loss as best', () => {
+		expect(classifyMoveByEpLoss(0)).toBe('best');
+	});
+
+	it('classifies the upper edge of each band using Chess.com\'s exact published cutoffs', () => {
+		expect(classifyMoveByEpLoss(2)).toBe('excellent');
+		expect(classifyMoveByEpLoss(5)).toBe('good');
+		expect(classifyMoveByEpLoss(10)).toBe('inaccuracy');
+		expect(classifyMoveByEpLoss(20)).toBe('mistake');
+	});
+
+	it('classifies just above each cutoff as the next-worse band', () => {
+		expect(classifyMoveByEpLoss(0.01)).toBe('excellent');
+		expect(classifyMoveByEpLoss(2.01)).toBe('good');
+		expect(classifyMoveByEpLoss(5.01)).toBe('inaccuracy');
+		expect(classifyMoveByEpLoss(10.01)).toBe('mistake');
+		expect(classifyMoveByEpLoss(20.01)).toBe('blunder');
+	});
+
+	it('classifies a large loss as blunder', () => {
+		expect(classifyMoveByEpLoss(100)).toBe('blunder');
+	});
+
+	it('treats a negative loss (win% improved) the same as zero loss: best', () => {
+		expect(classifyMoveByEpLoss(-5)).toBe('best');
+	});
+});
+
+describe('classifyGame', () => {
+	it('returns one classification per move, best when the mover\'s win% never worsens', () => {
+		// ply0 (start, eval 0) -> ply1 White moves to +1.0 (better for White) ->
+		// ply2 Black moves to +0.5 (better for Black, relative to +1.0).
+		const codes = classifyGame([0, 1, 0.5]);
+		expect(codes).toEqual(['best', 'best']);
+	});
+
+	it('classifies a real blunder: White drops from dead-even to badly losing', () => {
+		// White's own win% swing from evalPerPly[0]=0 to evalPerPly[1]=-8 is far
+		// more than 20 points, so ply 1 (White's move) is a blunder.
+		const codes = classifyGame([0, -8]);
+		expect(codes).toEqual(['blunder']);
+	});
+
+	it('returns an empty array for fewer than 2 eval samples', () => {
+		expect(classifyGame([0])).toEqual([]);
+		expect(classifyGame([])).toEqual([]);
+	});
+
+	it('attributes each ply\'s classification to the correct mover (White odd ply positions, Black even)', () => {
+		// ply1 White: 0 -> 1 (improves, best). ply2 Black: 1 -> -1 (Black's own
+		// POV win% at eval -1 is much better for Black than at eval 1, so also
+		// best for Black). ply3 White: -1 -> -9 (a big drop in White's own win%
+		// -> blunder for White).
+		const codes = classifyGame([0, 1, -1, -9]);
+		expect(codes[0]).toBe('best'); // White's move 1
+		expect(codes[1]).toBe('best'); // Black's move 1
+		expect(codes[2]).toBe('blunder'); // White's move 2
+	});
+});
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd src-tauri && cargo test pgn::tests`
-Expected: FAIL — `no field \`result\` on type \`pgn::ParsedGame\`` (compile error).
+Run: `pnpm exec vitest run src/lib/game/classify.test.ts`
+Expected: FAIL — `Cannot find module './classify'`.
 
-- [ ] **Step 3: Add the field and tag extraction**
+- [ ] **Step 3: Implement `src/lib/game/classify.ts`**
 
-In `src-tauri/src/pgn.rs`, modify `ParsedGame`:
+```typescript
+/**
+ * Real per-move classification, replacing the fully-mocked CLASS_CODES
+ * (design_handoff_secondboard/SecondBoard_PROJECT_OVERVIEW.md §11) with
+ * Chess.com's own published "Expected Points" cutoff table (Chess.com
+ * support article, "How Are Moves Classified?"): a move's classification is
+ * driven purely by how much win probability the mover lost by playing it,
+ * relative to not losing any ground at all. Chess.com expresses this as
+ * "expected points" on a 0-1 scale (Best 0.00 / Excellent <=0.02 / Good
+ * <=0.05 / Inaccuracy <=0.10 / Mistake <=0.20 / Blunder >0.20); this module
+ * uses win% on the 0-100 scale instead (identical up to a factor of 100),
+ * since that's the scale `winPercentFromEval` (accuracy.ts, itself an exact
+ * port of lichess's sigmoid) already produces — reusing it keeps the eval
+ * math consistent between accuracy and classification instead of
+ * introducing a second, slightly different win-probability model.
+ *
+ * Scope note: this is the deterministic "core" classifier only (the 6
+ * cutoff-table classes). Book/Brilliant/Great/Miss/Forced are Chess.com's
+ * fuzzier, rating-scaled special cases (piece-sacrifice detection,
+ * only-move detection, opening-book lookup) and are intentionally a later
+ * iteration — see docs/Reproducing_Chesscom_Game_Review_Locally_in_SecondBoard...
+ * §4/§11 "Recommended next steps".
+ */
+import type { ClassCode } from '$lib/types';
+import { winPercentFromEval } from './accuracy';
+import { sideToMoveForPly } from './notation';
 
-```rust
-#[derive(Debug, Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ParsedGame {
-    pub san_list: Vec<String>,
-    pub positions: Vec<HashMap<String, (String, String)>>,
-    pub moves: Vec<MoveDto>,
-    pub white_name: Option<String>,
-    pub black_name: Option<String>,
-    pub white_rating: Option<String>,
-    pub black_rating: Option<String>,
-    pub result: Option<String>,
+/** Chess.com's own published Expected-Points cutoff table (support article,
+ * verbatim), expressed in win% points (0-100) lost by the mover rather than
+ * the 0-1 "expected points" scale the article uses — see this file's header
+ * comment for why the two scales are equivalent here. A move that doesn't
+ * worsen the mover's own win% at all (loss <= 0) is always Best. */
+export function classifyMoveByEpLoss(epLossPoints: number): ClassCode {
+	const loss = Math.max(0, epLossPoints);
+	if (loss === 0) return 'best';
+	if (loss <= 2) return 'excellent';
+	if (loss <= 5) return 'good';
+	if (loss <= 10) return 'inaccuracy';
+	if (loss <= 20) return 'mistake';
+	return 'blunder';
 }
-```
 
-Modify `GameVisitor`:
+/**
+ * Classifies every move of a game from its White-POV evalPerPly (one entry
+ * per ply including the starting position, exactly the shape
+ * engine-analysis.ts's loadRealAnalysis() produces). Returns one
+ * classification per move: index `i` is the classification of ply `i + 1`
+ * (the same indexing the mocked CLASS_CODES array already used, so callers
+ * can swap one for the other without reshaping anything). Returns an empty
+ * array when there isn't enough eval data yet (fewer than 2 samples) rather
+ * than fabricating classifications from incomplete data.
+ */
+export function classifyGame(evalPerPly: number[]): ClassCode[] {
+	if (evalPerPly.length < 2) return [];
 
-```rust
-struct GameVisitor {
-    pos: Chess,
-    san_list: Vec<String>,
-    positions: Vec<HashMap<String, (String, String)>>,
-    moves: Vec<MoveDto>,
-    error: Option<String>,
-    white_name: Option<String>,
-    black_name: Option<String>,
-    white_rating: Option<String>,
-    black_rating: Option<String>,
-    result: Option<String>,
+	const winPercents = evalPerPly.map(winPercentFromEval);
+	const codes: ClassCode[] = [];
+
+	for (let ply = 1; ply < evalPerPly.length; ply++) {
+		const mover = sideToMoveForPly(ply - 1);
+		const beforeWhitePov = winPercents[ply - 1];
+		const afterWhitePov = winPercents[ply];
+		const beforePov = mover === 'w' ? beforeWhitePov : 100 - beforeWhitePov;
+		const afterPov = mover === 'w' ? afterWhitePov : 100 - afterWhitePov;
+		codes.push(classifyMoveByEpLoss(beforePov - afterPov));
+	}
+
+	return codes;
 }
-```
-
-```rust
-impl GameVisitor {
-    fn new() -> Self {
-        let pos = Chess::default();
-        GameVisitor {
-            positions: vec![board_to_position(&pos)],
-            pos,
-            san_list: Vec::new(),
-            moves: Vec::new(),
-            error: None,
-            white_name: None,
-            black_name: None,
-            white_rating: None,
-            black_rating: None,
-            result: None,
-        }
-    }
-}
-```
-
-In `impl Visitor for GameVisitor`, extend the `tag` match arm:
-
-```rust
-    fn tag(&mut self, name: &[u8], value: RawTag<'_>) {
-        match name {
-            b"White" => self.white_name = decode_known_tag(value),
-            b"Black" => self.black_name = decode_known_tag(value),
-            b"WhiteElo" => self.white_rating = decode_known_tag(value),
-            b"BlackElo" => self.black_rating = decode_known_tag(value),
-            b"Result" => self.result = decode_known_tag(value),
-            _ => {}
-        }
-    }
-```
-
-And extend `end_game`:
-
-```rust
-    fn end_game(&mut self) -> Self::Result {
-        if let Some(err) = self.error.take() {
-            return Err(err);
-        }
-        Ok(ParsedGame {
-            san_list: std::mem::take(&mut self.san_list),
-            positions: std::mem::take(&mut self.positions),
-            moves: std::mem::take(&mut self.moves),
-            white_name: self.white_name.take(),
-            black_name: self.black_name.take(),
-            white_rating: self.white_rating.take(),
-            black_rating: self.black_rating.take(),
-            result: self.result.take(),
-        })
-    }
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd src-tauri && cargo test pgn::tests`
-Expected: PASS — all `pgn::tests::*` tests green, including the two new ones. `"?"` is already handled generically by `decode_known_tag`, so a `[Result "*"]` (PGN's own "unknown/ongoing" placeholder) also correctly becomes `None`.
+Run: `pnpm exec vitest run src/lib/game/classify.test.ts`
+Expected: PASS — all green.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src-tauri/src/pgn.rs
-git commit -m "feat(pgn): extract the Result PGN tag into ParsedGame"
+git add src/lib/game/classify.ts src/lib/game/classify.test.ts
+git commit -m "feat: add real Expected-Points move classifier (classify.ts)"
 ```
 
 ---

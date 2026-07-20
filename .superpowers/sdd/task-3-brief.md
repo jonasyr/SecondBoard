@@ -1,184 +1,126 @@
-## Task 3: `src/lib/game/accuracy.ts` — win%, per-move accuracy, game accuracy, winner
+## Task 3: `review.ts` — real classification in `getReviewPly`
 
 **Files:**
-- Create: `src/lib/game/accuracy.ts`
-- Test: `src/lib/game/accuracy.test.ts`
+- Modify: `src/lib/game/review.ts`
+- Modify: `src/lib/game/review.test.ts`
 
 **Interfaces:**
-- Consumes: `PieceColor` from `$lib/board/types`; `sideToMoveForPly` from `./notation` (`sideToMoveForPly(ply: number): PieceColor`, returns `'w'` for even `ply`, `'b'` for odd — `src/lib/game/notation.ts:40-42`).
-- Produces:
-  - `winPercentFromEval(evalPawns: number): number` — White's win% (0-100).
-  - `computeGameAccuracy(evalPerPly: number[]): { white: number | null; black: number | null }` — consumed by Task 4.
-  - `resolveWinner(result: string | null): 'white' | 'black' | 'draw' | null` — consumed by Task 4.
+- Consumes: `AppState.classCodes: ClassCode[]` shape (Task 2) passed in by callers as a new parameter.
+- Produces: `getReviewPly(ply, game, evalPerPly, bestMoves, classCodes)` — 5th parameter, consumed by Tasks 4-5. `ReviewPly.classCode`/`coachText` semantics change: classification and coach text now depend on whether `classCodes` has an entry for this ply, not on `game.isSample`.
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `src/lib/game/accuracy.test.ts`:
+In `src/lib/game/review.test.ts`, replace the two tests that currently depend on the `isSample` gate — `'ply 1 (white move 1, "e4") is classified book with coachMove "1. e4"'` and `'does not apply classification/coach text to a non-sample game'` — with:
 
 ```typescript
-import { describe, it, expect } from 'vitest';
-import { winPercentFromEval, computeGameAccuracy, resolveWinner } from './accuracy';
-
-describe('winPercentFromEval', () => {
-	it('is exactly 50 at a dead-even eval', () => {
-		expect(winPercentFromEval(0)).toBe(50);
+	it('ply 1 is classified from the real evalPerPly (Expected-Points cutoffs), independent of isSample', () => {
+		const r = getReviewPly(1, sampleGame, undefined, undefined, ['excellent']);
+		expect(r.classCode).toBe('excellent');
+		expect(r.coachMove).toBe('1. e4');
+		expect(r.lastMove).toEqual({ from: 'e2', to: 'e4' });
 	});
 
-	it('is symmetric: White POV win% for +N and -N sum to 100', () => {
-		expect(winPercentFromEval(1) + winPercentFromEval(-1)).toBeCloseTo(100, 9);
-		expect(winPercentFromEval(5) + winPercentFromEval(-5)).toBeCloseTo(100, 9);
+	it('applies real classification to a non-sample game too, given real classCodes', () => {
+		const r = getReviewPly(1, notSampleGame, undefined, undefined, ['blunder']);
+		expect(r.classCode).toBe('blunder');
+		expect(r.coachText).toBe('A costly error — this swings the evaluation sharply.');
+		expect(r.coachMove).toBe('1. d4'); // sanList is still real regardless of isSample
 	});
 
-	it('is monotonically increasing in eval', () => {
-		expect(winPercentFromEval(1)).toBeGreaterThan(winPercentFromEval(0));
-		expect(winPercentFromEval(5)).toBeGreaterThan(winPercentFromEval(1));
+	it('shows no classification/coach-classification text when classCodes has no entry yet for this ply (analysis not ready)', () => {
+		const r = getReviewPly(1, sampleGame, undefined, undefined, []);
+		expect(r.classCode).toBeNull();
+		expect(r.best).toBeNull();
+		expect(r.coachText).toBe(
+			"Move classification isn't available yet — analysis for this move hasn't finished."
+		);
 	});
-
-	it('saturates towards 100 for a large mate-magnitude eval (does not overflow to NaN)', () => {
-		expect(winPercentFromEval(1000)).toBeCloseTo(100, 5);
-		expect(Number.isNaN(winPercentFromEval(-1000))).toBe(false);
-		expect(winPercentFromEval(-1000)).toBeCloseTo(0, 5);
-	});
-
-	it('matches the exact spec value at +1 pawn', () => {
-		expect(winPercentFromEval(1)).toBeCloseTo(59.102589719161294, 9);
-	});
-});
-
-describe('computeGameAccuracy', () => {
-	it('returns null for both sides when there are fewer than 2 eval samples', () => {
-		expect(computeGameAccuracy([0])).toEqual({ white: null, black: null });
-		expect(computeGameAccuracy([])).toEqual({ white: null, black: null });
-	});
-
-	it('gives ~perfect accuracy to both sides when the eval never worsens for the mover', () => {
-		// ply0 (start, eval 0) -> ply1 white moves to +1.0 (good for White) ->
-		// ply2 black moves to +0.5 (good for Black, since it's an improvement
-		// for Black relative to +1.0).
-		const { white, black } = computeGameAccuracy([0, 1, 0.5]);
-		expect(white).toBeCloseTo(99.9999, 4);
-		expect(black).toBeCloseTo(99.9999, 4);
-	});
-
-	it('penalizes a mover whose eval swings against them, and averages across that side\'s moves', () => {
-		// White plays two moves that each worsen White's eval (0 -> -3, -3.2 -> -8);
-		// Black plays two moves that each slightly improve Black's eval (-3 -> -3.2, -8 -> -8.5).
-		const { white, black } = computeGameAccuracy([0, -3, -3.2, -8, -8.5]);
-		expect(white).toBeCloseTo(37.126083891942, 6);
-		expect(black).toBeCloseTo(99.9999, 4);
-	});
-});
-
-describe('resolveWinner', () => {
-	it('resolves the standard PGN Result tags', () => {
-		expect(resolveWinner('1-0')).toBe('white');
-		expect(resolveWinner('0-1')).toBe('black');
-		expect(resolveWinner('1/2-1/2')).toBe('draw');
-	});
-
-	it('returns null for a missing or unrecognized result', () => {
-		expect(resolveWinner(null)).toBeNull();
-		expect(resolveWinner('*')).toBeNull();
-	});
-});
 ```
+
+Also update the `'only exposes \`best\` when the played move is a NOT_BEST_CODE and bestMoves has an entry'` test to pass explicit `classCodes` instead of relying on the mock default (the mock `CLASS_CODES` default still exists for convenience, but this test should be explicit about what it's asserting):
+
+```typescript
+	it('only exposes `best` when the played move is a NOT_BEST_CODE and bestMoves has an entry', () => {
+		expect(getReviewPly(14, sampleGame).best).toEqual({ from: 'c8', to: 'g4', san: 'Bg4' }); // inaccuracy (from default mock CLASS_CODES)
+		expect(getReviewPly(1, sampleGame).best).toBeNull(); // book, not a NOT_BEST code
+	});
+```
+
+(Leave this one using the module's default `CLASS_CODES` mock — `CLASS_CODES[13]` is `'inaccuracy'` and `CLASS_CODES[0]` is `'book'` per `mock-data.ts`, so the assertions still hold unchanged; removing the `isSample` gate doesn't affect this test at all, since it never passed `isSample` in the first place — it only ever depended on `classCodes`, which here is still the default mock array.)
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `pnpm exec vitest run src/lib/game/accuracy.test.ts`
-Expected: FAIL — `Cannot find module './accuracy'`.
+Run: `pnpm exec vitest run src/lib/game/review.test.ts`
+Expected: FAIL — `getReviewPly` only accepts 4 params; the 5th argument (`classCodes`) is silently ignored, so `r.classCode` still resolves via the old `isSample` gate and doesn't match `'excellent'`/`'blunder'`, and the "not ready" test's coach text doesn't match the new copy.
 
-- [ ] **Step 3: Implement `src/lib/game/accuracy.ts`**
+- [ ] **Step 3: Update `getReviewPly` in `src/lib/game/review.ts`**
+
+Replace the `UNCLASSIFIED_COACH_TEXT` constant:
 
 ```typescript
-/**
- * Real per-side game accuracy and winner, replacing the mocked
- * PLAYERS.white/black.accuracy fixture and hardcoded "0–1" result
- * (design_handoff_secondboard/SecondBoard_PROJECT_OVERVIEW.md §12 "Accuracy
- * System"). This is the standard public win%-sigmoid approximation used by
- * lichess/chess.com-style accuracy estimators, NOT chess.com's undisclosed
- * exact algorithm (which additionally volatility-weights the average rather
- * than taking a simple mean) — treat the output as a close estimate, not a
- * byte-for-byte match.
- */
-import type { PieceColor } from '$lib/board/types';
-import { sideToMoveForPly } from './notation';
+export const UNCLASSIFIED_COACH_TEXT =
+	"Move classification isn't available yet — analysis for this move hasn't finished.";
+```
 
-/** OVERVIEW §11.5's expected_score sigmoid, tuned with the constant commonly
- * used by public lichess/chess.com accuracy-estimate implementations.
- * `evalPawns` is White-POV, as produced by engine-analysis.ts's evalPerPly. */
-export function winPercentFromEval(evalPawns: number): number {
-	const cp = evalPawns * 100;
-	return 100 / (1 + Math.exp(-0.00368208 * cp));
-}
+Replace the `getReviewPly` function signature and its `classCode`/`coachText` derivation:
 
-/** Converts one move's win%-loss (from the mover's own POV) into a 0-100
- * per-move accuracy score. A move that doesn't worsen the mover's win% at
- * all (loss <= 0) scores ~100; accuracy decays smoothly as the loss grows. */
-function moveAccuracy(winPercentLoss: number): number {
-	const loss = Math.max(0, winPercentLoss);
-	const acc = 103.1668 * Math.exp(-0.04354 * loss) - 3.1669;
-	return Math.min(100, Math.max(0, acc));
-}
+```typescript
+export function getReviewPly(
+	ply: number,
+	game: GameData,
+	evalPerPly: number[] = EVAL_PER_PLY,
+	bestMoves: Record<number, Move & { san: string }> = BEST_MOVES,
+	classCodes: ClassCode[] = CLASS_CODES
+): ReviewPly {
+	const position = game.positions[ply];
+	const lastMove = ply > 0 ? game.moveMeta[ply - 1] : null;
+	const classCode: ClassCode | null = ply > 0 ? (classCodes[ply - 1] ?? null) : null;
 
-export interface GameAccuracy {
-	white: number | null;
-	black: number | null;
-}
+	const evalNum = evalPerPly[ply];
+	const evalStr = (evalNum >= 0 ? '+' : '') + evalNum.toFixed(2);
+	const whitePct = evalBarPct(evalNum);
 
-/**
- * Derives per-side game accuracy from the real Stockfish evalPerPly
- * (White-POV pawns, one entry per ply including the starting position) that
- * engine-analysis.ts's loadRealAnalysis() produces. Each ply transition's
- * mover is scored by how much their own win% dropped from before their move
- * to after it; a side's game accuracy is the mean of its own moves' scores.
- * Returns null for a side (or both) when there isn't enough data yet (e.g.
- * analysis hasn't completed) rather than a misleading number.
- */
-export function computeGameAccuracy(evalPerPly: number[]): GameAccuracy {
-	if (evalPerPly.length < 2) return { white: null, black: null };
+	// Retrospective "best was" text (CoachCard): only surfaced when the played
+	// move was one of the NOT_BEST classifications and mock data has an entry.
+	const best =
+		ply > 0 && classCode && NOT_BEST_CODES.includes(classCode) ? (bestMoves[ply] ?? null) : null;
 
-	const whiteScores: number[] = [];
-	const blackScores: number[] = [];
+	// Prospective board arrow: the engine's top suggestion computed FROM the
+	// position currently on screen, for whichever move comes next -- always
+	// shown when available, independent of classCode, for any loaded game.
+	const nextBest = bestMoves[ply + 1] ?? null;
 
-	for (let ply = 1; ply < evalPerPly.length; ply++) {
-		const mover: PieceColor = sideToMoveForPly(ply - 1);
-		const beforeWhitePov = winPercentFromEval(evalPerPly[ply - 1]);
-		const afterWhitePov = winPercentFromEval(evalPerPly[ply]);
-		const moverBefore = mover === 'w' ? beforeWhitePov : 100 - beforeWhitePov;
-		const moverAfter = mover === 'w' ? afterWhitePov : 100 - afterWhitePov;
-		const score = moveAccuracy(moverBefore - moverAfter);
-		(mover === 'w' ? whiteScores : blackScores).push(score);
-	}
+	const moveNo = Math.ceil(ply / 2);
+	const coachMove =
+		ply > 0 ? moveNo + (ply % 2 === 1 ? '. ' : '... ') + game.sanList[ply - 1] : 'Start';
+	const coachText =
+		ply === 0 ? INTRO_COACH_TEXT : classCode ? COACH_TEXT_MAP[classCode] : UNCLASSIFIED_COACH_TEXT;
 
-	const mean = (xs: number[]): number | null =>
-		xs.length ? xs.reduce((sum, x) => sum + x, 0) / xs.length : null;
-
-	return { white: mean(whiteScores), black: mean(blackScores) };
-}
-
-export type Winner = 'white' | 'black' | 'draw' | null;
-
-/** Resolves the PGN `Result` tag (`'1-0'` / `'0-1'` / `'1/2-1/2'`) into a
- * winner. Any other value (missing tag, `'*'` = ongoing/unknown) is null. */
-export function resolveWinner(result: string | null): Winner {
-	if (result === '1-0') return 'white';
-	if (result === '0-1') return 'black';
-	if (result === '1/2-1/2') return 'draw';
-	return null;
+	return {
+		position,
+		lastMove,
+		classCode,
+		best,
+		nextBest,
+		evalNum,
+		evalStr,
+		whitePct,
+		coachMove,
+		coachText
+	};
 }
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `pnpm exec vitest run src/lib/game/accuracy.test.ts`
+Run: `pnpm exec vitest run src/lib/game/review.test.ts`
 Expected: PASS — all green.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/game/accuracy.ts src/lib/game/accuracy.test.ts
-git commit -m "feat: add real win%-based game accuracy and winner resolution"
+git add src/lib/game/review.ts src/lib/game/review.test.ts
+git commit -m "feat: getReviewPly classifies from real classCodes, not the isSample mock gate"
 ```
 
 ---
