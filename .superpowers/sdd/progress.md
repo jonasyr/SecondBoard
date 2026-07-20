@@ -198,3 +198,4 @@ Phase Rating (Opening/Middlegame/Endgame, lichess Divider port):
 Plan: docs/superpowers/plans/2026-07-21-phase-rating.md
 Branch: feat/special-move-classes (continuing), base a5de778
 Task 1: complete (commits a5de778..8a935a8, review clean after 1 lint fix round; phase.ts/phase.test.ts verified byte-identical to the brief's given code, all 3 midgame triggers + endgame-ordering + same-ply null-out edge case independently covered; 8/8 focused tests pass)
+Task 2: complete (commits 8a935a8..4f3d16d, review clean/Approved; startPly mover-attribution fix verified via 2 independently-traced worked examples; only 1 pre-existing computeGameAccuracy call site confirmed unaffected; 331/331 full suite pass)
