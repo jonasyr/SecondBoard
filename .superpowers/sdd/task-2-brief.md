@@ -1,128 +1,103 @@
-### Task 2: Thread the second PV line through `lib.rs` and the TS API layer
+### Task 2: Recalibrate Great's only-move threshold
 
 **Files:**
-- Modify: `src-tauri/src/lib.rs`
-- Modify: `src/lib/api/engine.ts`
+- Modify: `src/lib/game/classify.ts`
+- Test: `src/lib/game/classify.test.ts`
 
-**Interfaces:**
-- Consumes: `engine::EngineAnalysis.second_eval_cp/second_is_mate/second_wdl` (Task 1).
-- Produces: `AnalyzeFenResult.secondEvalCp: number | null`, `AnalyzeFenResult.secondIsMate: boolean`, `AnalyzeFenResult.secondWdl: [number, number, number] | null` (both Rust and TS sides).
+**Interfaces:** none changed — constant value changes and one added guard condition inside `classifySpecial`.
 
-- [ ] **Step 1: Add the fields to Rust's `AnalyzeFenResult` and its `From` impl**
+**Root cause:** `GREAT_ONLY_MOVE_GAP = 10` (win%-points) is too lenient given that `MultiPV=2` splits Stockfish's ~1s movetime across two lines — PV2 (the second-best line) gets much less effective search than PV1, so it comes out systematically noisier and worse than its "true" strength, inflating the gap on plenty of merely-clearly-correct-but-unremarkable moves. There's also no guard against firing in an already-decisively-won-or-lost position, where "only move" isn't a noteworthy finding.
 
-Current code in `src-tauri/src/lib.rs`:
-```rust
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct AnalyzeFenResult {
-    eval_cp: i32,
-    is_mate: bool,
-    best_move_uci: String,
-    pv: Vec<String>,
-    wdl: Option<(u32, u32, u32)>,
-}
+**Fix:** raise the gap threshold to `20`, and add a `beforePov < GREAT_NOT_ALREADY_DECIDED` (`97`) guard mirroring Brilliant's own "not already crushing" condition.
 
-impl From<engine::EngineAnalysis> for AnalyzeFenResult {
-    fn from(a: engine::EngineAnalysis) -> Self {
-        AnalyzeFenResult {
-            eval_cp: a.eval_cp,
-            is_mate: a.is_mate,
-            best_move_uci: a.best_move_uci,
-            pv: a.pv,
-            wdl: a.wdl,
-        }
-    }
-}
-```
+- [ ] **Step 1: Write the failing test**
 
-Replace with:
-```rust
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-struct AnalyzeFenResult {
-    eval_cp: i32,
-    is_mate: bool,
-    best_move_uci: String,
-    pv: Vec<String>,
-    wdl: Option<(u32, u32, u32)>,
-    second_eval_cp: Option<i32>,
-    second_is_mate: bool,
-    second_wdl: Option<(u32, u32, u32)>,
-}
+Add to `classify.test.ts`'s `describe('classifyGame with special classes', ...)` block, after the existing `'classifies an only-move (large MultiPV gap) best move as great'` test:
 
-impl From<engine::EngineAnalysis> for AnalyzeFenResult {
-    fn from(a: engine::EngineAnalysis) -> Self {
-        AnalyzeFenResult {
-            eval_cp: a.eval_cp,
-            is_mate: a.is_mate,
-            best_move_uci: a.best_move_uci,
-            pv: a.pv,
-            wdl: a.wdl,
-            second_eval_cp: a.second_eval_cp,
-            second_is_mate: a.second_is_mate,
-            second_wdl: a.second_wdl,
-        }
-    }
-}
-```
-
-- [ ] **Step 2: Update the existing Rust test that constructs an `AnalyzeFenResult` expectation**
-
-`analyze_fen_result_carries_the_engines_wdl_field` (in `mod analyze_fen_tests`) only asserts on `result.wdl`, not on the full struct shape — no change needed. Add one new test in the same module (after it):
-```rust
-    #[test]
-    fn analyze_fen_result_carries_the_engines_second_pv_line() {
-        let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1".to_string();
-        match analyze_fen_sync(fen) {
-            Ok(result) => {
-                assert!(result.second_eval_cp.is_some());
-            }
-            Err(msg) => {
-                assert!(msg.contains("failed to spawn engine"), "unexpected error: {msg}");
-            }
-        }
-    }
-```
-
-- [ ] **Step 3: Run the Rust suite**
-
-Run: `cd src-tauri && cargo test`
-Expected: PASS (all suites, including the new test).
-
-- [ ] **Step 4: Update the TS `AnalyzeFenResult` type**
-
-Current code in `src/lib/api/engine.ts`:
 ```typescript
-export interface AnalyzeFenResult {
-	evalCp: number;
-	isMate: boolean;
-	bestMoveUci: string;
-	pv: string[];
-	wdl: [number, number, number] | null;
-}
+	it('does not classify an only-move gap as great when the position was already decisively won', () => {
+		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
+			[970, 20, 10], // ply 0: White win% (970+10)/10 = 98 -- already decisively winning
+			[970, 20, 10] // ply 1: unchanged
+		];
+		const secondWdlPerPly: (import('./accuracy').Wdl | null)[] = [
+			[500, 400, 100], // ply 0's second PV line: White win% (500+200)/10 = 70 -> gap of 28,
+			// which WOULD clear the (now-raised) 20-point bar on its own
+			null
+		];
+		const evalPerPly = [0, 0];
+		const positions: Position[] = [
+			{ e1: ['K', 'w'], e8: ['K', 'b'] },
+			{ e1: ['K', 'w'], e8: ['K', 'b'] }
+		];
+		const moveMeta: Move[] = [{ from: 'e1', to: 'e2' }];
+		const bestMoves: Record<number, Move & { san: string }> = {
+			1: { from: 'e1', to: 'e2', san: 'Ke2' }
+		};
+
+		const codes = classifyGame(evalPerPly, wdlPerPly, {
+			positions,
+			moveMeta,
+			bestMoves,
+			secondWdlPerPly
+		});
+
+		expect(codes[0]).not.toBe('great');
+	});
 ```
 
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `rtk proxy pnpm exec vitest run src/lib/game/classify.test.ts`
+Expected: FAIL — under today's code (no "already decided" guard), this gap of 28 clears the old 10-point bar and `codes[0]` comes out `'great'`.
+
+- [ ] **Step 3: Implement**
+
+Current code:
+```typescript
+const GREAT_ONLY_MOVE_GAP = 10;
+```
 Replace with:
 ```typescript
-export interface AnalyzeFenResult {
-	evalCp: number;
-	isMate: boolean;
-	bestMoveUci: string;
-	pv: string[];
-	wdl: [number, number, number] | null;
-	secondEvalCp: number | null;
-	secondIsMate: boolean;
-	secondWdl: [number, number, number] | null;
-}
+const GREAT_ONLY_MOVE_GAP = 20;
+const GREAT_NOT_ALREADY_DECIDED = 97;
 ```
 
-`src/lib/api/engine.test.ts` exists and passes through mock `invoke` results structurally (it never constructs an `AnalyzeFenResult` type literal, just asserts on individual fields) — this type-only addition doesn't require changes there. Run it anyway to confirm: `rtk proxy pnpm exec vitest run src/lib/api/engine.test.ts` — expect PASS, unchanged.
+Current code in `classifySpecial`:
+```typescript
+	if (playedIsBest) {
+		const secondPov = secondLineWinPercent(ply - 1, special.secondEvalPerPly, special.secondWdlPerPly);
+		if (secondPov !== null) {
+			const secondMoverPov = mover === 'w' ? secondPov : 100 - secondPov;
+			if (beforePov - secondMoverPov >= GREAT_ONLY_MOVE_GAP) {
+				return 'great';
+			}
+		}
+	}
+```
+Replace with:
+```typescript
+	if (playedIsBest && beforePov < GREAT_NOT_ALREADY_DECIDED) {
+		const secondPov = secondLineWinPercent(ply - 1, special.secondEvalPerPly, special.secondWdlPerPly);
+		if (secondPov !== null) {
+			const secondMoverPov = mover === 'w' ? secondPov : 100 - secondPov;
+			if (beforePov - secondMoverPov >= GREAT_ONLY_MOVE_GAP) {
+				return 'great';
+			}
+		}
+	}
+```
+
+- [ ] **Step 4: Run tests to verify they pass, including the pre-existing Great test**
+
+Run: `rtk proxy pnpm exec vitest run src/lib/game/classify.test.ts`
+Expected: PASS (all existing tests + the new one). Specifically confirm the pre-existing `'classifies an only-move (large MultiPV gap) best move as great'` test still passes: its fixture has `beforePov = 75` (well under the new 97 guard) and a gap of exactly `20` (`75 - 55`), which still clears the raised `>= 20` bar exactly.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src-tauri/src/lib.rs src/lib/api/engine.ts
-git commit -m "feat(engine): surface the second MultiPV line through analyze_fen and its TS type"
+git add src/lib/game/classify.ts src/lib/game/classify.test.ts
+git commit -m "fix(classify): raise Great's only-move gap threshold and add a not-already-decided guard"
 ```
 
 ---

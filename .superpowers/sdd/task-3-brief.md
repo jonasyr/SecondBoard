@@ -1,142 +1,99 @@
-### Task 3: Compute `secondEvalPerPly`/`secondWdlPerPly` in `engine-analysis.ts`
+### Task 3: Golden-fixture regression test using the reference game
 
 **Files:**
-- Modify: `src/lib/game/engine-analysis.ts`
-- Test: `src/lib/game/engine-analysis.test.ts`
+- Create: `src/lib/game/classify.reference-game.test.ts`
 
 **Interfaces:**
-- Consumes: `AnalyzeFenResult.secondEvalCp/secondIsMate/secondWdl` (Task 2).
-- Produces: `RealAnalysis.secondEvalPerPly: (number | null)[]`, `RealAnalysis.secondWdlPerPly: (Wdl | null)[]` — both White-POV, same per-ply indexing and flip convention as `evalPerPly`/`wdlPerPly`.
+- Consumes: `classifyGame` (`./classify`, unchanged signature after Tasks 1-2).
 
-- [ ] **Step 1: Write the failing tests**
+This task doesn't fix anything further — it locks in Tasks 1-2's real-world effect against the actual reference game (`docs/references/DonaldByrne_RJamesFischer/ReferenceGame.pgn`, the "Game of the Century," Byrne vs. Fischer 1956), using hand-built evalPerPly/wdlPerPly/positions/moveMeta/bestMoves fixtures for the specific moves this plan's diagnosis was based on, so a future change can't silently regress this exact, real, already-diagnosed case.
 
-Add to `src/lib/game/engine-analysis.test.ts` (inside the existing `describe('loadRealAnalysis', ...)`, after the `'reports null wdlPerPly entries...'` test):
+- [ ] **Step 1: Write the fixture and assertions**
+
+Create `src/lib/game/classify.reference-game.test.ts`:
 ```typescript
-	it('produces one secondEvalPerPly entry per position, normalized to White POV', async () => {
-		analyzeFen.mockImplementation(async () => ({
-			evalCp: 50,
-			isMate: false,
-			bestMoveUci: 'e2e4',
-			pv: [],
-			wdl: null,
-			secondEvalCp: 20,
-			secondIsMate: false,
-			secondWdl: null
-		}));
+import { describe, it, expect } from 'vitest';
+import { classifyGame } from './classify';
+import type { Wdl } from './accuracy';
+import type { Move, Position } from '$lib/board/types';
 
-		const { secondEvalPerPly } = await loadRealAnalysis(testPositions);
+/**
+ * Regression fixture for the diagnosis recorded when comparing SecondBoard's
+ * Game Review output against chess.com's real output for
+ * docs/references/DonaldByrne_RJamesFischer/ReferenceGame.pgn (Byrne vs.
+ * Fischer, 1956, "The Game of the Century"): chess.com credits Fischer's
+ * 17...Be6!! as Brilliant; before this plan's Task 1 fix, SecondBoard's
+ * same-ply-only material-sacrifice check misclassified it as Great instead,
+ * because Be6 itself captures/loses nothing -- White only captures the
+ * offered bishop on the very next move (18.Bxb6). This test isolates just
+ * that one real position (not the full 41-move game) as a minimal,
+ * hand-built fixture so a future regression in the sacrifice-window logic
+ * is caught immediately, without needing the full real engine pipeline.
+ *
+ * Only the material relationship (a bishop offered on one move, captured on
+ * the opponent's very next move) and the win%s needed to clear Brilliant's
+ * own guards are modeled -- the exact squares/pieces elsewhere on the board
+ * are simplified down to just the two kings, since classifyGame's special-
+ * class logic only reads positions/moveMeta/bestMoves, never SAN or full
+ * legality. Colors are flipped from the real game (this fixture has White
+ * offering the piece, not Black): `classifyGame`'s ply-index convention
+ * means `codes[0]` (ply 1) is always evaluated with `mover =
+ * sideToMoveForPly(0) === 'w'` in any isolated array-based fixture like this
+ * one (ply 0 is always "White to move" by this codebase's indexing), so the
+ * offered piece must belong to White for this fixture's `mover` and the
+ * sacrificed color to actually agree -- a test-harness detail, not a claim
+ * about who sacrifices in the real game.
+ */
+describe('reference game regression: Byrne vs. Fischer 1956, move 17...Be6 pattern', () => {
+	it('classifies an offered bishop sacrifice (the 17...Be6 pattern) as brilliant, not great', () => {
+		// ply 0: position before the offer (per the PGN's 17.Kf1 Be6 -- pattern only, see
+		// the color-flip note above).
+		// ply 1: position right after the offering move (nothing captured yet).
+		// ply 2: position right after the opponent's reply captures the offered bishop
+		// (mirroring 18.Bxb6's role: punishing/accepting the offer one ply later).
+		const evalPerPly = [0, 0, 0];
+		const wdlPerPly: (Wdl | null)[] = [
+			[600, 350, 50], // ply 0: mover (White) win% (600+175)/10 = 77.5 before offering the bishop
+			[600, 350, 50], // ply 1: still 77.5 right after -- the engine already credits the
+			// follow-up combination, matching this codebase's existing eval-at-ply convention
+			[600, 350, 50] // ply 2: irrelevant to ply 1's own classification, included only for
+			// array-length parity with positions/moveMeta below
+		];
+		const positions: Position[] = [
+			{ f1: ['K', 'w'], g8: ['K', 'b'], e5: ['B', 'w'] }, // before the offer: bishop still on e5
+			{ f1: ['K', 'w'], g8: ['K', 'b'], d6: ['B', 'w'] }, // after the offering move: bishop
+			// moved, nothing captured -- material diff vs. "before" is exactly 0 at this ply
+			{ f1: ['K', 'w'], g8: ['K', 'b'] } // after the opponent's reply captured the bishop
+		];
+		const moveMeta: Move[] = [
+			{ from: 'e5', to: 'd6' }, // the offering move (pattern-mirrors 17...Be6)
+			{ from: 'g8', to: 'd6' } // the reply that captures it (pattern-mirrors 18.Bxb6) --
+			// moveMeta content for ply 2 doesn't affect this test (only ply 1 is classified
+			// here); classifyGame reads only positions[ply+1]'s resulting board for ply 1
+		];
+		const bestMoves: Record<number, Move & { san: string }> = {
+			1: { from: 'e5', to: 'd6', san: 'Bd6' } // engine agrees the offer is best, matching
+			// chess.com's own "Best" star on the real 17...Be6 (see
+			// docs/references/DonaldByrne_RJamesFischer/ChessComAnalysis1.png, row 17)
+		};
 
-		expect(secondEvalPerPly).toHaveLength(testPositions.length);
-		expect(secondEvalPerPly[0]).toBeCloseTo(0.2); // ply 0: White to move, +20cp -> +0.20 White POV
-		expect(secondEvalPerPly[1]).toBeCloseTo(-0.2); // ply 1: Black to move, +20cp for Black -> -0.20 White POV
+		const codes = classifyGame(evalPerPly, wdlPerPly, { positions, moveMeta, bestMoves });
+
+		expect(codes[0]).toBe('brilliant');
 	});
-
-	it('reports a null secondEvalPerPly entry when the engine reported no second PV line', async () => {
-		analyzeFen.mockResolvedValue({
-			evalCp: 0,
-			isMate: false,
-			bestMoveUci: 'e2e4',
-			pv: [],
-			wdl: null,
-			secondEvalCp: null,
-			secondIsMate: false,
-			secondWdl: null
-		});
-
-		const { secondEvalPerPly } = await loadRealAnalysis(testPositions);
-
-		expect(secondEvalPerPly.every((e) => e === null)).toBe(true);
-	});
-
-	it('produces one secondWdlPerPly entry per position, flipped to White POV', async () => {
-		analyzeFen.mockImplementation(async () => ({
-			evalCp: 0,
-			isMate: false,
-			bestMoveUci: 'e2e4',
-			pv: [],
-			wdl: null,
-			secondEvalCp: 0,
-			secondIsMate: false,
-			secondWdl: [600, 300, 100]
-		}));
-
-		const { secondWdlPerPly } = await loadRealAnalysis(testPositions);
-
-		expect(secondWdlPerPly[0]).toEqual([600, 300, 100]); // ply 0: White to move, no flip
-		expect(secondWdlPerPly[1]).toEqual([100, 300, 600]); // ply 1: Black to move, w/l swap
-	});
+});
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [ ] **Step 2: Run to verify it passes (Tasks 1-2 already implemented by this point)**
 
-Run: `rtk proxy pnpm exec vitest run src/lib/game/engine-analysis.test.ts`
-Expected: FAIL — `secondEvalPerPly`/`secondWdlPerPly` are `undefined` (not yet produced by `loadRealAnalysis`).
+Run: `rtk proxy pnpm exec vitest run src/lib/game/classify.reference-game.test.ts`
+Expected: PASS. If this fails, Task 1's fix has a gap — stop and re-examine Task 1 rather than adjusting this fixture to match wrong behavior.
 
-- [ ] **Step 3: Implement**
-
-Current code in `src/lib/game/engine-analysis.ts`:
-```typescript
-export interface RealAnalysis {
-	evalPerPly: number[];
-	bestMoves: Record<number, Move & { san: string }>;
-	wdlPerPly: (Wdl | null)[];
-}
-```
-Replace with:
-```typescript
-export interface RealAnalysis {
-	evalPerPly: number[];
-	bestMoves: Record<number, Move & { san: string }>;
-	wdlPerPly: (Wdl | null)[];
-	secondEvalPerPly: (number | null)[];
-	secondWdlPerPly: (Wdl | null)[];
-}
-```
-
-Current code:
-```typescript
-	const wdlPerPly = results.map((r, ply) =>
-		r.wdl ? toWhitePovWdl(r.wdl, sideToMoveForPly(ply)) : null
-	);
-
-	const bestMoves: Record<number, Move & { san: string }> = {};
-```
-Replace with:
-```typescript
-	const wdlPerPly = results.map((r, ply) =>
-		r.wdl ? toWhitePovWdl(r.wdl, sideToMoveForPly(ply)) : null
-	);
-
-	const secondEvalPerPly = results.map((r, ply) =>
-		r.secondEvalCp === null ? null : toWhitePovEval(r.secondEvalCp, sideToMoveForPly(ply))
-	);
-
-	const secondWdlPerPly = results.map((r, ply) =>
-		r.secondWdl ? toWhitePovWdl(r.secondWdl, sideToMoveForPly(ply)) : null
-	);
-
-	const bestMoves: Record<number, Move & { san: string }> = {};
-```
-
-And the final `return` statement:
-```typescript
-	return { evalPerPly, bestMoves, wdlPerPly };
-```
-becomes:
-```typescript
-	return { evalPerPly, bestMoves, wdlPerPly, secondEvalPerPly, secondWdlPerPly };
-```
-
-- [ ] **Step 4: Run tests to verify they pass**
-
-Run: `rtk proxy pnpm exec vitest run src/lib/game/engine-analysis.test.ts`
-Expected: PASS (all tests in the file, existing + 3 new).
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
-git add src/lib/game/engine-analysis.ts src/lib/game/engine-analysis.test.ts
-git commit -m "feat(engine-analysis): compute White-POV secondEvalPerPly/secondWdlPerPly from the engine's second PV line"
+git add src/lib/game/classify.reference-game.test.ts
+git commit -m "test(classify): lock in the Byrne-Fischer Be6 brilliancy as a golden-fixture regression"
 ```
 
 ---
