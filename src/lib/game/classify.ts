@@ -3,16 +3,16 @@
  * (design_handoff_secondboard/SecondBoard_PROJECT_OVERVIEW.md §11) with
  * Chess.com's own published "Expected Points" cutoff table (Chess.com
  * support article, "How Are Moves Classified?"): a move's classification is
- * driven purely by how much win probability the mover lost by playing it,
- * relative to not losing any ground at all. Chess.com expresses this as
+ * driven by how much win probability the mover lost by playing it, relative
+ * to not losing any ground at all. Chess.com expresses this as
  * "expected points" on a 0-1 scale (Best 0.00 / Excellent <=0.02 / Good
  * <=0.05 / Inaccuracy <=0.10 / Mistake <=0.20 / Blunder >0.20); this module
  * uses win% on the 0-100 scale instead (identical up to a factor of 100),
- * since that's the scale `winPercentForPly` (accuracy.ts) already produces,
- * whether from the eval sigmoid or Stockfish's own WDL model — reusing it
- * keeps the win-probability math consistent between accuracy and
- * classification instead of introducing a second, slightly different
- * win-probability model.
+ * since that's the scale `winPercentForPly` (accuracy.ts) already produces.
+ * Ordinary loss bands and Miss use that WDL-preferred score track. Brilliant
+ * and Great use a separate centipawn-derived track via `winPercentFromEval`,
+ * so saturated WDL values do not distort their calibration; second-line Great
+ * data likewise prefers centipawns and falls back to WDL only when absent.
  *
  * Scope note: Brilliant/Great/Miss (this file's `classifySpecial`) run before
  * the deterministic cutoff table, per Chess.com's own override order
@@ -24,10 +24,9 @@
 import type { ClassCode } from '$lib/types';
 import type { Move, Position } from '$lib/board/types';
 import type { Wdl } from './accuracy';
-import { winPercentForPly } from './accuracy';
+import { winPercentForPly, winPercentFromEval } from './accuracy';
 import { sideToMoveForPly } from './notation';
-import { isPieceHanging } from './attacks';
-import { PIECE_VALUES } from './material';
+import { hasPositiveExchangeTarget } from './attacks';
 
 /** blueprint §8's `ClassificationConfig` defaults, expressed on this codebase's
  * 0-100 win%-points scale (the blueprint's own numbers are on a 0-1 scale). */
@@ -65,11 +64,10 @@ function secondLineWinPercent(
 	secondEvalPerPly?: (number | null)[],
 	secondWdlPerPly?: (Wdl | null)[]
 ): number | null {
-	const wdl = secondWdlPerPly?.[ply];
-	if (wdl) return (wdl[0] + 0.5 * wdl[1]) / 10;
 	const evalPawns = secondEvalPerPly?.[ply];
-	if (evalPawns === null || evalPawns === undefined) return null;
-	return 100 / (1 + Math.exp(-0.00368208 * (evalPawns * 100)));
+	if (evalPawns !== null && evalPawns !== undefined) return winPercentFromEval(evalPawns);
+	const wdl = secondWdlPerPly?.[ply];
+	return wdl ? (wdl[0] + 0.5 * wdl[1]) / 10 : null;
 }
 
 /** Chess.com's own published Expected-Points cutoff table (support article,
@@ -104,20 +102,29 @@ export function classifyGame(
 ): ClassCode[] {
 	if (evalPerPly.length < 2) return [];
 
-	const winPercents = evalPerPly.map((_, ply) => winPercentForPly(ply, evalPerPly, wdlPerPly));
+	const wdlScores = evalPerPly.map((_, ply) => winPercentForPly(ply, evalPerPly, wdlPerPly));
+	const cpScores = evalPerPly.map(winPercentFromEval);
 	const codes: ClassCode[] = [];
 
 	for (let ply = 1; ply < evalPerPly.length; ply++) {
 		const mover = sideToMoveForPly(ply - 1);
-		const beforeWhitePov = winPercents[ply - 1];
-		const afterWhitePov = winPercents[ply];
-		const beforePov = mover === 'w' ? beforeWhitePov : 100 - beforeWhitePov;
-		const afterPov = mover === 'w' ? afterWhitePov : 100 - afterWhitePov;
-		const epLoss = beforePov - afterPov;
+		const beforeWdlPov = mover === 'w' ? wdlScores[ply - 1] : 100 - wdlScores[ply - 1];
+		const afterWdlPov = mover === 'w' ? wdlScores[ply] : 100 - wdlScores[ply];
+		const beforeCpPov = mover === 'w' ? cpScores[ply - 1] : 100 - cpScores[ply - 1];
+		const afterCpPov = mover === 'w' ? cpScores[ply] : 100 - cpScores[ply];
+		const epLoss = beforeWdlPov - afterWdlPov;
 
 		codes.push(
-			classifySpecial(ply, mover, beforePov, afterPov, epLoss, special) ??
-				classifyMoveByEpLoss(epLoss)
+			classifySpecial(
+				ply,
+				mover,
+				beforeWdlPov,
+				afterWdlPov,
+				beforeCpPov,
+				afterCpPov,
+				epLoss,
+				special
+			) ?? classifyMoveByEpLoss(epLoss)
 		);
 	}
 
@@ -131,8 +138,10 @@ export function classifyGame(
 function classifySpecial(
 	ply: number,
 	mover: 'w' | 'b',
-	beforePov: number,
-	afterPov: number,
+	beforeWdlPov: number,
+	afterWdlPov: number,
+	beforeCpPov: number,
+	afterCpPov: number,
 	epLoss: number,
 	special?: SpecialClassInputs
 ): ClassCode | null {
@@ -145,45 +154,31 @@ function classifySpecial(
 	);
 	const nearBest = epLoss <= 2 || playedIsBest;
 
-	// A real sound sacrifice is a piece left ATTACKED that's still fine for the mover whether
-	// or not the opponent actually takes it (e.g. the reference game's 11...Na4, never captured
-	// at all -- White correctly declines). Checking the square the mover's own move landed on
-	// for "is it currently hanging" (attacks.ts) catches this directly, unlike diffing
-	// material across subsequent board snapshots, which can only ever see a sacrifice the
-	// opponent actually accepts -- see docs/superpowers/plans/2026-07-20-iteration-12-attack-based-brilliant.md.
 	const afterPosition = special.positions[ply];
-	const playedPiece = playedMove && afterPosition ? afterPosition[playedMove.to] : undefined;
-	const sacrificedValue = playedPiece ? PIECE_VALUES[playedPiece[0]] : 0;
 
 	if (
 		nearBest &&
-		playedMove &&
 		afterPosition &&
-		sacrificedValue >= BRILLIANT_MIN_SACRIFICE_VALUE &&
-		isPieceHanging(afterPosition, playedMove.to, mover) &&
-		afterPov >= BRILLIANT_MIN_WIN &&
-		beforePov < BRILLIANT_NOT_WINNING
+		hasPositiveExchangeTarget(afterPosition, mover, BRILLIANT_MIN_SACRIFICE_VALUE) &&
+		afterCpPov >= BRILLIANT_MIN_WIN &&
+		beforeCpPov < BRILLIANT_NOT_WINNING
 	) {
 		return 'brilliant';
 	}
 
-	if (playedIsBest && beforePov < GREAT_NOT_ALREADY_DECIDED) {
-		const secondPov = secondLineWinPercent(
+	if (playedIsBest && beforeCpPov < GREAT_NOT_ALREADY_DECIDED) {
+		const secondWhitePov = secondLineWinPercent(
 			ply - 1,
 			special.secondEvalPerPly,
 			special.secondWdlPerPly
 		);
-		if (secondPov !== null) {
-			const secondMoverPov = mover === 'w' ? secondPov : 100 - secondPov;
-			if (beforePov - secondMoverPov >= GREAT_ONLY_MOVE_GAP) {
-				return 'great';
-			}
+		if (secondWhitePov !== null) {
+			const secondMoverPov = mover === 'w' ? secondWhitePov : 100 - secondWhitePov;
+			if (beforeCpPov - secondMoverPov >= GREAT_ONLY_MOVE_GAP) return 'great';
 		}
 	}
 
-	if (beforePov >= MISS_WIN_BEFORE && afterPov < MISS_WIN_AFTER) {
-		return 'miss';
-	}
+	if (beforeWdlPov >= MISS_WIN_BEFORE && afterWdlPov < MISS_WIN_AFTER) return 'miss';
 
 	return null;
 }

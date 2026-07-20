@@ -166,14 +166,30 @@ describe('classifyGame with special classes', () => {
 		expect(codes).not.toEqual(['brilliant']);
 	});
 
+	it('uses centipawn scores for Brilliant gates even when WDL is saturated', () => {
+		const positions: Position[] = [
+			{ e1: ['K', 'w'], d4: ['N', 'w'], a8: ['Q', 'b'], e8: ['K', 'b'] },
+			{ e1: ['K', 'w'], a4: ['N', 'w'], a8: ['Q', 'b'], e8: ['K', 'b'] }
+		];
+		const moveMeta: Move[] = [{ from: 'd4', to: 'a4' }];
+		const bestMoves = { 1: { from: 'd4', to: 'a4', san: 'Na4' } };
+		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
+			[990, 10, 0],
+			[990, 10, 0]
+		];
+		expect(classifyGame([1.96, 2.08], wdlPerPly, { positions, moveMeta, bestMoves })).toEqual([
+			'brilliant'
+		]);
+	});
+
 	it('classifies an only-move (large MultiPV gap) best move as great', () => {
-		const evalPerPly = [0, 0];
+		const evalPerPly = [2, 2];
 		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
 			[550, 400, 50], // ply 0: White win% (550+200)/10 = 75 (mover POV)
 			[550, 400, 50] // ply 1: unchanged -- no sacrifice/miss condition applies
 		];
 		const secondWdlPerPly: (import('./accuracy').Wdl | null)[] = [
-			[350, 400, 250], // ply 0's second PV line: White win% (350+200)/10 = 55 -> gap of 20 >= 10
+			[0, 0, 1000], // ply 0's second PV line: White win% 0 -> CP-primary gap is above 20
 			null
 		];
 		const positions: Position[] = [
@@ -206,7 +222,7 @@ describe('classifyGame with special classes', () => {
 			// which WOULD clear the (now-raised) 20-point bar on its own
 			null
 		];
-		const evalPerPly = [0, 0];
+		const evalPerPly = [20, 20];
 		const positions: Position[] = [
 			{ e1: ['K', 'w'], e8: ['K', 'b'] },
 			{ e1: ['K', 'w'], e8: ['K', 'b'] }
@@ -227,22 +243,17 @@ describe('classifyGame with special classes', () => {
 	});
 
 	it('classifies an only-move gap as great in a clearly-but-not-decisively winning position', () => {
-		// beforePov = 98 -- clearly better for the mover, ABOVE Iteration 11's 97 threshold
-		// (which would wrongly block this) but BELOW the raised 99 threshold (which correctly
-		// allows it). This is exactly the gap Iteration 11's 97 threshold over-corrected: it
-		// silently swallowed a real Great, matching the app's own reported under-firing after
-		// that iteration -- this test must fail under the OLD 97 value and pass under the NEW
-		// 99 value, not pass under both (a beforePov like 90 would pass under both and not
-		// actually exercise this fix).
+		// The primary CP score is high but still below the 99 already-decided guard. WDL remains
+		// deliberately saturated enough to prove it does not control this CP-only Great gate.
 		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
 			[960, 40, 0], // ply 0: White win% (960+20)/10 = 98
 			[960, 40, 0]
 		];
 		const secondWdlPerPly: (import('./accuracy').Wdl | null)[] = [
-			[600, 360, 40], // ply 0's second PV line: White win% (600+180)/10 = 78 -> gap of 20
+			[0, 0, 1000], // ply 0's second PV line: White win% 0 -> valid gap above 20
 			null
 		];
-		const evalPerPly = [0, 0];
+		const evalPerPly = [10, 10];
 		const positions: Position[] = [
 			{ e1: ['K', 'w'], e8: ['K', 'b'] },
 			{ e1: ['K', 'w'], e8: ['K', 'b'] }
@@ -260,6 +271,39 @@ describe('classifyGame with special classes', () => {
 		});
 
 		expect(codes[0]).toBe('great');
+	});
+
+	it('prefers second-line centipawn data over contradictory WDL for Great', () => {
+		const positions: Position[] = [
+			{ e1: ['K', 'w'], e8: ['K', 'b'] },
+			{ e2: ['K', 'w'], e8: ['K', 'b'] }
+		];
+		const moveMeta: Move[] = [{ from: 'e1', to: 'e2' }];
+		const bestMoves = { 1: { from: 'e1', to: 'e2', san: 'Ke2' } };
+		const secondEvalPerPly = [-1, null];
+		const secondWdlPerPly: (import('./accuracy').Wdl | null)[] = [[790, 210, 0], null];
+		expect(
+			classifyGame([2, 2], undefined, {
+				positions,
+				moveMeta,
+				bestMoves,
+				secondEvalPerPly,
+				secondWdlPerPly
+			})
+		).toEqual(['great']);
+	});
+
+	it('falls back to second-line WDL when centipawn data is absent', () => {
+		const positions: Position[] = [
+			{ e1: ['K', 'w'], e8: ['K', 'b'] },
+			{ e2: ['K', 'w'], e8: ['K', 'b'] }
+		];
+		const moveMeta: Move[] = [{ from: 'e1', to: 'e2' }];
+		const bestMoves = { 1: { from: 'e1', to: 'e2', san: 'Ke2' } };
+		const secondWdlPerPly: (import('./accuracy').Wdl | null)[] = [[0, 0, 1000], null];
+		expect(
+			classifyGame([1, 1], undefined, { positions, moveMeta, bestMoves, secondWdlPerPly })
+		).toEqual(['great']);
 	});
 
 	it('classifies a failure to punish a winning position as miss', () => {
