@@ -37,7 +37,8 @@
 		getPhaseRows(
 			appState.game!.positions,
 			appState.analysisStatus === 'ready' ? evalPerPly : [],
-			appState.analysisStatus === 'ready' ? wdlPerPly : []
+			appState.analysisStatus === 'ready' ? wdlPerPly : [],
+			appState.analysisStatus === 'ready' ? classCodes : []
 		)
 	);
 </script>

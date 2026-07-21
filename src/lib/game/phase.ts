@@ -14,6 +14,7 @@
  * make this no longer match lichess's actual behavior).
  */
 import type { Piece, Position, Square } from '$lib/board/types';
+import type { ClassCode } from '$lib/types';
 import { computeGameAccuracy, type Wdl } from './accuracy';
 
 const FILES = 'abcdefgh';
@@ -148,17 +149,20 @@ export function dividePhases(positions: Position[]): PhaseDivision {
 }
 
 /**
- * Which of the 3 existing chess.com-style classification badges to show for
- * a phase's accuracy. Reuses the existing `best`/`good`/`inaccuracy`
- * ClassCode/TOKENS.classification entries (green star / green check / amber
- * "?!") rather than inventing new icons. chess.com's own real thresholds for
+ * Which existing chess.com-style classification badge to show for a phase.
+ * Reuses the existing ClassCode/TOKENS.classification entries (green star /
+ * green check / amber "?!") rather than inventing new icons. `best`/`good`/
+ * `inaccuracy` come from the accuracy-tier thresholds below; `brilliant`/
+ * `great` come from `specialBadgeOverride` when a standout move occurred in
+ * the phase (see its own doc comment). chess.com's own real thresholds for
  * its Opening/Middlegame/Endgame phase icons are NOT publicly documented
  * anywhere (confirmed via chess.com's own support articles and forum threads
  * -- a chess.com moderator, asked directly, replied "I'm not seeing anything
- * documented. I'm asking about it") -- these thresholds are SecondBoard's own
- * design choice, not a chess.com or lichess port.
+ * documented. I'm asking about it") -- both the tier thresholds and the
+ * standout-move override are SecondBoard's own design choices, not a
+ * chess.com or lichess port.
  */
-export type PhaseBadgeCode = 'best' | 'good' | 'inaccuracy';
+export type PhaseBadgeCode = 'best' | 'good' | 'inaccuracy' | 'brilliant' | 'great';
 
 const PHASE_BEST_THRESHOLD = 90;
 const PHASE_GOOD_THRESHOLD = 75;
@@ -176,30 +180,98 @@ export interface PhaseRow {
 }
 
 /**
+ * True when `mover` played the move at ply-range index `moveIndex` (same
+ * "even = White, odd = Black" convention `sideToMoveForPly`/`classifyGame`
+ * use throughout this codebase -- `classCodes[moveIndex]` is the
+ * classification of the move FROM ply `moveIndex` TO ply `moveIndex + 1`).
+ */
+function moveBelongsTo(moveIndex: number, mover: 'w' | 'b'): boolean {
+	return moveIndex % 2 === (mover === 'w' ? 0 : 1);
+}
+
+/**
+ * If `mover` played a Brilliant (or, failing that, a Great) move anywhere in
+ * `[start, end)`, that overrides the accuracy-tier badge for this phase --
+ * mirroring chess.com's own Game Review, which visibly highlights a phase
+ * containing a standout move rather than only reflecting its average
+ * accuracy. This override is SecondBoard's own design choice (built from
+ * data this codebase already computes via `classifyGame`), not a confirmed
+ * chess.com or lichess port -- chess.com's exact phase-icon logic is not
+ * publicly documented (see this file's other doc comments).
+ */
+function specialBadgeOverride(
+	classCodes: ClassCode[] | undefined,
+	start: number,
+	end: number,
+	mover: 'w' | 'b'
+): PhaseBadgeCode | null {
+	if (!classCodes) return null;
+	let sawGreat = false;
+	for (let moveIndex = start; moveIndex < end && moveIndex < classCodes.length; moveIndex++) {
+		if (!moveBelongsTo(moveIndex, mover)) continue;
+		if (classCodes[moveIndex] === 'brilliant') return 'brilliant';
+		if (classCodes[moveIndex] === 'great') sawGreat = true;
+	}
+	return sawGreat ? 'great' : null;
+}
+
+/**
  * Real per-phase, per-side accuracy and badge rows, replacing mock-data.ts's
- * PHASE_ROWS. Phase boundaries come from `dividePhases` (Task 1, a lichess
- * `Divider` port); each phase's accuracy reuses this codebase's existing
- * lichess-ported `computeGameAccuracy`, applied only to that phase's ply
- * range (via `startPly` so mover-color attribution stays correct across the
- * slice boundary -- see accuracy.ts). This composition -- computing accuracy
- * separately per phase bucket -- is SecondBoard's own design choice; lichess
- * itself only exposes a similar per-phase breakdown in its separate,
- * account-gated "Insights" feature, whose exact source could not be
- * confirmed this session.
+ * PHASE_ROWS. Phase boundaries come from `dividePhases` (a lichess `Divider`
+ * port). Each phase's accuracy reuses this codebase's existing lichess-ported
+ * `computeGameAccuracy`, applied only to that phase's own ply range (via
+ * `startPly` so mover-color attribution stays correct across the slice
+ * boundary -- see accuracy.ts). This composition -- computing accuracy
+ * separately per phase bucket, carrying the real eval across each boundary
+ * -- is SecondBoard's own design choice, not a confirmed lichess port.
+ *
+ * lichess's own source DOES have an equivalent, `AccuracyPercent.phaseAccuracies`
+ * (`modules/analyse/src/main/AccuracyPercent.scala`, fetched 2026-07-21 --
+ * distinct from its separate, account-gated "Insights" UI feature). It
+ * differs from this composition in at least one confirmed way -- each
+ * phase's own `gameAccuracy` call is fed `Some(Cp.initial) :: cps`, i.e. a
+ * synthetic dead-even eval PREPENDED ahead of that phase's real per-position
+ * evals, rather than the real eval carried over from the previous phase's
+ * boundary. Reproducing this exactly would also require knowing precisely
+ * how lichess's `Info.ply`/mover-color fields bucket individual moves at a
+ * phase boundary, which this session could not confirm from source without
+ * risking a subtly wrong reimplementation -- so this function intentionally
+ * keeps the simpler, already-verified real-eval-carried-forward composition
+ * instead of guessing at that detail. One piece IS a confirmed exact match,
+ * however: lichess's `div.middle.so(...)` short-circuits to an empty result
+ * when `Division.middle` is `None`, so a game that never leaves the opening
+ * gets NO graded phases at all (not even Opening) -- ported below as
+ * all-null rows in that case.
+ *
+ * The accuracy-to-badge threshold mapping (`phaseBadgeCode`) and the
+ * Brilliant/Great override (`specialBadgeOverride`) are both SecondBoard's
+ * own design choices layered on top -- see their own doc comments.
  */
 export function getPhaseRows(
 	positions: Position[],
 	evalPerPly: number[],
-	wdlPerPly?: (Wdl | null)[]
+	wdlPerPly?: (Wdl | null)[],
+	classCodes?: ClassCode[]
 ): PhaseRow[] {
 	const division = dividePhases(positions);
+
+	if (division.middlePly === null) {
+		return [
+			{ name: 'Opening', white: null, black: null },
+			{ name: 'Middlegame', white: null, black: null },
+			{ name: 'Endgame', white: null, black: null }
+		];
+	}
+
 	// division.middlePly is only null when division.endPly is also null for
 	// any position stream produced by this app's own PGN parser (games always
 	// start at the standard 14-majors/minors position, so the <=10 midgame
 	// trigger always fires before the <=6 endgame one) -- but guard the
 	// opposite ordering anyway (endPly non-null, middlePly null) so a future
 	// custom-start-position source can't make the Opening and Endgame ranges
-	// silently overlap and double-count plies.
+	// silently overlap and double-count plies. (This branch is dead given the
+	// early return above, kept only so this arithmetic stays correct if that
+	// early return is ever relaxed.)
 	const openingEnd = division.middlePly ?? division.endPly ?? division.totalPlies;
 	const middleEnd = division.endPly ?? division.totalPlies;
 
@@ -215,10 +287,12 @@ export function getPhaseRows(
 			wdlPerPly?.slice(start, end),
 			start
 		);
+		const whiteOverride = white === null ? null : specialBadgeOverride(classCodes, start, end, 'w');
+		const blackOverride = black === null ? null : specialBadgeOverride(classCodes, start, end, 'b');
 		return {
 			name,
-			white: white === null ? null : { code: phaseBadgeCode(white), accuracy: white },
-			black: black === null ? null : { code: phaseBadgeCode(black), accuracy: black }
+			white: white === null ? null : { code: whiteOverride ?? phaseBadgeCode(white), accuracy: white },
+			black: black === null ? null : { code: blackOverride ?? phaseBadgeCode(black), accuracy: black }
 		};
 	});
 }

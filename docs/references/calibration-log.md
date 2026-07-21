@@ -131,3 +131,50 @@ the way this session's `sacrificeIsCausal`/`BRILLIANT_CAUSAL_GAP` change
 did (verified to hold the Fischer golden fixture exactly, see
 `classify.reference-game.test.ts`, while measurably improving this game;
 regression-locked for this game in `classify.kasparov-topalov.test.ts`).
+
+## Phase Rating divergence: Byrne vs. Fischer Endgame
+
+Real chess.com behavior for this game's Endgame phase (both sides): the
+icon area shows a dash, with tooltip "This phase of the game could not be
+graded due to a lack of relevant moves." SecondBoard's real, lichess-`Divider`-based
+detection finds a genuine, substantial endgame here instead: `majorsAndMinors`
+plateaus at exactly 6 (never below) from ply 59 through mate at ply 82 — 24
+plies (12 moves per side), not a tiny/degenerate sample. Both sides then
+score `best`/100 for that phase.
+
+Investigated (2026-07-21) whether this is a "too few moves" issue our own
+implementation should guard against generically — it is not. lichess's own
+source (`AccuracyPercent.scala`, `phaseAccuracies`, fetched this session)
+has no minimum-move-count gate either; it grades a phase as soon as its
+move slice is non-empty. The most likely explanation is that chess.com's
+own (undisclosed) endgame material threshold is stricter than lichess's
+`<=6` — this game's material never drops below 6, so if chess.com's real
+cutoff sits lower (e.g. requiring a true bare-bones king+pawn-ish endgame),
+their endgame would never trigger for this specific game at all, producing
+exactly this "insufficient/no relevant moves" state. This cannot be
+confirmed without more chess.com reference games showing where their real
+threshold sits, and per this log's own standing rule, no unverified number
+was guessed to force a match. Recorded here as a known, honest gap — same
+category as the Book gap above, not an implementation defect.
+
+Also confirmed (same investigation): lichess's `phaseAccuracies` differs
+from SecondBoard's `getPhaseRows` composition in one confirmed way — each
+phase's accuracy is computed from a synthetic dead-even (`Cp.initial`)
+"before" baseline rather than the real eval carried over from the previous
+phase's boundary. `getPhaseRows`'s doc comment documents this precisely and
+explains why it was NOT ported (reproducing it exactly would require
+confirming lichess's internal `Info.ply`/mover-color bucketing semantics at
+a phase boundary, which could not be verified from the fetched source
+without risking a subtly wrong reimplementation). `getPhaseRows` keeps the
+simpler, already-verified real-eval-carried-forward composition instead,
+documented as SecondBoard's own choice, not a lichess port.
+
+Separately, `getPhaseRows` now also applies a Brilliant/Great badge
+override (any Brilliant move by a side in a phase forces that phase's
+badge to `brilliant`, regardless of computed accuracy; Great does the same
+at lower priority) — this measurably improves the Middlegame row for this
+exact game: Fischer's two Middlegame brilliancies (`11...Na4`, `15...Nxc3`)
+now correctly show a `brilliant` badge instead of the accuracy-tier badge
+alone. This override is SecondBoard's own design choice (built from data
+this codebase already computes via `classifyGame`), not a confirmed
+chess.com or lichess port.

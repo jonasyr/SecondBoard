@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { dividePhases, getPhaseRows } from './phase';
 import type { Position } from '$lib/board/types';
+import type { ClassCode } from '$lib/types';
 
 /** Full starting position, White's home rank first, matching this codebase's
  * existing test fixtures elsewhere (e.g. classify.test.ts). */
@@ -161,14 +162,20 @@ describe('getPhaseRows', () => {
 	});
 
 	it('assigns the "best" badge code for high accuracy and "inaccuracy" for low accuracy', () => {
-		// Opening-only game (dividePhases never leaves the opening for a
-		// repeated starting position, 4 plies = 2 White + 1 Black move).
-		// evalPerPly: ply0=0, ply1=0 (White's move: 0->0, perfect, "best"),
-		// ply2=9 (Black's move: 0->9, White-POV eval swinging hugely AGAINST
-		// Black is a catastrophic self-inflicted drop in Black's own win% --
-		// "inaccuracy"), ply3=9 (White's 2nd move: 9->9, unchanged, "best",
-		// averaged with White's 1st move -> still "best" overall).
-		const positions = [STARTING_POSITION, STARTING_POSITION, STARTING_POSITION, STARTING_POSITION];
+		// A real midgame must exist (lichess's own phaseAccuracies grades
+		// NOTHING, not even Opening, for a game that never leaves the opening
+		// -- see the "grades nothing at all" test below). midPosition first
+		// appears at ply3, so middlePly=3 and Opening's ply-range [0,3) spans
+		// 3 positions = 2 moves: White's (ply0->1: eval 0->0, perfect, "best")
+		// and Black's (ply1->2: eval 0->9, a White-POV swing hugely AGAINST
+		// Black -- a catastrophic self-inflicted drop in Black's own win% --
+		// "inaccuracy").
+		const midPosition: Position = {
+			a1: ['R', 'w'], b1: ['N', 'w'], c1: ['B', 'w'], d1: ['Q', 'w'], e1: ['K', 'w'],
+			f1: ['B', 'w'], g1: ['N', 'w'],
+			a8: ['R', 'b'], b8: ['N', 'b'], c8: ['B', 'b'], d8: ['Q', 'b'], e8: ['K', 'b']
+		};
+		const positions = [STARTING_POSITION, STARTING_POSITION, STARTING_POSITION, midPosition];
 		const evalPerPly = [0, 0, 9, 9];
 		const rows = getPhaseRows(positions, evalPerPly);
 		const opening = rows.find((r) => r.name === 'Opening')!;
@@ -177,10 +184,91 @@ describe('getPhaseRows', () => {
 	});
 
 	it('includes the exact accuracy value alongside the badge code (for the UI tooltip)', () => {
-		const positions = [STARTING_POSITION, STARTING_POSITION];
-		const evalPerPly = [0, 0];
+		// midPosition appears at ply2, so middlePly=2 and Opening's ply-range
+		// [0,2) spans 2 positions = exactly 1 move (White's).
+		const midPosition: Position = {
+			a1: ['R', 'w'], b1: ['N', 'w'], c1: ['B', 'w'], d1: ['Q', 'w'], e1: ['K', 'w'],
+			f1: ['B', 'w'], g1: ['N', 'w'],
+			a8: ['R', 'b'], b8: ['N', 'b'], c8: ['B', 'b'], d8: ['Q', 'b'], e8: ['K', 'b']
+		};
+		const positions = [STARTING_POSITION, STARTING_POSITION, midPosition];
+		const evalPerPly = [0, 0, 0];
 		const rows = getPhaseRows(positions, evalPerPly);
 		const opening = rows.find((r) => r.name === 'Opening')!;
 		expect(opening.white?.accuracy).toBe(100);
+	});
+
+	it('grades nothing at all (not even Opening) when the game never leaves the opening, matching lichess\'s own phaseAccuracies behavior', () => {
+		// Faithful port of AccuracyPercent.scala's `div.middle.so(...)`, which
+		// short-circuits to an empty result when Division.middle is None.
+		const positions = [STARTING_POSITION, STARTING_POSITION, STARTING_POSITION];
+		const evalPerPly = [0, 0, 0];
+		const rows = getPhaseRows(positions, evalPerPly);
+		for (const row of rows) {
+			expect(row.white).toBeNull();
+			expect(row.black).toBeNull();
+		}
+	});
+
+	it('overrides the badge to "brilliant" when that side played a Brilliant move in the phase, regardless of accuracy', () => {
+		// Same 2-move Opening fixture as the "best"/"inaccuracy" test above.
+		const midPosition: Position = {
+			a1: ['R', 'w'], b1: ['N', 'w'], c1: ['B', 'w'], d1: ['Q', 'w'], e1: ['K', 'w'],
+			f1: ['B', 'w'], g1: ['N', 'w'],
+			a8: ['R', 'b'], b8: ['N', 'b'], c8: ['B', 'b'], d8: ['Q', 'b'], e8: ['K', 'b']
+		};
+		const positions = [STARTING_POSITION, STARTING_POSITION, STARTING_POSITION, midPosition];
+		const evalPerPly = [0, 0, 9, 9];
+		// classCodes[0] is White's Opening move (moveIndex 0), which would
+		// otherwise be badged "best" (accuracy 100) -- the override replaces
+		// it with "brilliant". classCodes[1] (Black's Opening move) is "good",
+		// which is not a Brilliant/Great code, so Black's own (otherwise
+		// "inaccuracy") badge is left untouched.
+		const classCodes: ClassCode[] = ['brilliant', 'good'];
+		const rows = getPhaseRows(positions, evalPerPly, undefined, classCodes);
+		const opening = rows.find((r) => r.name === 'Opening')!;
+		expect(opening.white?.code).toBe('brilliant');
+		expect(opening.black?.code).toBe('inaccuracy');
+	});
+
+	it('overrides the badge to "great" when that side played a Great move in the phase (and Brilliant beats Great when both occur)', () => {
+		const midPosition: Position = {
+			a1: ['R', 'w'], b1: ['N', 'w'], c1: ['B', 'w'], d1: ['Q', 'w'], e1: ['K', 'w'],
+			f1: ['B', 'w'], g1: ['N', 'w'],
+			a8: ['R', 'b'], b8: ['N', 'b'], c8: ['B', 'b'], d8: ['Q', 'b'], e8: ['K', 'b']
+		};
+		const positions = [STARTING_POSITION, STARTING_POSITION, STARTING_POSITION, midPosition];
+		const evalPerPly = [0, 0, 9, 9];
+		// classCodes[1] (Black's Opening move, otherwise "inaccuracy") is
+		// "great" -- overridden to "great". classCodes[0] (White's Opening
+		// move, otherwise "best") is left as "good", not Brilliant/Great, so
+		// no override applies to White.
+		const classCodes: ClassCode[] = ['good', 'great'];
+		const rows = getPhaseRows(positions, evalPerPly, undefined, classCodes);
+		const opening = rows.find((r) => r.name === 'Opening')!;
+		expect(opening.white?.code).toBe('best');
+		expect(opening.black?.code).toBe('great');
+	});
+
+	it('never overrides a phase with no accuracy data, even if classCodes has a Brilliant entry past the last real move', () => {
+		const midPosition: Position = {
+			a1: ['R', 'w'], b1: ['N', 'w'], c1: ['B', 'w'], d1: ['Q', 'w'], e1: ['K', 'w'],
+			f1: ['B', 'w'], g1: ['N', 'w'],
+			a8: ['R', 'b'], b8: ['N', 'b'], c8: ['B', 'b'], d8: ['Q', 'b'], e8: ['K', 'b']
+		};
+		// 3 positions -> only 2 real moves (moveIndex 0, 1), both inside
+		// Opening (middlePly=2). Middlegame=[2,3) and Endgame=[3,3) have no
+		// real move data (moveIndex 2 doesn't exist), so both stay null
+		// regardless of classCodes[2] being a Brilliant entry.
+		const positions = [STARTING_POSITION, STARTING_POSITION, midPosition];
+		const evalPerPly = [0, 0, 0];
+		const classCodes: ClassCode[] = ['best', 'best', 'brilliant'];
+		const rows = getPhaseRows(positions, evalPerPly, undefined, classCodes);
+		const middlegame = rows.find((r) => r.name === 'Middlegame')!;
+		const endgame = rows.find((r) => r.name === 'Endgame')!;
+		expect(middlegame.white).toBeNull();
+		expect(middlegame.black).toBeNull();
+		expect(endgame.white).toBeNull();
+		expect(endgame.black).toBeNull();
 	});
 });

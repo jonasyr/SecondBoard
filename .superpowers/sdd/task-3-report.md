@@ -1,85 +1,89 @@
-# Task 3 Report: Golden-Fixture Regression Test
+# Task 3 Report: Wire real phase accuracy into UI, remove mock
 
-## Summary
+## Status: Complete
 
-Successfully created and verified `src/lib/game/classify.reference-game.test.ts`, a minimal golden-fixture regression test that locks in the Byrne-Fischer 17...Be6 brilliancy pattern diagnosis from prior tasks. The test passes with the existing implementation, confirming Tasks 1-2's fixes are correct and preventing future silent regressions of this exact special-move classification edge case.
+Branch: `feat/special-move-classes`
+Commit: `9bfbef7` — "feat(phase): wire real phase accuracy into PhaseTable, remove mocked PHASE_ROWS"
 
-**Commit:** `64f5791`
+## Steps followed (TDD)
 
-## Implementation Details
+1. **Failing test written** — replaced `src/lib/components/PhaseTable.test.ts` with the brief's
+   3-test spec (props-based rendering, dash placeholder for missing phase data, exact-accuracy
+   tooltip). Confirmed 2 of 3 tests failed against the old mock-driven component (no-`rows`-prop
+   version), as expected.
+2. **Implementation** — rewrote `src/lib/components/PhaseTable.svelte` verbatim from the brief:
+   now takes `Props = { rows: PhaseRow[] }`, renders a `ClassBadge` per side with a `title="..."`
+   tooltip (`"{Side}: {accuracy.toFixed(1)}% accuracy in the {phaseName}"`), or a `—` placeholder
+   span when a side's phase entry is `null`.
+3. **Verified pass** — after fixing one test-data/expectation mismatch (see "Deviation from brief"
+   below), all 3 `PhaseTable.test.ts` tests pass.
+4. **Wired into `ReviewTab.svelte`** — added `import { getPhaseRows } from '$lib/game/phase';`,
+   added a `phaseRows` derived value immediately after `breakdownRows`, following the exact same
+   `analysisStatus === 'ready' ? real : []` gating idiom already used by `accuracy`:
+   ```ts
+   const phaseRows = $derived(
+       getPhaseRows(
+           appState.game!.positions,
+           appState.analysisStatus === 'ready' ? evalPerPly : [],
+           appState.analysisStatus === 'ready' ? wdlPerPly : []
+       )
+   );
+   ```
+   Changed `<PhaseTable />` to `<PhaseTable rows={phaseRows} />`.
+5. **Removed the mock** — deleted the `PHASE_ROWS` export from `src/lib/game/mock-data.ts`.
+   `ClassCode` import was left in place (still used by `CLASS_CODES`, `COACH_TEXT_MAP`, and
+   `BREAKDOWN_ROWS` in the same file, confirmed via grep). Updated
+   `src/lib/game/mock-data.test.ts`: dropped `PHASE_ROWS` from the import list and collapsed the
+   combined "10 breakdown rows and 3 phase rows" test into "has 10 breakdown rows" only.
+6. **Full suite run** — `rtk proxy pnpm exec vitest run` (used `proxy` to bypass a stale RTK
+   output-truncation issue on this large a11y-warning-heavy run; unrelated to the task).
+   Result: **54 test files passed (54), 333 tests passed (333)**. `ReviewTab.test.ts` needed no
+   changes — it doesn't assert anything about `PhaseTable`'s internals.
+7. **Commit** — staged exactly the 5 files named in the brief and committed with the brief's
+   exact message. Confirmed via `git status --short` that unrelated pre-existing working-tree
+   changes (modified `task-1/2-brief/report.md` files, an untracked doc) were not swept in.
 
-### File Created
-- **Path:** `src/lib/game/classify.reference-game.test.ts`
-- **Type:** Vitest regression fixture
-- **Lines:** 70 (including comprehensive JSDoc)
-- **Purpose:** Lock in the Byrne vs. Fischer 1956 "Game of the Century," move 17...Be6!! diagnosis
+## Deviation from brief (and why)
 
-### Test Structure
+The brief's Step 1 test "shows a dash placeholder instead of a badge for a phase with no accuracy
+data" supplies a fixture with **two** phase rows (`Middlegame` and `Endgame`) each having
+`white: null, black: null` — i.e. 4 null sides total — but asserts
+`expect(getAllByText('—')).toHaveLength(2)`. Copying both the fixture and the component verbatim
+from the brief (as instructed) produces 4 rendered `—` placeholders, not 2 — the test fails
+permanently regardless of implementation correctness, which contradicts the TDD "implementation
+makes the test pass" step.
 
-The test isolates the specific pattern that exposed the bug in prior tasks:
-- **What it tests:** The sacrifice-window logic for material that is offered on one ply but captured on the opponent's immediate next move
-- **Key insight:** The offered bishop (Be6) captures/loses nothing on ply 1 itself, yet the engine correctly evaluates the position as won (77.5% win likelihood). This move should be classified as `brilliant`, not `great`, because the sacrifice is both the best move AND part of a forced tactical sequence where the engine's own evaluation already credits the follow-up.
+Since the fixture data and the (verbatim, brief-specified) component implementation are mutually
+consistent with each other and with the rest of the spec, I judged the assertion count to be the
+one error in the brief and corrected it from `toHaveLength(2)` to `toHaveLength(4)` in
+`src/lib/components/PhaseTable.test.ts`. Everything else in the brief (component code, `ReviewTab`
+wiring, mock removal) was copied/applied exactly as specified.
 
-### Fixture Breakdown
+## Files touched
 
-1. **evalPerPly:** `[0, 0, 0]` — No eval delta (engines just use WDL, not centipawn evals in this codebase)
-2. **wdlPerPly:** `[[600, 350, 50], [600, 350, 50], [600, 350, 50]]` — Consistent 77.5% win likelihood across all plies, confirming the move doesn't degrade the position
-3. **positions:** Hand-built board states tracking the bishop's journey from e5 (before offer) → d6 (after offer, not yet captured) → removed (after opponent captures)
-4. **moveMeta:** Two moves: the offering sacrifice and the capturing reply
-5. **bestMoves:** Engine agreement that `Bd6` is best (indexed at ply 1)
+- `src/lib/components/PhaseTable.svelte` — rewritten per brief (props-based, tooltip, dash
+  placeholder).
+- `src/lib/components/PhaseTable.test.ts` — replaced per brief, with the single `toHaveLength(2)`
+  → `toHaveLength(4)` fix noted above.
+- `src/lib/components/ReviewTab.svelte` — added `getPhaseRows` import, `phaseRows` derived value,
+  `<PhaseTable rows={phaseRows} />`.
+- `src/lib/game/mock-data.ts` — removed `PHASE_ROWS` export; `ClassCode` import retained (still
+  used elsewhere in the file).
+- `src/lib/game/mock-data.test.ts` — removed `PHASE_ROWS` import and merged its assertion into the
+  breakdown-rows test per brief.
 
-### Color Flip Note
+## Test result
 
-The fixture has White offering the piece (not Black, as in the real game) because of `classifyGame`'s ply-index convention: ply 0 is always "White to move" in array-based isolated fixtures. This is a test harness detail and does not reflect claims about the real game's move colors.
+`rtk proxy pnpm exec vitest run`: **Test Files 54 passed (54); Tests 333 passed (333)**.
 
-## Test Execution
+## Concerns
 
-### Command
-```bash
-rtk proxy pnpm exec vitest run src/lib/game/classify.reference-game.test.ts
-```
-
-### Output
-```
- RUN  v4.1.10 /home/jonas/Documents/Code/SecondBoard
-
- Test Files  1 passed (1)
-      Tests  1 passed (1)
-   Start at  19:23:00
-   Duration  769ms (transform 48ms, setup 0ms, import 63ms, tests 5ms, environment 570ms)
-```
-
-**Result:** PASS ✓
-
-## Verification
-
-- [x] Test file created exactly as specified in `task-3-brief.md`
-- [x] Test runs without errors
-- [x] Test passes (confirming Tasks 1-2 fixes are correct)
-- [x] Assertion correctly validates `codes[0] === 'brilliant'`
-- [x] Fixture is minimal and self-contained (no full game pipeline required)
-- [x] JSDoc comments explain the diagnosis and pattern for future maintainers
-
-## Git Status
-
-```bash
-Commit: 64f5791
-Message: test(classify): lock in the Byrne-Fischer Be6 brilliancy as a golden-fixture regression
-Branch: feat/special-move-classes
-```
-
-## Self-Review
-
-✓ **Correctness:** The test correctly exercises the `classifyGame` function with a hand-built fixture that mirrors the real Byrne-Fischer diagnosis without requiring the full engine pipeline.
-
-✓ **Regression Coverage:** The fixture locks in the specific edge case (material offered on one ply, captured on the next) that prior tasks fixed. Any future regression in the sacrifice-window logic will immediately fail this test.
-
-✓ **Maintainability:** The comprehensive JSDoc comment explains the diagnosis, the real game context, and the color-flip convention, making it clear why this specific fixture matters and how it maps to the real game.
-
-✓ **Isolation:** The fixture is fully self-contained and does not depend on external PGN parsing or engine integration, making it fast and reliable.
-
-✓ **Specification Compliance:** The test file, fixture structure, and assertion match the brief exactly, verbatim.
-
-## No Blockers
-
-The test passes cleanly. Tasks 1-2's fixes are confirmed to be correct; the Be6 pattern is now properly classified as brilliant rather than great.
+- The test-data/assertion mismatch in the brief (see above) — flagging in case Task 3's brief is
+  reused or referenced elsewhere; the fix applied is minimal and preserves the test's original
+  intent (verify dash placeholders render for phases with no side data).
+- A stale/unrelated `task-3-report.md` (about a "golden-fixture regression test" for Byrne-Fischer
+  Be6 classification) previously existed at this path from a different task numbering context; it
+  has been overwritten with this report per the assignment's explicit instruction to write here.
+- No other concerns; svelte-check/lint a11y warnings observed during the vitest run (Board.svelte,
+  MoveList.svelte, OnboardingScreen.svelte, ExploreTab.svelte, NavControls.svelte) are pre-existing
+  and unrelated to this task's files.
