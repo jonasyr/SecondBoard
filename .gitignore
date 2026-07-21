@@ -33,3 +33,6 @@ src-tauri/target
 
 # Local debugging artifacts (WebKit inspector exports, etc.)
 /logs
+
+# Claude Code auto-memory
+.claude/auto-memory/dirty-files*
