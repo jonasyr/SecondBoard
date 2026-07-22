@@ -1,14 +1,14 @@
 import type { CalibrationFixture, CalibrationPosition } from './types';
 
-interface HarWebSocketMessage {
+export interface HarWebSocketMessage {
 	type: 'send' | 'receive';
 	data: string;
 }
-interface HarEntry {
+export interface HarEntry {
 	request: { url: string };
 	_webSocketMessages?: HarWebSocketMessage[];
 }
-interface HarLog {
+export interface HarLog {
 	log: { entries: HarEntry[] };
 }
 

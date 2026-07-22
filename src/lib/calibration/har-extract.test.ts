@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { extractGameAnalysis, buildFixture } from './har-extract';
+import type { HarLog } from './har-extract';
 
-function syntheticHar() {
+function syntheticHar(): HarLog {
 	return {
 		log: {
 			entries: [

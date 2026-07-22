@@ -26,7 +26,7 @@ export default [
 			parser: tsParser,
 			parserOptions: {
 				projectService: {
-					allowDefaultProject: ['vitest.config.ts']
+					allowDefaultProject: ['vitest.config.ts', 'scripts/calibration/*.ts']
 				},
 				tsconfigRootDir: import.meta.dirname,
 				extraFileExtensions: ['.svelte']
