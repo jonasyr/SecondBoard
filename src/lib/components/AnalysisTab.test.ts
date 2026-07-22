@@ -22,6 +22,7 @@ beforeEach(() => {
 		sanList: SAN_LIST,
 		positions,
 		moveMeta,
+		legalMoveCounts: [],
 		isSample: true,
 		whiteName: null,
 		blackName: null,

@@ -5,6 +5,7 @@ export interface ParsedGame {
 	sanList: string[];
 	positions: Position[];
 	moves: Move[];
+	legalMoveCounts: number[];
 	whiteName: string | null;
 	blackName: string | null;
 	whiteRating: string | null;

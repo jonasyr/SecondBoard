@@ -382,3 +382,36 @@ describe('classifySpecial book override', () => {
 		expect(codes).toEqual(['best', 'best']);
 	});
 });
+
+describe('classifySpecial forced override', () => {
+	it('classifies a move as forced when only one legal move existed, ahead of Book', () => {
+		const codes = classifyGame([0, 0], undefined, {
+			positions: [{}, {}],
+			moveMeta: [{ from: 'e8', to: 'g8' }],
+			bestMoves: {},
+			bookPlyDepth: 5, // would otherwise classify ply 1 as book
+			legalMoveCounts: [1]
+		});
+
+		expect(codes).toEqual(['forced']);
+	});
+
+	it('does not classify a move with more than one legal option as forced', () => {
+		const codes = classifyGame([0, 1, 0.5], undefined, {
+			positions: [{}, {}, {}],
+			moveMeta: [
+				{ from: 'a2', to: 'a3' },
+				{ from: 'a7', to: 'a6' }
+			],
+			bestMoves: {},
+			legalMoveCounts: [2, 3]
+		});
+
+		expect(codes).toEqual(['best', 'best']);
+	});
+
+	it('omitting legalMoveCounts reproduces existing behavior exactly', () => {
+		const codes = classifyGame([0, 1, 0.5]);
+		expect(codes).toEqual(['best', 'best']);
+	});
+});

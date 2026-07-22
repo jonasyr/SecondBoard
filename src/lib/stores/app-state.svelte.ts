@@ -89,6 +89,7 @@ export async function startReview(): Promise<void> {
 			sanList: parsed.sanList,
 			positions: parsed.positions,
 			moveMeta: parsed.moves,
+			legalMoveCounts: parsed.legalMoveCounts,
 			isSample: pgnToParse.trim() === SAMPLE_PGN.trim(),
 			whiteName: parsed.whiteName,
 			blackName: parsed.blackName,
@@ -133,7 +134,8 @@ async function refreshRealAnalysis(): Promise<void> {
 			bestMoves,
 			secondEvalPerPly,
 			secondWdlPerPly,
-			bookPlyDepth: findBookDepth(appState.game!.sanList)
+			bookPlyDepth: findBookDepth(appState.game!.sanList),
+			legalMoveCounts: appState.game!.legalMoveCounts
 		});
 		appState.analysisStatus = 'ready';
 	} catch {

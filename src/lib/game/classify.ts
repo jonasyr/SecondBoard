@@ -14,10 +14,9 @@
  * so saturated WDL values do not distort their calibration; second-line Great
  * data likewise prefers centipawns and falls back to WDL only when absent.
  *
- * Scope note: Book/Brilliant/Great/Miss (this file's `classifySpecial`) run
- * before the deterministic cutoff table, per Chess.com's own override order
- * (Forced > Book > Brilliant > Great > Miss > cutoffs; Forced is added in a
- * later task of the same iteration this comment describes). See
+ * Scope note: Forced/Book/Brilliant/Great/Miss (this file's `classifySpecial`)
+ * run before the deterministic cutoff table, per Chess.com's own override
+ * order (Forced > Book > Brilliant > Great > Miss > cutoffs). See
  * docs/superpowers/specs/2026-07-21-book-forced-calibration-design.md.
  */
 import type { ClassCode } from '$lib/types';
@@ -79,6 +78,12 @@ export interface SpecialClassInputs {
 	 * class -- chess.com never marks a theory move Brilliant/Great/Miss even
 	 * when it superficially resembles one. */
 	bookPlyDepth?: number;
+	/** Count of legal moves available in the position BEFORE ply `i` was
+	 * played (same indexing as `moveMeta`; `legalMoveCounts[ply - 1]`). A
+	 * count of exactly 1 is always Forced -- chess.com's own published
+	 * definition ("only one legal move existed") -- checked ahead of every
+	 * other special class, including Book. */
+	legalMoveCounts?: number[];
 }
 
 function secondLineWinPercent(
@@ -153,10 +158,9 @@ export function classifyGame(
 	return codes;
 }
 
-/** Book > Brilliant > Great > Miss (Forced is added ahead of Book in a later
- * task). Returns null when no special condition applies and no `special`
- * argument was supplied at all -- falls through to the deterministic
- * EP-cutoff table in either case. */
+/** Forced > Book > Brilliant > Great > Miss. Returns null when no special
+ * condition applies and no `special` argument was supplied at all -- falls
+ * through to the deterministic EP-cutoff table in either case. */
 function classifySpecial(
 	ply: number,
 	mover: 'w' | 'b',
@@ -169,6 +173,7 @@ function classifySpecial(
 ): ClassCode | null {
 	if (!special) return null;
 
+	if (special.legalMoveCounts?.[ply - 1] === 1) return 'forced';
 	if (special.bookPlyDepth !== undefined && ply <= special.bookPlyDepth) return 'book';
 
 	const playedMove = special.moveMeta[ply - 1];
