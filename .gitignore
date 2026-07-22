@@ -36,3 +36,6 @@ src-tauri/target
 
 # codebase-memory-mcp local index cache
 /.codebase-memory
+
+# Local chess.com calibration captures (contain live auth tokens - never commit)
+/docs/calibration/
