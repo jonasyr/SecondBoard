@@ -332,3 +332,53 @@ describe('classifyGame with special classes', () => {
 		expect(['best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder']).toContain(codes[0]);
 	});
 });
+
+describe('classifySpecial book override', () => {
+	it('classifies a move within book depth as book, ahead of a qualifying Brilliant', () => {
+		// Same fixture as the "immediately-hanging near-best move" brilliant
+		// test above -- without bookPlyDepth this would classify as brilliant.
+		// bookPlyDepth=1 must win because Book is checked first.
+		const evalPerPly = [0, 0];
+		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
+			[600, 400, 0],
+			[600, 400, 0]
+		];
+		const positions: Position[] = [
+			{ e1: ['K', 'w'], d4: ['N', 'w'], a8: ['Q', 'b'], e8: ['K', 'b'] },
+			{ e1: ['K', 'w'], a4: ['N', 'w'], a8: ['Q', 'b'], e8: ['K', 'b'] }
+		];
+		const moveMeta: Move[] = [{ from: 'd4', to: 'a4' }];
+		const bestMoves: Record<number, Move & { san: string }> = {
+			1: { from: 'd4', to: 'a4', san: 'Na4' }
+		};
+
+		const codes = classifyGame(evalPerPly, wdlPerPly, {
+			positions,
+			moveMeta,
+			bestMoves,
+			bookPlyDepth: 1
+		});
+
+		expect(codes).toEqual(['book']);
+	});
+
+	it('does not classify a move past bookPlyDepth as book', () => {
+		const codes = classifyGame([0, 0, 0], undefined, {
+			positions: [{}, {}, {}],
+			moveMeta: [
+				{ from: 'a2', to: 'a3' },
+				{ from: 'a7', to: 'a6' }
+			],
+			bestMoves: {},
+			bookPlyDepth: 1
+		});
+
+		expect(codes[0]).toBe('book'); // ply 1: within depth
+		expect(codes[1]).not.toBe('book'); // ply 2: past depth
+	});
+
+	it('omitting bookPlyDepth reproduces pre-Book behavior exactly', () => {
+		const codes = classifyGame([0, 1, 0.5]);
+		expect(codes).toEqual(['best', 'best']);
+	});
+});

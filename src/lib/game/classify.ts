@@ -14,12 +14,11 @@
  * so saturated WDL values do not distort their calibration; second-line Great
  * data likewise prefers centipawns and falls back to WDL only when absent.
  *
- * Scope note: Brilliant/Great/Miss (this file's `classifySpecial`) run before
- * the deterministic cutoff table, per Chess.com's own override order
- * (Brilliant > Great > Miss > cutoffs). Book and Forced remain a later
- * iteration (opening-book/ECO lookup and a dedicated ClassCode are both out
- * of scope here) -- see docs/Reproducing_Chesscom_Game_Review_Locally_in_SecondBoard...
- * §4/§11 "Recommended next steps".
+ * Scope note: Book/Brilliant/Great/Miss (this file's `classifySpecial`) run
+ * before the deterministic cutoff table, per Chess.com's own override order
+ * (Forced > Book > Brilliant > Great > Miss > cutoffs; Forced is added in a
+ * later task of the same iteration this comment describes). See
+ * docs/superpowers/specs/2026-07-21-book-forced-calibration-design.md.
  */
 import type { ClassCode } from '$lib/types';
 import type { Move, Position } from '$lib/board/types';
@@ -74,6 +73,12 @@ export interface SpecialClassInputs {
 	 * BEFORE each ply, White-POV, same indexing as `evalPerPly`/`wdlPerPly`. */
 	secondEvalPerPly?: (number | null)[];
 	secondWdlPerPly?: (Wdl | null)[];
+	/** Ply depth (1-indexed, same scale as `ply`) through which every move is
+	 * still catalogued opening theory (`book.ts`'s `findBookDepth`). A ply
+	 * `<= bookPlyDepth` is always Book, checked ahead of every other special
+	 * class -- chess.com never marks a theory move Brilliant/Great/Miss even
+	 * when it superficially resembles one. */
+	bookPlyDepth?: number;
 }
 
 function secondLineWinPercent(
@@ -148,10 +153,10 @@ export function classifyGame(
 	return codes;
 }
 
-/** Brilliant > Great > Miss (blueprint §4 override order, Book/Forced out of
- * scope this iteration). Returns null when no special condition applies and
- * no `special` argument was supplied at all -- falls through to the
- * deterministic EP-cutoff table in either case. */
+/** Book > Brilliant > Great > Miss (Forced is added ahead of Book in a later
+ * task). Returns null when no special condition applies and no `special`
+ * argument was supplied at all -- falls through to the deterministic
+ * EP-cutoff table in either case. */
 function classifySpecial(
 	ply: number,
 	mover: 'w' | 'b',
@@ -163,6 +168,8 @@ function classifySpecial(
 	special?: SpecialClassInputs
 ): ClassCode | null {
 	if (!special) return null;
+
+	if (special.bookPlyDepth !== undefined && ply <= special.bookPlyDepth) return 'book';
 
 	const playedMove = special.moveMeta[ply - 1];
 	const suggested = special.bestMoves[ply];
