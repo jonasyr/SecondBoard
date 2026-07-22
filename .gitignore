@@ -39,3 +39,6 @@ src-tauri/target
 
 # Local chess.com calibration captures (contain live auth tokens - never commit)
 /docs/calibration/
+
+# subagent-driven-development scratch ledger/briefs/reports
+/.superpowers/
