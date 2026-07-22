@@ -61,7 +61,7 @@ describe('TOKENS', () => {
 		expect(TOKENS.classification.brilliant.glyph).toBe('!!');
 		expect(TOKENS.classification.best.glyph).toBe('★');
 		expect(TOKENS.classification.blunder.glyph).toBe('??');
-		expect(Object.keys(TOKENS.classification)).toHaveLength(10);
+		expect(Object.keys(TOKENS.classification)).toHaveLength(11);
 	});
 
 	it('matches the exact spacing/radius spec from README §4.5', () => {

@@ -9,6 +9,7 @@ beforeEach(() => {
 		sanList: ['e4'],
 		positions: [{}, {}],
 		moveMeta: [{ from: 'e2', to: 'e4' }],
+		legalMoveCounts: [],
 		isSample: true,
 		whiteName: null,
 		blackName: null,

@@ -1,15 +1,41 @@
 <script lang="ts">
-	import { PHASE_ROWS } from '$lib/game/mock-data';
+	import type { PhaseRow } from '$lib/game/phase';
 	import ClassBadge from './ClassBadge.svelte';
+
+	interface Props {
+		rows: PhaseRow[];
+	}
+
+	let { rows }: Props = $props();
+
+	function tooltip(side: 'White' | 'Black', phaseName: string, accuracy: number): string {
+		return `${side}: ${accuracy.toFixed(1)}% accuracy in the ${phaseName}`;
+	}
 </script>
 
 <div class="phases">
-	{#each PHASE_ROWS as [name, whiteCode, blackCode] (name)}
+	{#each rows as row (row.name)}
 		<div class="row">
-			<span class="name">{name}</span>
-			<div class="badge-col"><ClassBadge classCode={whiteCode} size={22} /></div>
+			<span class="name">{row.name}</span>
+			<div class="badge-col">
+				{#if row.white}
+					<span title={tooltip('White', row.name, row.white.accuracy)}>
+						<ClassBadge classCode={row.white.code} size={22} />
+					</span>
+				{:else}
+					<span class="empty">—</span>
+				{/if}
+			</div>
 			<span></span>
-			<div class="badge-col"><ClassBadge classCode={blackCode} size={22} /></div>
+			<div class="badge-col">
+				{#if row.black}
+					<span title={tooltip('Black', row.name, row.black.accuracy)}>
+						<ClassBadge classCode={row.black.code} size={22} />
+					</span>
+				{:else}
+					<span class="empty">—</span>
+				{/if}
+			</div>
 		</div>
 	{/each}
 </div>
@@ -30,5 +56,9 @@
 	.badge-col {
 		display: flex;
 		justify-content: center;
+	}
+	.empty {
+		color: var(--color-text-tertiary);
+		font-size: 13px;
 	}
 </style>

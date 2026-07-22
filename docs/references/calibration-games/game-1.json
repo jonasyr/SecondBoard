@@ -1,0 +1,968 @@
+{
+  "url": "https://www.chess.com/game/live/170011037438",
+  "gameId": "170011037438",
+  "capturedAt": "2026-07-22T19:49:58.492Z",
+  "pgn": "[Event \"Live Chess\"]\n[Site \"Chess.com\"]\n[Date \"2026.06.10\"]\n[Round \"-\"]\n[White \"GMJoGo124\"]\n[Black \"Jahhn1\"]\n[Result \"1-0\"]\n[CurrentPosition \"8/7k/8/8/8/7Q/PK6/6R1 b - - 14 56\"]\n[Timezone \"UTC\"]\n[ECO \"D02\"]\n[ECOUrl \"https://www.chess.com/openings/London-System\"]\n[UTCDate \"2026.06.10\"]\n[UTCTime \"20:58:36\"]\n[WhiteElo \"475\"]\n[BlackElo \"455\"]\n[TimeControl \"600\"]\n[StartTime \"20:58:36\"]\n[EndDate \"2026.06.10\"]\n[EndTime \"21:11:53\"]\n[Link \"https://www.chess.com/game/live/170011037438\"]\n[WhiteUrl \"https://images.chesscomfiles.com/uploads/v1/user/84024826.f0990509.50x50o.8ae38a62fba5.png\"]\n[WhiteCountry \"54\"]\n[WhiteTitle \"\"]\n[BlackUrl \"https://www.chess.com/bundles/web/images/noavatar_l.84a92436.gif\"]\n[BlackCountry \"54\"]\n[BlackTitle \"\"]\n\n1. d4 {[%clk 0:10:00][%timestamp 1]} 1... d5 {[%clk 0:10:00][%timestamp 1]} 2.\nBf4 {[%clk 0:09:58.4][%timestamp 16]} 2... Nf6 {[%clk 0:09:54.4][%timestamp 56]}\n3. Nf3 {[%clk 0:09:56.7][%timestamp 17]} 3... g5 {[%clk 0:09:50.6][%timestamp\n38]} 4. Bg3 {[%clk 0:09:55.3][%timestamp 14]} 4... Bg7 {[%clk\n0:09:45.5][%timestamp 51]} 5. e3 {[%clk 0:09:51.5][%timestamp 38]} 5... O-O\n{[%clk 0:09:40.9][%timestamp 46]} 6. Bd3 {[%clk 0:09:49.9][%timestamp 16]} 6...\nNc6 {[%clk 0:09:27.3][%timestamp 136]} 7. c3 {[%clk 0:09:48.6][%timestamp 13]}\n7... e6 {[%clk 0:09:24.5][%timestamp 28]} 8. Nbd2 {[%clk 0:09:46.8][%timestamp\n18]} 8... Ng4 {[%clk 0:09:17][%timestamp 75]} 9. Qe2 {[%clk\n0:09:37.3][%timestamp 95]} 9... e5 {[%clk 0:08:56.8][%timestamp 202]} 10. dxe5\n{[%clk 0:09:31.2][%timestamp 61]} 10... Ncxe5 {[%clk 0:08:47][%timestamp 98]}\n11. Bxe5 {[%clk 0:09:23.3][%timestamp 79]} 11... Nxe5 {[%clk\n0:08:43.9][%timestamp 31]} 12. Nxg5 {[%clk 0:09:18.6][%timestamp 47]} 12... Qxg5\n{[%clk 0:08:29.3][%timestamp 146]} 13. f4 {[%clk 0:09:14.5][%timestamp 41]}\n13... Bg4 {[%clk 0:08:04.7][%timestamp 246]} 14. Qf2 {[%clk\n0:08:57.4][%timestamp 171]} 14... Qf5 {[%clk 0:07:48.3][%timestamp 164]} 15.\nfxe5 {[%clk 0:08:50.6][%timestamp 68]} 15... Qxf2+ {[%clk 0:07:43.2][%timestamp\n51]} 16. Kxf2 {[%clk 0:08:48.5][%timestamp 21]} 16... Bxe5 {[%clk\n0:07:36][%timestamp 72]} 17. h3 {[%clk 0:08:38.9][%timestamp 96]} 17... Be6\n{[%clk 0:07:14.5][%timestamp 215]} 18. e4 {[%clk 0:08:28.7][%timestamp 102]}\n18... Rad8 {[%clk 0:07:06.2][%timestamp 83]} 19. Bc2 {[%clk\n0:08:06.2][%timestamp 225]} 19... dxe4 {[%clk 0:07:00.6][%timestamp 56]} 20.\nNxe4 {[%clk 0:07:56.1][%timestamp 101]} 20... f5 {[%clk 0:06:44.8][%timestamp\n158]} 21. Ng5 {[%clk 0:07:42.6][%timestamp 135]} 21... Rd2+ {[%clk\n0:06:37.5][%timestamp 73]} 22. Kf3 {[%clk 0:07:25.2][%timestamp 174]} 22... Bd5+\n{[%clk 0:06:30.6][%timestamp 69]} 23. Ke3 {[%clk 0:07:21.6][%timestamp 36]}\n23... Rxc2 {[%clk 0:06:11.2][%timestamp 194]} 24. Rad1 {[%clk\n0:07:08.7][%timestamp 129]} 24... Bxg2 {[%clk 0:06:00.8][%timestamp 104]} 25.\nRhg1 {[%clk 0:07:03][%timestamp 57]} 25... Bd5 {[%clk 0:05:40.8][%timestamp\n200]} 26. Ne6+ {[%clk 0:06:41.8][%timestamp 212]} 26... Kf7 {[%clk\n0:05:31.3][%timestamp 95]} 27. Nxf8 {[%clk 0:06:39.9][%timestamp 19]} 27... Kxf8\n{[%clk 0:05:29.5][%timestamp 18]} 28. Rxd5 {[%clk 0:06:32][%timestamp 79]} 28...\nBh2 {[%clk 0:05:12.2][%timestamp 173]} 29. Rg5 {[%clk 0:06:24.8][%timestamp 72]}\n29... Bg1+ {[%clk 0:05:03.1][%timestamp 91]} 30. Kd3 {[%clk\n0:06:20.5][%timestamp 43]} 30... Rxb2 {[%clk 0:04:55.4][%timestamp 77]} 31. Rxg1\n{[%clk 0:06:12.1][%timestamp 84]} 31... c6 {[%clk 0:04:40.3][%timestamp 151]}\n32. Rxf5+ {[%clk 0:06:10.5][%timestamp 16]} 32... Ke7 {[%clk\n0:04:38.2][%timestamp 21]} 33. Re1+ {[%clk 0:06:08.1][%timestamp 24]} 33... Kd6\n{[%clk 0:03:28.3][%timestamp 699]} 34. Re2 {[%clk 0:05:59.7][%timestamp 84]}\n34... Rxe2 {[%clk 0:03:21.3][%timestamp 70]} 35. Kxe2 {[%clk\n0:05:57.6][%timestamp 21]} 35... b5 {[%clk 0:03:19.7][%timestamp 16]} 36. h4\n{[%clk 0:05:49.8][%timestamp 78]} 36... c5 {[%clk 0:03:12.9][%timestamp 68]} 37.\nh5 {[%clk 0:05:46.1][%timestamp 37]} 37... a5 {[%clk 0:03:10][%timestamp 29]}\n38. h6 {[%clk 0:05:37.4][%timestamp 87]} 38... b4 {[%clk 0:03:05.2][%timestamp\n48]} 39. cxb4 {[%clk 0:05:32.3][%timestamp 51]} 39... axb4 {[%clk\n0:03:01.7][%timestamp 35]} 40. Kd3 {[%clk 0:05:27.8][%timestamp 45]} 40... Kc6\n{[%clk 0:02:57.1][%timestamp 46]} 41. Rf7 {[%clk 0:05:25.4][%timestamp 24]}\n41... Kb5 {[%clk 0:02:53.3][%timestamp 38]} 42. Rxh7 {[%clk\n0:05:23.9][%timestamp 15]} 42... c4+ {[%clk 0:02:52.7][%timestamp 6]} 43. Kc2\n{[%clk 0:05:22.2][%timestamp 17]} 43... Ka4 {[%clk 0:02:49.3][%timestamp 34]}\n44. Ra7+ {[%clk 0:05:16.8][%timestamp 54]} 44... Kb5 {[%clk\n0:02:45.6][%timestamp 37]} 45. h7 {[%clk 0:05:15.4][%timestamp 14]} 45... b3+\n{[%clk 0:02:41.4][%timestamp 42]} 46. Kb2 {[%clk 0:05:13][%timestamp 24]} 46...\nKb4 {[%clk 0:02:35.4][%timestamp 60]} 47. h8=Q {[%clk 0:05:10.9][%timestamp 21]}\n47... c3+ {[%clk 0:02:29.7][%timestamp 57]} 48. Qxc3+ {[%clk\n0:05:06.3][%timestamp 46]} 48... Kb5 {[%clk 0:02:25.2][%timestamp 45]} 49. Qxb3+\n{[%clk 0:05:04.6][%timestamp 17]} 49... Kc5 {[%clk 0:02:24.1][%timestamp 11]}\n50. Rc7+ {[%clk 0:05:03.2][%timestamp 14]} 50... Kd4 {[%clk\n0:02:23.2][%timestamp 9]} 51. Qd1+ {[%clk 0:05:01.4][%timestamp 18]} 51... Ke3\n{[%clk 0:02:21.7][%timestamp 15]} 52. Re7+ {[%clk 0:04:59.8][%timestamp 16]}\n52... Kf4 {[%clk 0:02:20.8][%timestamp 9]} 53. Qf1+ {[%clk 0:04:58.7][%timestamp\n11]} 53... Kg5 {[%clk 0:02:19.7][%timestamp 11]} 54. Rg7+ {[%clk\n0:04:57.5][%timestamp 12]} 54... Kh6 {[%clk 0:02:18.8][%timestamp 9]} 55. Rg1\n{[%clk 0:04:51.4][%timestamp 61]} 55... Kh7 {[%clk 0:02:15.9][%timestamp 29]}\n56. Qh3# {[%clk 0:04:50.2][%c_effect\nb2;square;b2;type;Winner;animated;true,h7;square;h7;type;CheckmateBlack;animated;true][%timestamp\n12]} 1-0",
+  "analysisEngine": "torch-human",
+  "book": {
+    "code": "D02",
+    "depth": 30,
+    "moves": "lBZJgv!TcD",
+    "name": "London System",
+    "score": 0.15,
+    "url": "London-System"
+  },
+  "bookPly": 5,
+  "tallies": {
+    "black": {
+      "best": 13,
+      "blunder": 4,
+      "blunderGP0": 0,
+      "blunderGP1": 4,
+      "blunderGP2": 0,
+      "book": 2,
+      "brilliant": 0,
+      "excellent": 10,
+      "forced": 2,
+      "good": 11,
+      "greatFind": 3,
+      "inaccuracy": 2,
+      "inaccuracyGP0": 0,
+      "inaccuracyGP1": 0,
+      "inaccuracyGP2": 2,
+      "miss": 1,
+      "missGP0": 0,
+      "missGP1": 1,
+      "missGP2": 0,
+      "mistake": 7,
+      "mistakeGP0": 4,
+      "mistakeGP1": 1,
+      "mistakeGP2": 2,
+      "tricky": 0
+    },
+    "white": {
+      "best": 18,
+      "blunder": 2,
+      "blunderGP0": 0,
+      "blunderGP1": 2,
+      "blunderGP2": 0,
+      "book": 3,
+      "brilliant": 0,
+      "excellent": 10,
+      "forced": 1,
+      "good": 8,
+      "greatFind": 1,
+      "inaccuracy": 5,
+      "inaccuracyGP0": 3,
+      "inaccuracyGP1": 0,
+      "inaccuracyGP2": 2,
+      "miss": 6,
+      "missGP0": 2,
+      "missGP1": 2,
+      "missGP2": 2,
+      "mistake": 2,
+      "mistakeGP0": 0,
+      "mistakeGP1": 2,
+      "mistakeGP2": 0,
+      "tricky": 0
+    }
+  },
+  "positions": [
+    {
+      "ply": 0,
+      "color": null,
+      "classificationName": null,
+      "playedMoveLan": null,
+      "difference": 0,
+      "caps2": null
+    },
+    {
+      "ply": 1,
+      "color": "white",
+      "classificationName": "book",
+      "playedMoveLan": "d2d4",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 2,
+      "color": "black",
+      "classificationName": "book",
+      "playedMoveLan": "d7d5",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 3,
+      "color": "white",
+      "classificationName": "book",
+      "playedMoveLan": "c1f4",
+      "difference": 0.18,
+      "caps2": 100
+    },
+    {
+      "ply": 4,
+      "color": "black",
+      "classificationName": "book",
+      "playedMoveLan": "g8f6",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 5,
+      "color": "white",
+      "classificationName": "book",
+      "playedMoveLan": "g1f3",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 6,
+      "color": "black",
+      "classificationName": "mistake",
+      "playedMoveLan": "g7g5",
+      "difference": 1.35,
+      "caps2": 15.17
+    },
+    {
+      "ply": 7,
+      "color": "white",
+      "classificationName": "inaccuracy",
+      "playedMoveLan": "f4g3",
+      "difference": 1.14,
+      "caps2": 23.06
+    },
+    {
+      "ply": 8,
+      "color": "black",
+      "classificationName": "good",
+      "playedMoveLan": "f8g7",
+      "difference": 0.44,
+      "caps2": 79.7
+    },
+    {
+      "ply": 9,
+      "color": "white",
+      "classificationName": "excellent",
+      "playedMoveLan": "e2e3",
+      "difference": 0.21,
+      "caps2": 90.79
+    },
+    {
+      "ply": 10,
+      "color": "black",
+      "classificationName": "good",
+      "playedMoveLan": "e8g8",
+      "difference": 0.52,
+      "caps2": 64.18
+    },
+    {
+      "ply": 11,
+      "color": "white",
+      "classificationName": "inaccuracy",
+      "playedMoveLan": "f1d3",
+      "difference": 0.77,
+      "caps2": 54.21
+    },
+    {
+      "ply": 12,
+      "color": "black",
+      "classificationName": "mistake",
+      "playedMoveLan": "b8c6",
+      "difference": 1.52,
+      "caps2": 3.05
+    },
+    {
+      "ply": 13,
+      "color": "white",
+      "classificationName": "miss",
+      "playedMoveLan": "c2c3",
+      "difference": 1.49,
+      "caps2": 0.29
+    },
+    {
+      "ply": 14,
+      "color": "black",
+      "classificationName": "mistake",
+      "playedMoveLan": "e7e6",
+      "difference": 1.84,
+      "caps2": -10.36
+    },
+    {
+      "ply": 15,
+      "color": "white",
+      "classificationName": "inaccuracy",
+      "playedMoveLan": "b1d2",
+      "difference": 0.87,
+      "caps2": 34.19
+    },
+    {
+      "ply": 16,
+      "color": "black",
+      "classificationName": "mistake",
+      "playedMoveLan": "f6g4",
+      "difference": 1.44,
+      "caps2": 16.05
+    },
+    {
+      "ply": 17,
+      "color": "white",
+      "classificationName": "miss",
+      "playedMoveLan": "d1e2",
+      "difference": 1.48,
+      "caps2": 6.37
+    },
+    {
+      "ply": 18,
+      "color": "black",
+      "classificationName": "excellent",
+      "playedMoveLan": "e6e5",
+      "difference": 0.1,
+      "caps2": 91.2
+    },
+    {
+      "ply": 19,
+      "color": "white",
+      "classificationName": "best",
+      "playedMoveLan": "d4e5",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 20,
+      "color": "black",
+      "classificationName": "good",
+      "playedMoveLan": "c6e5",
+      "difference": 0.27,
+      "caps2": 75.5
+    },
+    {
+      "ply": 21,
+      "color": "white",
+      "classificationName": "excellent",
+      "playedMoveLan": "g3e5",
+      "difference": 0.21,
+      "caps2": 81.04
+    },
+    {
+      "ply": 22,
+      "color": "black",
+      "classificationName": "best",
+      "playedMoveLan": "g4e5",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 23,
+      "color": "white",
+      "classificationName": "blunder",
+      "playedMoveLan": "f3g5",
+      "difference": 5.22,
+      "caps2": -73.03
+    },
+    {
+      "ply": 24,
+      "color": "black",
+      "classificationName": "excellent",
+      "playedMoveLan": "d8g5",
+      "difference": 0.31,
+      "caps2": 78.98
+    },
+    {
+      "ply": 25,
+      "color": "white",
+      "classificationName": "good",
+      "playedMoveLan": "f2f4",
+      "difference": 0.88,
+      "caps2": 59.43
+    },
+    {
+      "ply": 26,
+      "color": "black",
+      "classificationName": "blunder",
+      "playedMoveLan": "c8g4",
+      "difference": 4.79,
+      "caps2": -78.44
+    },
+    {
+      "ply": 27,
+      "color": "white",
+      "classificationName": "blunder",
+      "playedMoveLan": "e2f2",
+      "difference": 8.96,
+      "caps2": -73.64
+    },
+    {
+      "ply": 28,
+      "color": "black",
+      "classificationName": "blunder",
+      "playedMoveLan": "g5f5",
+      "difference": 13.55,
+      "caps2": -87.5
+    },
+    {
+      "ply": 29,
+      "color": "white",
+      "classificationName": "miss",
+      "playedMoveLan": "f4e5",
+      "difference": 9.15,
+      "caps2": -78.13
+    },
+    {
+      "ply": 30,
+      "color": "black",
+      "classificationName": "miss",
+      "playedMoveLan": "f5f2",
+      "difference": 3.97,
+      "caps2": -60.62
+    },
+    {
+      "ply": 31,
+      "color": "white",
+      "classificationName": "forced",
+      "playedMoveLan": "e1f2",
+      "difference": 0,
+      "caps2": null
+    },
+    {
+      "ply": 32,
+      "color": "black",
+      "classificationName": "excellent",
+      "playedMoveLan": "g7e5",
+      "difference": 0.03,
+      "caps2": 98.93
+    },
+    {
+      "ply": 33,
+      "color": "white",
+      "classificationName": "best",
+      "playedMoveLan": "h2h3",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 34,
+      "color": "black",
+      "classificationName": "excellent",
+      "playedMoveLan": "g4e6",
+      "difference": 0.04,
+      "caps2": 98.59
+    },
+    {
+      "ply": 35,
+      "color": "white",
+      "classificationName": "excellent",
+      "playedMoveLan": "e3e4",
+      "difference": 0.23,
+      "caps2": 90.66
+    },
+    {
+      "ply": 36,
+      "color": "black",
+      "classificationName": "best",
+      "playedMoveLan": "a8d8",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 37,
+      "color": "white",
+      "classificationName": "mistake",
+      "playedMoveLan": "d3c2",
+      "difference": 1.63,
+      "caps2": -2.2
+    },
+    {
+      "ply": 38,
+      "color": "black",
+      "classificationName": "best",
+      "playedMoveLan": "d5e4",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 39,
+      "color": "white",
+      "classificationName": "best",
+      "playedMoveLan": "d2e4",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 40,
+      "color": "black",
+      "classificationName": "greatFind",
+      "playedMoveLan": "f7f5",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 41,
+      "color": "white",
+      "classificationName": "excellent",
+      "playedMoveLan": "e4g5",
+      "difference": 0.18,
+      "caps2": 84.95
+    },
+    {
+      "ply": 42,
+      "color": "black",
+      "classificationName": "greatFind",
+      "playedMoveLan": "d8d2",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 43,
+      "color": "white",
+      "classificationName": "mistake",
+      "playedMoveLan": "f2f3",
+      "difference": 3.23,
+      "caps2": -19.1
+    },
+    {
+      "ply": 44,
+      "color": "black",
+      "classificationName": "greatFind",
+      "playedMoveLan": "e6d5",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 45,
+      "color": "white",
+      "classificationName": "best",
+      "playedMoveLan": "f3e3",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 46,
+      "color": "black",
+      "classificationName": "best",
+      "playedMoveLan": "d2c2",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 47,
+      "color": "white",
+      "classificationName": "good",
+      "playedMoveLan": "a1d1",
+      "difference": 0.87,
+      "caps2": 59.04
+    },
+    {
+      "ply": 48,
+      "color": "black",
+      "classificationName": "excellent",
+      "playedMoveLan": "d5g2",
+      "difference": 0.21,
+      "caps2": 89.04
+    },
+    {
+      "ply": 49,
+      "color": "white",
+      "classificationName": "good",
+      "playedMoveLan": "h1g1",
+      "difference": 0.62,
+      "caps2": 75.09
+    },
+    {
+      "ply": 50,
+      "color": "black",
+      "classificationName": "blunder",
+      "playedMoveLan": "g2d5",
+      "difference": 5.75,
+      "caps2": -71.09
+    },
+    {
+      "ply": 51,
+      "color": "white",
+      "classificationName": "miss",
+      "playedMoveLan": "g5e6",
+      "difference": 2.89,
+      "caps2": -37.6
+    },
+    {
+      "ply": 52,
+      "color": "black",
+      "classificationName": "mistake",
+      "playedMoveLan": "g8f7",
+      "difference": 2.84,
+      "caps2": -51.01
+    },
+    {
+      "ply": 53,
+      "color": "white",
+      "classificationName": "best",
+      "playedMoveLan": "e6f8",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 54,
+      "color": "black",
+      "classificationName": "blunder",
+      "playedMoveLan": "f7f8",
+      "difference": 4.21,
+      "caps2": -52.76
+    },
+    {
+      "ply": 55,
+      "color": "white",
+      "classificationName": "greatFind",
+      "playedMoveLan": "d1d5",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 56,
+      "color": "black",
+      "classificationName": "good",
+      "playedMoveLan": "e5h2",
+      "difference": 0.92,
+      "caps2": 57.14
+    },
+    {
+      "ply": 57,
+      "color": "white",
+      "classificationName": "good",
+      "playedMoveLan": "g1g5",
+      "difference": 1,
+      "caps2": 48.55
+    },
+    {
+      "ply": 58,
+      "color": "black",
+      "classificationName": "mistake",
+      "playedMoveLan": "h2g1",
+      "difference": 2.06,
+      "caps2": 20.09
+    },
+    {
+      "ply": 59,
+      "color": "white",
+      "classificationName": "inaccuracy",
+      "playedMoveLan": "e3d3",
+      "difference": 1.19,
+      "caps2": 38.95
+    },
+    {
+      "ply": 60,
+      "color": "black",
+      "classificationName": "mistake",
+      "playedMoveLan": "c2b2",
+      "difference": 1.39,
+      "caps2": 41.17
+    },
+    {
+      "ply": 61,
+      "color": "white",
+      "classificationName": "excellent",
+      "playedMoveLan": "g5g1",
+      "difference": 0.18,
+      "caps2": 86.52
+    },
+    {
+      "ply": 62,
+      "color": "black",
+      "classificationName": "good",
+      "playedMoveLan": "c7c6",
+      "difference": 0.83,
+      "caps2": 59.76
+    },
+    {
+      "ply": 63,
+      "color": "white",
+      "classificationName": "good",
+      "playedMoveLan": "d5f5",
+      "difference": 0.44,
+      "caps2": 74.09
+    },
+    {
+      "ply": 64,
+      "color": "black",
+      "classificationName": "best",
+      "playedMoveLan": "f8e7",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 65,
+      "color": "white",
+      "classificationName": "excellent",
+      "playedMoveLan": "g1e1",
+      "difference": 0.04,
+      "caps2": 97.46
+    },
+    {
+      "ply": 66,
+      "color": "black",
+      "classificationName": "good",
+      "playedMoveLan": "e7d6",
+      "difference": 0.51,
+      "caps2": 75.06
+    },
+    {
+      "ply": 67,
+      "color": "white",
+      "classificationName": "inaccuracy",
+      "playedMoveLan": "e1e2",
+      "difference": 1.27,
+      "caps2": 30
+    },
+    {
+      "ply": 68,
+      "color": "black",
+      "classificationName": "inaccuracy",
+      "playedMoveLan": "b2e2",
+      "difference": 1.84,
+      "caps2": 26.27
+    },
+    {
+      "ply": 69,
+      "color": "white",
+      "classificationName": "best",
+      "playedMoveLan": "d3e2",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 70,
+      "color": "black",
+      "classificationName": "excellent",
+      "playedMoveLan": "b7b5",
+      "difference": 0.47,
+      "caps2": 85.35
+    },
+    {
+      "ply": 71,
+      "color": "white",
+      "classificationName": "best",
+      "playedMoveLan": "h3h4",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 72,
+      "color": "black",
+      "classificationName": "best",
+      "playedMoveLan": "c6c5",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 73,
+      "color": "white",
+      "classificationName": "excellent",
+      "playedMoveLan": "h4h5",
+      "difference": 0.22,
+      "caps2": 92.39
+    },
+    {
+      "ply": 74,
+      "color": "black",
+      "classificationName": "best",
+      "playedMoveLan": "a7a5",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 75,
+      "color": "white",
+      "classificationName": "best",
+      "playedMoveLan": "h5h6",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 76,
+      "color": "black",
+      "classificationName": "good",
+      "playedMoveLan": "b5b4",
+      "difference": 1.17,
+      "caps2": 72.03
+    },
+    {
+      "ply": 77,
+      "color": "white",
+      "classificationName": "best",
+      "playedMoveLan": "c3b4",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 78,
+      "color": "black",
+      "classificationName": "best",
+      "playedMoveLan": "a5b4",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 79,
+      "color": "white",
+      "classificationName": "best",
+      "playedMoveLan": "e2d3",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 80,
+      "color": "black",
+      "classificationName": "good",
+      "playedMoveLan": "d6c6",
+      "difference": 2.36,
+      "caps2": 72.91
+    },
+    {
+      "ply": 81,
+      "color": "white",
+      "classificationName": "excellent",
+      "playedMoveLan": "f5f7",
+      "difference": 0.9,
+      "caps2": 91.36
+    },
+    {
+      "ply": 82,
+      "color": "black",
+      "classificationName": "excellent",
+      "playedMoveLan": "c6b5",
+      "difference": 2.84,
+      "caps2": 86.07
+    },
+    {
+      "ply": 83,
+      "color": "white",
+      "classificationName": "best",
+      "playedMoveLan": "f7h7",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 84,
+      "color": "black",
+      "classificationName": "best",
+      "playedMoveLan": "c5c4",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 85,
+      "color": "white",
+      "classificationName": "excellent",
+      "playedMoveLan": "d3c2",
+      "difference": 2.57,
+      "caps2": 83.46
+    },
+    {
+      "ply": 86,
+      "color": "black",
+      "classificationName": "good",
+      "playedMoveLan": "b5a4",
+      "difference": 920.13,
+      "caps2": 30
+    },
+    {
+      "ply": 87,
+      "color": "white",
+      "classificationName": "good",
+      "playedMoveLan": "h7a7",
+      "difference": 924.64,
+      "caps2": 30
+    },
+    {
+      "ply": 88,
+      "color": "black",
+      "classificationName": "forced",
+      "playedMoveLan": "a4b5",
+      "difference": 0,
+      "caps2": null
+    },
+    {
+      "ply": 89,
+      "color": "white",
+      "classificationName": "best",
+      "playedMoveLan": "h6h7",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 90,
+      "color": "black",
+      "classificationName": "good",
+      "playedMoveLan": "b4b3",
+      "difference": 894.64,
+      "caps2": 30
+    },
+    {
+      "ply": 91,
+      "color": "white",
+      "classificationName": "good",
+      "playedMoveLan": "c2b2",
+      "difference": 907.11,
+      "caps2": 30
+    },
+    {
+      "ply": 92,
+      "color": "black",
+      "classificationName": "good",
+      "playedMoveLan": "b5b4",
+      "difference": 937.11,
+      "caps2": 30
+    },
+    {
+      "ply": 93,
+      "color": "white",
+      "classificationName": "best",
+      "playedMoveLan": "h7h8q",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 94,
+      "color": "black",
+      "classificationName": "excellent",
+      "playedMoveLan": "c4c3",
+      "difference": 10,
+      "caps2": 80
+    },
+    {
+      "ply": 95,
+      "color": "white",
+      "classificationName": "best",
+      "playedMoveLan": "h8c3",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 96,
+      "color": "black",
+      "classificationName": "forced",
+      "playedMoveLan": "b4b5",
+      "difference": 0,
+      "caps2": null
+    },
+    {
+      "ply": 97,
+      "color": "white",
+      "classificationName": "miss",
+      "playedMoveLan": "c3b3",
+      "difference": 30,
+      "caps2": 70
+    },
+    {
+      "ply": 98,
+      "color": "black",
+      "classificationName": "excellent",
+      "playedMoveLan": "b5c5",
+      "difference": 10,
+      "caps2": 80
+    },
+    {
+      "ply": 99,
+      "color": "white",
+      "classificationName": "good",
+      "playedMoveLan": "a7c7",
+      "difference": 30,
+      "caps2": 70
+    },
+    {
+      "ply": 100,
+      "color": "black",
+      "classificationName": "inaccuracy",
+      "playedMoveLan": "c5d4",
+      "difference": 30,
+      "caps2": 70
+    },
+    {
+      "ply": 101,
+      "color": "white",
+      "classificationName": "miss",
+      "playedMoveLan": "b3d1",
+      "difference": 50,
+      "caps2": 70
+    },
+    {
+      "ply": 102,
+      "color": "black",
+      "classificationName": "excellent",
+      "playedMoveLan": "d4e3",
+      "difference": 20,
+      "caps2": 80
+    },
+    {
+      "ply": 103,
+      "color": "white",
+      "classificationName": "excellent",
+      "playedMoveLan": "c7e7",
+      "difference": 10,
+      "caps2": 80
+    },
+    {
+      "ply": 104,
+      "color": "black",
+      "classificationName": "best",
+      "playedMoveLan": "e3f4",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 105,
+      "color": "white",
+      "classificationName": "best",
+      "playedMoveLan": "d1f1",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 106,
+      "color": "black",
+      "classificationName": "best",
+      "playedMoveLan": "f4g5",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 107,
+      "color": "white",
+      "classificationName": "best",
+      "playedMoveLan": "e7g7",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 108,
+      "color": "black",
+      "classificationName": "best",
+      "playedMoveLan": "g5h6",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 109,
+      "color": "white",
+      "classificationName": "best",
+      "playedMoveLan": "g7g1",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 110,
+      "color": "black",
+      "classificationName": "best",
+      "playedMoveLan": "h6h7",
+      "difference": 0,
+      "caps2": 100
+    },
+    {
+      "ply": 111,
+      "color": "white",
+      "classificationName": "best",
+      "playedMoveLan": "f1h3",
+      "difference": 0,
+      "caps2": 100
+    }
+  ]
+}

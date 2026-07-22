@@ -17,6 +17,7 @@ const sampleGame: GameData = {
 	],
 	positions: Array.from({ length: 32 }, () => ({})), // content unused by these tests
 	moveMeta: sampleMoveMeta,
+	legalMoveCounts: [],
 	isSample: true,
 	whiteName: null,
 	blackName: null,
@@ -32,6 +33,7 @@ const notSampleGame: GameData = {
 		{ from: 'd2', to: 'd4' },
 		{ from: 'd7', to: 'd5' }
 	],
+	legalMoveCounts: [],
 	isSample: false,
 	whiteName: null,
 	blackName: null,

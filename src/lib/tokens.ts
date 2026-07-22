@@ -100,6 +100,7 @@ export const TOKENS = {
 		excellent: { name: 'Excellent', word: 'excellent', color: '#96bc4b', glyph: '✦', icon: CLASSIFICATION_ICONS.excellent },
 		good: { name: 'Good', word: 'a good move', color: '#96af8b', glyph: '✓', icon: CLASSIFICATION_ICONS.good },
 		book: { name: 'Book', word: 'a book move', color: '#a88865', glyph: '◈', icon: CLASSIFICATION_ICONS.book },
+		forced: { name: 'Forced', word: 'a forced move', color: '#7c94a8', glyph: '⇥', icon: CLASSIFICATION_ICONS.forced },
 		inaccuracy: { name: 'Inaccuracy', word: 'an inaccuracy', color: '#f7c045', glyph: '?!', icon: CLASSIFICATION_ICONS.inaccuracy },
 		mistake: { name: 'Mistake', word: 'a mistake', color: '#e58f2a', glyph: '?', icon: CLASSIFICATION_ICONS.mistake },
 		miss: { name: 'Miss', word: 'a miss', color: '#dbac16', glyph: '✕', icon: CLASSIFICATION_ICONS.miss },
@@ -148,6 +149,7 @@ export const DARK_FG_CODES: ClassCode[] = [
 	'excellent',
 	'good',
 	'book',
+	'forced',
 	'inaccuracy'
 ];
 

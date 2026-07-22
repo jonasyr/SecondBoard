@@ -9,6 +9,7 @@ pub(crate) struct InfoLine {
     pub score_cp: Option<i32>,
     pub score_mate: Option<i32>,
     pub wdl: Option<(u32, u32, u32)>,
+    pub multipv: Option<u32>,
     pub pv: Vec<String>,
 }
 
@@ -41,6 +42,10 @@ pub(crate) fn parse_info_line(line: &str) -> Option<InfoLine> {
                     found_score_or_pv = true;
                 }
                 i += 4;
+            }
+            "multipv" if i + 1 < tokens.len() => {
+                info.multipv = tokens[i + 1].parse().ok();
+                i += 2;
             }
             "pv" => {
                 info.pv = tokens[i + 1..].iter().map(|s| s.to_string()).collect();
@@ -88,6 +93,9 @@ pub struct EngineAnalysis {
     pub best_move_uci: String,
     pub pv: Vec<String>,
     pub wdl: Option<(u32, u32, u32)>,
+    pub second_eval_cp: Option<i32>,
+    pub second_is_mate: bool,
+    pub second_wdl: Option<(u32, u32, u32)>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -191,6 +199,7 @@ pub fn analyze_position(
     write_line(&mut stdin, &format!("setoption name Threads value {threads}"))?;
     write_line(&mut stdin, "setoption name Hash value 256")?;
     write_line(&mut stdin, "setoption name UCI_ShowWDL value true")?;
+    write_line(&mut stdin, "setoption name MultiPV value 2")?;
 
     write_line(&mut stdin, "isready")?;
     wait_for(&mut reader, "readyok")?;
@@ -203,7 +212,7 @@ pub fn analyze_position(
     };
     write_line(&mut stdin, &go_cmd)?;
 
-    let mut last_info: Option<InfoLine> = None;
+    let mut last_info_by_pv: std::collections::HashMap<u32, InfoLine> = std::collections::HashMap::new();
     let mut line = String::new();
     loop {
         line.clear();
@@ -216,19 +225,31 @@ pub fn analyze_position(
         let trimmed = line.trim_end();
         if let Some(info) = parse_info_line(trimmed) {
             if info.score_cp.is_some() || info.score_mate.is_some() {
-                last_info = Some(info);
+                // Engines that don't emit `multipv` at all (or omit it on PV 1)
+                // describe PV line 1 by convention.
+                let pv_index = info.multipv.unwrap_or(1);
+                last_info_by_pv.insert(pv_index, info);
             }
         } else if let Some(best) = parse_bestmove_line(trimmed) {
             let _ = write_line(&mut stdin, "quit");
             let _ = child.wait();
-            let info = last_info.ok_or(EngineError::NoBestMove)?;
-            let (eval_cp, is_mate) = resolve_score(&info)?;
+            let primary = last_info_by_pv.get(&1).ok_or(EngineError::NoBestMove)?;
+            let (eval_cp, is_mate) = resolve_score(primary)?;
+            let second = last_info_by_pv.get(&2);
+            let (second_eval_cp, second_is_mate) = match second.map(resolve_score) {
+                Some(Ok((cp, mate))) => (Some(cp), mate),
+                _ => (None, false),
+            };
+            let second_wdl = second.and_then(|i| i.wdl);
             return Ok(EngineAnalysis {
                 eval_cp,
                 is_mate,
                 best_move_uci: best,
-                pv: info.pv,
-                wdl: info.wdl,
+                pv: primary.pv.clone(),
+                wdl: primary.wdl,
+                second_eval_cp,
+                second_is_mate,
+                second_wdl,
             });
         }
     }
@@ -260,6 +281,20 @@ mod parse_tests {
         let line = "info depth 16 score cp 34 wdl 500 400 100 nodes 500000 pv e2e4";
         let info = parse_info_line(line).unwrap();
         assert_eq!(info.wdl, Some((500, 400, 100)));
+    }
+
+    #[test]
+    fn parses_the_multipv_index() {
+        let line = "info depth 16 multipv 2 score cp -12 pv d2d4 d7d5";
+        let info = parse_info_line(line).unwrap();
+        assert_eq!(info.multipv, Some(2));
+    }
+
+    #[test]
+    fn defaults_multipv_to_none_when_the_engine_omits_the_token() {
+        let line = "info depth 16 score cp 34 pv e2e4";
+        let info = parse_info_line(line).unwrap();
+        assert_eq!(info.multipv, None);
     }
 
     #[test]
@@ -301,6 +336,7 @@ mod parse_tests {
             score_cp: None,
             score_mate: Some(3),
             wdl: None,
+            multipv: None,
             pv: vec![],
         };
         assert_eq!(resolve_score(&info).unwrap(), (100_000, true));
@@ -312,6 +348,7 @@ mod parse_tests {
             score_cp: None,
             score_mate: Some(-2),
             wdl: None,
+            multipv: None,
             pv: vec![],
         };
         assert_eq!(resolve_score(&info).unwrap(), (-100_000, true));
@@ -327,6 +364,7 @@ mod parse_tests {
             score_cp: None,
             score_mate: Some(0),
             wdl: None,
+            multipv: None,
             pv: vec![],
         };
         assert_eq!(resolve_score(&info).unwrap(), (-100_000, true));
@@ -338,6 +376,7 @@ mod parse_tests {
             score_cp: Some(34),
             score_mate: None,
             wdl: None,
+            multipv: None,
             pv: vec![],
         };
         assert_eq!(resolve_score(&info).unwrap(), (34, false));
@@ -349,6 +388,7 @@ mod parse_tests {
             score_cp: None,
             score_mate: None,
             wdl: None,
+            multipv: None,
             pv: vec![],
         };
         assert!(matches!(resolve_score(&info), Err(EngineError::NoBestMove)));
@@ -420,6 +460,28 @@ mod analyze_tests {
         assert!(
             w < 1000 && d < 1000 && l < 1000,
             "expected a genuine, non-degenerate WDL split from a real engine, got w={w} d={d} l={l}"
+        );
+    }
+
+    #[test]
+    fn reports_a_second_pv_line_from_the_starting_position() {
+        if !stockfish_available() {
+            eprintln!("skipping MultiPV test: stockfish not found on PATH");
+            return;
+        }
+        let opts = EngineOptions {
+            depth: 10,
+            movetime_ms: Some(1000),
+        };
+        let result = analyze_position(
+            "stockfish",
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1",
+            &opts,
+        )
+        .expect("analysis should succeed against a real engine");
+        assert!(
+            result.second_eval_cp.is_some(),
+            "MultiPV=2 should surface a second PV line's eval for the starting position"
         );
     }
 

@@ -261,7 +261,10 @@ describe('real analysis loading', () => {
 		await Promise.resolve();
 		await Promise.resolve();
 
-		expect(appState.classCodes).toEqual(['best']);
+		// The mock game is a single ply of 'e4' -- real opening-book lookup
+		// (now wired into refreshRealAnalysis) correctly classifies it as
+		// 'book' rather than 'best', since 1.e4 is catalogued opening theory.
+		expect(appState.classCodes).toEqual(['book']);
 	});
 
 	it('populates wdlPerPly from real analysis once it is ready, and resets it to [] on a fresh parse', async () => {

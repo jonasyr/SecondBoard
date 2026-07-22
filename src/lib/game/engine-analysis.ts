@@ -15,6 +15,8 @@ export interface RealAnalysis {
 	evalPerPly: number[];
 	bestMoves: Record<number, Move & { san: string }>;
 	wdlPerPly: (Wdl | null)[];
+	secondEvalPerPly: (number | null)[];
+	secondWdlPerPly: (Wdl | null)[];
 }
 
 /** Number of `analyzeFen` calls (and thus real Stockfish processes) allowed to be
@@ -70,6 +72,14 @@ export async function loadRealAnalysis(positions: Position[]): Promise<RealAnaly
 		r.wdl ? toWhitePovWdl(r.wdl, sideToMoveForPly(ply)) : null
 	);
 
+	const secondEvalPerPly = results.map((r, ply) =>
+		r.secondEvalCp === null ? null : toWhitePovEval(r.secondEvalCp, sideToMoveForPly(ply))
+	);
+
+	const secondWdlPerPly = results.map((r, ply) =>
+		r.secondWdl ? toWhitePovWdl(r.secondWdl, sideToMoveForPly(ply)) : null
+	);
+
 	const bestMoves: Record<number, Move & { san: string }> = {};
 	results.forEach((r, ply) => {
 		if (ply === positions.length - 1 || r.bestMoveUci.length < 4) return;
@@ -78,5 +88,5 @@ export async function loadRealAnalysis(positions: Position[]): Promise<RealAnaly
 		bestMoves[ply + 1] = { from, to, san: moveToSan(positions[ply], { from, to }) };
 	});
 
-	return { evalPerPly, bestMoves, wdlPerPly };
+	return { evalPerPly, bestMoves, wdlPerPly, secondEvalPerPly, secondWdlPerPly };
 }

@@ -34,5 +34,13 @@ src-tauri/target
 # Local debugging artifacts (WebKit inspector exports, etc.)
 /logs
 
+# codebase-memory-mcp local index cache
+/.codebase-memory
+
+# Local chess.com calibration captures (contain live auth tokens - never commit)
+/docs/calibration/
+
+# subagent-driven-development scratch ledger/briefs/reports
+/.superpowers/
 # Claude Code auto-memory
 .claude/auto-memory/dirty-files*

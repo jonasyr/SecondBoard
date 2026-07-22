@@ -23,6 +23,7 @@ export interface GameData {
 	sanList: string[];
 	positions: Position[];
 	moveMeta: Move[];
+	legalMoveCounts: number[];
 	isSample: boolean;
 	whiteName: string | null;
 	blackName: string | null;

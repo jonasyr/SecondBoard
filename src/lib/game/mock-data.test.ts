@@ -5,7 +5,6 @@ import {
 	BEST_MOVES,
 	COACH_TEXT_MAP,
 	BREAKDOWN_ROWS,
-	PHASE_ROWS,
 	PLAYERS
 } from './mock-data';
 
@@ -21,9 +20,8 @@ describe('mock-data', () => {
 		}
 	});
 
-	it('has 10 breakdown rows and 3 phase rows', () => {
+	it('has 10 breakdown rows', () => {
 		expect(BREAKDOWN_ROWS).toHaveLength(10);
-		expect(PHASE_ROWS).toHaveLength(3);
 	});
 
 	it('defines both players with a gameRating', () => {
