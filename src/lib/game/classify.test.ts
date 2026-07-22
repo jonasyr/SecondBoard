@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyMoveByEpLoss, classifyGame } from './classify';
+import { classifyMoveByEpLoss, classifyGame, DEFAULT_CLASSIFIER_CONFIG } from './classify';
 import type { Move, Position } from '$lib/board/types';
 
 describe('classifyMoveByEpLoss', () => {
@@ -413,5 +413,35 @@ describe('classifySpecial forced override', () => {
 	it('omitting legalMoveCounts reproduces existing behavior exactly', () => {
 		const codes = classifyGame([0, 1, 0.5]);
 		expect(codes).toEqual(['best', 'best']);
+	});
+});
+
+describe('classifyGame with an explicit ClassifierConfig', () => {
+	it('omitting config reproduces the default-constant behavior exactly', () => {
+		const withDefault = classifyGame([0, 1, 0.5]);
+		const withExplicitDefault = classifyGame([0, 1, 0.5], undefined, undefined, DEFAULT_CLASSIFIER_CONFIG);
+		expect(withExplicitDefault).toEqual(withDefault);
+	});
+
+	it('a stricter missWinAfter threshold changes what counts as a Miss', () => {
+		// Mover's win% drops from 80 to 60 -- with the default missWinAfter (55)
+		// this is NOT a miss (60 is not < 55); tightening the threshold to 65
+		// makes the same drop qualify.
+		const evalPerPly = [0, 0];
+		const wdlPerPly: (import('./accuracy').Wdl | null)[] = [
+			[800, 200, 0], // mover win% (800 + 0.5*200)/10 = 90 before -- comfortably above missWinBefore (80)
+			[500, 200, 300] // mover win% (500 + 0.5*200)/10 = 60 after (arbitrary split preserving sum=1000)
+		];
+		const positions: Position[] = [{}, {}];
+		const moveMeta: Move[] = [{ from: 'a2', to: 'a4' }];
+
+		const defaultCodes = classifyGame(evalPerPly, wdlPerPly, { positions, moveMeta, bestMoves: {} });
+		expect(defaultCodes[0]).not.toBe('miss');
+
+		const strictCodes = classifyGame(evalPerPly, wdlPerPly, { positions, moveMeta, bestMoves: {} }, {
+			...DEFAULT_CLASSIFIER_CONFIG,
+			missWinAfter: 65
+		});
+		expect(strictCodes[0]).toBe('miss');
 	});
 });

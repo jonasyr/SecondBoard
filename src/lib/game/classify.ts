@@ -44,14 +44,27 @@ import { hasPositiveExchangeTarget, staticExchangeGain } from './attacks';
  * a small number of Brilliant/Great false positives from generically
  * "strong" moves in a won position that this SEE-only heuristic cannot
  * distinguish from a genuine only-good-try sacrifice). */
-const BRILLIANT_MIN_WIN = 50;
-const BRILLIANT_NOT_WINNING = 80;
-const BRILLIANT_MIN_SACRIFICE_VALUE = 3;
-const BRILLIANT_CAUSAL_GAP = 25;
-const GREAT_ONLY_MOVE_GAP = 15;
-const GREAT_NOT_ALREADY_DECIDED = 99;
-const MISS_WIN_BEFORE = 80;
-const MISS_WIN_AFTER = 55;
+export interface ClassifierConfig {
+	brilliantMinWin: number;
+	brilliantNotWinning: number;
+	brilliantMinSacrificeValue: number;
+	brilliantCausalGap: number;
+	greatOnlyMoveGap: number;
+	greatNotAlreadyDecided: number;
+	missWinBefore: number;
+	missWinAfter: number;
+}
+
+export const DEFAULT_CLASSIFIER_CONFIG: ClassifierConfig = {
+	brilliantMinWin: 50,
+	brilliantNotWinning: 80,
+	brilliantMinSacrificeValue: 3,
+	brilliantCausalGap: 25,
+	greatOnlyMoveGap: 15,
+	greatNotAlreadyDecided: 99,
+	missWinBefore: 80,
+	missWinAfter: 55
+};
 
 /**
  * Optional real-game inputs that unlock the Brilliant/Great/Miss special
@@ -125,7 +138,8 @@ export function classifyMoveByEpLoss(epLossPoints: number): ClassCode {
 export function classifyGame(
 	evalPerPly: number[],
 	wdlPerPly?: (Wdl | null)[],
-	special?: SpecialClassInputs
+	special?: SpecialClassInputs,
+	config: ClassifierConfig = DEFAULT_CLASSIFIER_CONFIG
 ): ClassCode[] {
 	if (evalPerPly.length < 2) return [];
 
@@ -150,7 +164,8 @@ export function classifyGame(
 				beforeCpPov,
 				afterCpPov,
 				epLoss,
-				special
+				special,
+				config
 			) ?? classifyMoveByEpLoss(epLoss)
 		);
 	}
@@ -169,7 +184,8 @@ function classifySpecial(
 	beforeCpPov: number,
 	afterCpPov: number,
 	epLoss: number,
-	special?: SpecialClassInputs
+	special: SpecialClassInputs | undefined,
+	config: ClassifierConfig
 ): ClassCode | null {
 	if (!special) return null;
 
@@ -206,10 +222,15 @@ function classifySpecial(
 	const cpGap = secondMoverPov === null ? null : beforeCpPov - secondMoverPov;
 
 	const qualifyingAfterTarget = Boolean(
-		afterPosition && hasPositiveExchangeTarget(afterPosition, mover, BRILLIANT_MIN_SACRIFICE_VALUE)
+		afterPosition && hasPositiveExchangeTarget(afterPosition, mover, config.brilliantMinSacrificeValue)
 	);
 
-	if (nearBest && qualifyingAfterTarget && afterCpPov >= BRILLIANT_MIN_WIN && beforeCpPov < BRILLIANT_NOT_WINNING) {
+	if (
+		nearBest &&
+		qualifyingAfterTarget &&
+		afterCpPov >= config.brilliantMinWin &&
+		beforeCpPov < config.brilliantNotWinning
+	) {
 		const movedGainBefore =
 			playedMove && beforePosition ? staticExchangeGain(beforePosition, playedMove.from, opponent) : 0;
 		const movedGainAfter =
@@ -220,8 +241,8 @@ function classifySpecial(
 		// 1999 reference game: 22...Nbxd5 and 27.b4+ both showed a small positive
 		// delta without being real sacrifices, see docs/references/calibration-log.md).
 		const sacrificeIsCausal =
-			movedGainAfter - movedGainBefore >= BRILLIANT_MIN_SACRIFICE_VALUE ||
-			(playedIsBest && cpGap !== null && cpGap >= BRILLIANT_CAUSAL_GAP);
+			movedGainAfter - movedGainBefore >= config.brilliantMinSacrificeValue ||
+			(playedIsBest && cpGap !== null && cpGap >= config.brilliantCausalGap);
 
 		if (sacrificeIsCausal) return 'brilliant';
 	}
@@ -232,14 +253,14 @@ function classifySpecial(
 	if (
 		playedIsBest &&
 		!qualifyingAfterTarget &&
-		beforeCpPov < GREAT_NOT_ALREADY_DECIDED &&
+		beforeCpPov < config.greatNotAlreadyDecided &&
 		cpGap !== null &&
-		cpGap >= GREAT_ONLY_MOVE_GAP
+		cpGap >= config.greatOnlyMoveGap
 	) {
 		return 'great';
 	}
 
-	if (beforeWdlPov >= MISS_WIN_BEFORE && afterWdlPov < MISS_WIN_AFTER) return 'miss';
+	if (beforeWdlPov >= config.missWinBefore && afterWdlPov < config.missWinAfter) return 'miss';
 
 	return null;
 }
