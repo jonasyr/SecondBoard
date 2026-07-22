@@ -5,6 +5,7 @@ import { EVAL_PER_PLY, BEST_MOVES } from '$lib/game/mock-data';
 import { loadRealAnalysis } from '$lib/game/engine-analysis';
 import { parsePgn } from '$lib/api/pgn';
 import { classifyGame } from '$lib/game/classify';
+import { findBookDepth } from '$lib/game/book';
 import { SAMPLE_PGN } from '$lib/game/sample-pgn';
 import type { GameData } from '$lib/game/review';
 
@@ -131,7 +132,8 @@ async function refreshRealAnalysis(): Promise<void> {
 			moveMeta: appState.game!.moveMeta,
 			bestMoves,
 			secondEvalPerPly,
-			secondWdlPerPly
+			secondWdlPerPly,
+			bookPlyDepth: findBookDepth(appState.game!.sanList)
 		});
 		appState.analysisStatus = 'ready';
 	} catch {
