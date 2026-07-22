@@ -16,6 +16,7 @@ pub struct ParsedGame {
     pub san_list: Vec<String>,
     pub positions: Vec<HashMap<String, (String, String)>>,
     pub moves: Vec<MoveDto>,
+    pub legal_move_counts: Vec<u32>,
     pub white_name: Option<String>,
     pub black_name: Option<String>,
     pub white_rating: Option<String>,
@@ -104,6 +105,7 @@ struct GameVisitor {
     san_list: Vec<String>,
     positions: Vec<HashMap<String, (String, String)>>,
     moves: Vec<MoveDto>,
+    legal_move_counts: Vec<u32>,
     error: Option<String>,
     white_name: Option<String>,
     black_name: Option<String>,
@@ -120,6 +122,7 @@ impl GameVisitor {
             pos,
             san_list: Vec::new(),
             moves: Vec::new(),
+            legal_move_counts: Vec::new(),
             error: None,
             white_name: None,
             black_name: None,
@@ -161,6 +164,7 @@ impl Visitor for GameVisitor {
         };
         self.san_list.push(san_plus.to_string());
         self.moves.push(move_dto(&m));
+        self.legal_move_counts.push(self.pos.legal_moves().len() as u32);
         // The installed shakmaty version (0.28.0) takes `play_unchecked` by
         // value, not by reference — verified against the compiler.
         self.pos.play_unchecked(m);
@@ -175,6 +179,7 @@ impl Visitor for GameVisitor {
             san_list: std::mem::take(&mut self.san_list),
             positions: std::mem::take(&mut self.positions),
             moves: std::mem::take(&mut self.moves),
+            legal_move_counts: std::mem::take(&mut self.legal_move_counts),
             white_name: self.white_name.take(),
             black_name: self.black_name.take(),
             white_rating: self.white_rating.take(),
@@ -356,5 +361,25 @@ mod tests {
         let pgn = "1. e4 e5 2. Ke2 Ke7 3. Kf3 Kd8";
         let result = parse_pgn(pgn);
         assert!(result.is_err(), "an illegal move should produce an error, not a panic");
+    }
+
+    #[test]
+    fn shakmaty_reports_exactly_one_legal_move_in_a_boxed_king_check() {
+        // Black king on h8, boxed by its own intact g7/h7 pawns, in check
+        // from a White knight on f7 (a knight check cannot be blocked, and no
+        // black piece can capture the knight) -- exactly one legal reply
+        // exists: Kg8. Hand-verified: knight-f7's attack set is
+        // {d6,d8,e5,g5,h6,h8}, which does NOT include g8, so g8 is a safe,
+        // empty flight square.
+        let fen: shakmaty::fen::Fen = "7k/5Npp/8/8/8/8/8/K7 b - - 0 1".parse().unwrap();
+        let pos: Chess = fen.into_position(shakmaty::CastlingMode::Standard).unwrap();
+        assert_eq!(pos.legal_moves().len(), 1);
+    }
+
+    #[test]
+    fn legal_move_counts_has_one_entry_per_move_and_never_reports_zero() {
+        let game = parse_pgn(SAMPLE_PGN).expect("sample PGN should parse");
+        assert_eq!(game.legal_move_counts.len(), game.moves.len());
+        assert!(game.legal_move_counts.iter().all(|&count| count > 0));
     }
 }
