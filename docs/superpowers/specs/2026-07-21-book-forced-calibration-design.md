@@ -148,31 +148,97 @@ override once this is true.
 
 ### Capture
 
-A `claude-in-chrome`-driven capture step: given a chess.com Game Review URL,
-open it in the user's existing (already-authenticated) Chrome session and
-capture the network response(s) carrying chess.com's real per-move
-classifications (and accuracy / phase ratings, if present in the same
-payload).
+**Reconnaissance complete (confirmed via a real user-captured HAR,
+`docs/calibration/chess-review.har`, 85.3M, game id `170011037438`).**
+chess.com's Game Review does **not** deliver classifications over any REST
+`callback/analysis/...` endpoint — those return `data: null` plus a bare
+auth token. The real data flows over a **WebSocket**:
+`wss://analysis.chess.com/v1/legacy/game-analysis`. Chrome DevTools' HAR
+export captures WS frames under the non-standard `_webSocketMessages` array
+on the entry whose `request.url` is the `wss://` URL. The client sends one
+`{"action":"gameAnalysis","game":{"pgn": "..."}}` frame; the server streams
+`{"action":"progress","progress":<0..1>,"engineType":"torch-human",...}`
+frames, then one large terminal frame `{"action":"analyzeGame","data":{...}}`
+(680KB in the captured game), then `{"action":"done"}`.
 
-**The exact response shape is not yet known** — chess.com's Game Review
-frontend has not been reverse-engineered by this project. The first task of
-this phase is a reconnaissance pass: capture one real game's full network
-traffic, identify which response actually carries the classification array,
-and document its shape before generalizing the capture step. This mirrors
-the discipline already used for the lichess `Divider`/`AccuracyPercent`
-research this session — verify the real shape before building against it.
+**Confirmed real response schema** (`data` object of the `analyzeGame`
+frame — field names verified directly from the capture, not invented):
 
-Once the shape is known, each captured game is written as a fixture:
+- `data.analysisEngine`: `"torch-human"` — chess.com's Game Review runs a
+  neural, human-like model, not a classical deep Stockfish search. This is
+  a useful fact for interpreting calibration results: our own eval-based
+  thresholds are being tuned against a differently-sourced ground truth,
+  which is exactly why the diff/sweep approach (rather than assuming shared
+  eval semantics) is the right one.
+- `data.book`: `{ code: string, name: string, depth: number, moves: string
+  (opaque/encoded — not usable as plain SAN), score: number, url: string }`
+  — e.g. `{code: "D02", name: "London System", depth: 30, score: 0.15}`.
+- `data.bookPly` / `data.ecoPly`: integer, the real book-cutoff ply (e.g.
+  `5`) — direct ground truth for Phase 1's `findBookDepth`.
+- `data.tallies.{white,black}`: per-color, per-class integer counts, e.g.
+  `{best, blunder, book, brilliant, excellent, forced, good, greatFind,
+  inaccuracy, miss, mistake, tricky, ...GP0/GP1/GP2 phase-split variants}`.
+  This is chess.com's own aggregate ground truth — the diff engine can
+  compare against these directly without recomputing counts from
+  `positions[]`.
+- `data.positions[]`: one entry per ply, **index 0 is the starting
+  position** (no move played yet, `classificationName: null`); index *i*
+  (i ≥ 1) describes the move played to reach that position. Confirmed
+  fields actually present per entry:
+  - `classificationName: string | null` — chess.com's real per-move label.
+    **Confirmed label set from this capture**: `book`, `forced`, `best`,
+    `excellent`, `good`, `inaccuracy`, `mistake`, `miss`, `blunder`,
+    `greatFind` (note: **`"greatFind"`, not `"great"`** — the diff engine
+    must map this to our `ClassCode`'s `'great'`). `brilliant` is a valid
+    label (present in `tallies`, just `0` in this particular game — not yet
+    directly observed on a `positions[]` entry).
+  - `color: 'white' | 'black' | null`
+  - `playedMove.moveLan: string` — the move actually played, in LAN
+    (e.g. `"d2d4"`), for aligning against our own `moves`/`san_list`.
+  - `bestMove.moveLan`, `bestMove.eval.cp`, `bestMove.eval.pv` — engine's
+    preferred move/eval/PV at that position.
+  - `difference: number` — the move's eval loss (exact sign/units TBD by
+    the diff-engine implementer; cross-check numerically against a few
+    known-blunder plies when wiring this up).
+  - `caps2: number | null` — chess.com's per-move accuracy contribution.
+  - `scenarios: { book: boolean, isKeyMoment?: boolean }`.
+
+Given this, the capture step doesn't need `claude-in-chrome` DOM scraping at
+all — it needs a network capture (HAR, via the user's authenticated browser
+session) covering the WebSocket's full frame sequence for a given game URL,
+then a parser that finds the `analysis.chess.com` WS entry, reads
+`_webSocketMessages`, and JSON-parses the final `analyzeGame` frame's
+`data` field. This is a plain data-processing script, not a browser
+automation step — no DOM interaction is required once the network capture
+exists.
+
+Each captured game is written as a fixture, using the real field names
+above (fields beyond what a given fixture-writer needs, like `arc`,
+`gameSummary`, `reportCard`, `themes`, are intentionally omitted — they're
+present in the raw capture but out of scope for classification calibration):
 
 ```
 docs/references/calibration-games/<slug>.json
 {
   "url": string,
-  "capturedAt": string,        // ISO date
+  "gameId": string,
+  "capturedAt": string,           // ISO date
   "pgn": string,
-  "chesscomClassifications": { "white": ClassCode[], "black": ClassCode[] },
-  "chesscomAccuracy": { "white": number, "black": number },
-  "chesscomPhaseRatings"?: { ... }  // shape TBD by the reconnaissance task
+  "analysisEngine": string,       // e.g. "torch-human", informational
+  "book": { "code": string, "name": string, "depth": number, "score": number },
+  "bookPly": number,
+  "tallies": {
+    "white": Record<string, number>,
+    "black": Record<string, number>
+  },
+  "positions": Array<{
+    "ply": number,                // 0 = start position, no classification
+    "color": "white" | "black" | null,
+    "classificationName": string | null,   // raw chess.com label, incl. "greatFind"
+    "playedMoveLan": string | null,
+    "difference": number | null,
+    "caps2": number | null
+  }>
 }
 ```
 
@@ -180,11 +246,15 @@ docs/references/calibration-games/<slug>.json
 
 A script (`scripts/calibrate.ts` or similar) reads every fixture under
 `docs/references/calibration-games/`, runs our own `classifyGame` over each
-game's PGN, and aligns move-by-move against `chesscomClassifications`. It
-produces:
+game's PGN, and aligns move-by-move (by `ply`, cross-checked against
+`playedMoveLan`) against each fixture's `positions[].classificationName`,
+mapping chess.com's raw label to our `ClassCode` (`"greatFind"` → `'great'`,
+all others 1:1). It produces:
 
 - A per-class confusion matrix aggregated across all captured games (rows =
-  our class, columns = chess.com's class, cell = count).
+  our class, columns = chess.com's class, cell = count). `tallies` gives a
+  cheap aggregate cross-check that the per-ply walk reproduces chess.com's
+  own reported counts.
 - A flat list of every individual mismatched ply (game, move number, SAN,
   our class, chess.com's class) for manual inspection of any specific
   disagreement.
