@@ -46,6 +46,7 @@ export const COACH_TEXT_MAP: Record<ClassCode, string> = {
 	excellent: 'Nearly perfect — it keeps your advantage fully intact.',
 	good: 'A solid, healthy move that maintains the balance.',
 	book: 'Still following well-known opening theory.',
+	forced: 'There was only one legal move in this position.',
 	inaccuracy: 'A small slip — there was a more accurate continuation here.',
 	mistake: 'This lets your opponent back into the game.',
 	miss: 'You overlooked a much stronger tactic in this position.',

@@ -5,7 +5,7 @@ describe('getBreakdownRows', () => {
 	it('counts classifications by alternating white and black plies', () => {
 		const rows = getBreakdownRows(['best', 'best', 'mistake', 'best']);
 
-		expect(rows).toHaveLength(10);
+		expect(rows).toHaveLength(11);
 		expect(rows.find(([code]) => code === 'best')).toEqual(['best', 1, 2]);
 		expect(rows.find(([code]) => code === 'mistake')).toEqual(['mistake', 1, 0]);
 	});

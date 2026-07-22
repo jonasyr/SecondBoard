@@ -18,6 +18,7 @@ export type ClassCode =
 	| 'excellent'
 	| 'good'
 	| 'book'
+	| 'forced'
 	| 'inaccuracy'
 	| 'mistake'
 	| 'miss'

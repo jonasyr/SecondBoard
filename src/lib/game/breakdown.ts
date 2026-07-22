@@ -9,6 +9,7 @@ const BREAKDOWN_ORDER: ClassCode[] = [
 	'excellent',
 	'good',
 	'book',
+	'forced',
 	'inaccuracy',
 	'mistake',
 	'miss',
