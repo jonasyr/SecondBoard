@@ -1,0 +1,13 @@
+services:
+  calibration-ingest:
+    build: .
+    ports:
+      - '8787:8787'
+    environment:
+      - INGEST_SHARED_TOKEN=${INGEST_SHARED_TOKEN}
+    volumes:
+      - calibration-data:/data
+    restart: unless-stopped
+
+volumes:
+  calibration-data:
