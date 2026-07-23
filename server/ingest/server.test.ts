@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { AddressInfo } from 'node:net';
+import { connect, type AddressInfo } from 'node:net';
 import { openDb } from './db.js';
 import { createServer } from './server.js';
 
@@ -96,5 +96,34 @@ describe('createServer', () => {
 		});
 
 		expect(response.status).toBe(500);
+	});
+
+	it('survives a client aborting mid-upload instead of crashing the process', async () => {
+		const { port } = server.address() as AddressInfo;
+
+		await new Promise<void>((resolve) => {
+			const socket = connect(port, '127.0.0.1', () => {
+				socket.write(
+					'POST /ingest HTTP/1.1\r\n' +
+						'Host: 127.0.0.1\r\n' +
+						`x-ingest-token: ${token}\r\n` +
+						'Content-Type: application/json\r\n' +
+						'Content-Length: 1000\r\n' +
+						'\r\n' +
+						'{"gameId":"aborted-upload"' // far short of the declared 1000 bytes
+				);
+				setTimeout(() => {
+					socket.destroy();
+					resolve();
+				}, 50);
+			});
+			socket.on('error', () => {}); // ECONNRESET etc. from the deliberate abort — expected
+		});
+
+		// Give the server's rejection handler a tick to run before asserting it's still alive.
+		await new Promise((resolve) => setTimeout(resolve, 50));
+
+		const response = await fetch(`${baseUrl}/export`, { headers: { 'x-ingest-token': token } });
+		expect(response.status).toBe(200);
 	});
 });

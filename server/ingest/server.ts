@@ -33,61 +33,78 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
 	res.end(json);
 }
 
+async function handleRequest(req: IncomingMessage, res: ServerResponse, config: ServerConfig): Promise<void> {
+	// Browsers preflight cross-origin requests (the extension's background
+	// fetch counts as one) with an OPTIONS request that never carries the
+	// shared-secret header — it must be answered before the auth check.
+	if (req.method === 'OPTIONS') {
+		res.writeHead(204, CORS_HEADERS);
+		res.end();
+		return;
+	}
+
+	if (!isAuthorized(req, config.sharedToken)) {
+		sendJson(res, 401, { error: 'unauthorized' });
+		return;
+	}
+
+	if (req.method === 'POST' && req.url === '/ingest') {
+		const rawBody = await readBody(req);
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(rawBody);
+		} catch {
+			sendJson(res, 400, { error: 'invalid JSON' });
+			return;
+		}
+
+		const validation = validateIngestPayload(parsed);
+		if (!validation.ok) {
+			sendJson(res, 400, { error: validation.error });
+			return;
+		}
+
+		const payload = parsed as GamePayload;
+		const submittedBy = typeof payload.submittedBy === 'string' ? payload.submittedBy : 'unknown';
+		const capturedAt =
+			typeof payload.capturedAt === 'string' ? payload.capturedAt : new Date().toISOString();
+
+		try {
+			upsertGame(config.db, payload, { submittedBy, capturedAt });
+		} catch (error) {
+			sendJson(res, 500, { error: 'failed to store game', detail: (error as Error).message });
+			return;
+		}
+		sendJson(res, 200, { ok: true });
+		return;
+	}
+
+	if (req.method === 'GET' && req.url?.startsWith('/export')) {
+		const url = new URL(req.url, 'http://localhost');
+		const since = url.searchParams.get('since') ?? undefined;
+		const games = getAllGames(config.db, since);
+		sendJson(res, 200, { games });
+		return;
+	}
+
+	sendJson(res, 404, { error: 'not found' });
+}
+
 export function createServer(config: ServerConfig) {
-	return createHttpServer(async (req, res) => {
-		// Browsers preflight cross-origin requests (the extension's background
-		// fetch counts as one) with an OPTIONS request that never carries the
-		// shared-secret header — it must be answered before the auth check.
-		if (req.method === 'OPTIONS') {
-			res.writeHead(204, CORS_HEADERS);
-			res.end();
-			return;
-		}
-
-		if (!isAuthorized(req, config.sharedToken)) {
-			sendJson(res, 401, { error: 'unauthorized' });
-			return;
-		}
-
-		if (req.method === 'POST' && req.url === '/ingest') {
-			const rawBody = await readBody(req);
-			let parsed: unknown;
-			try {
-				parsed = JSON.parse(rawBody);
-			} catch {
-				sendJson(res, 400, { error: 'invalid JSON' });
+	return createHttpServer((req, res) => {
+		// `handleRequest` is async; the http module never awaits or catches
+		// what a request-listener callback returns, so if this async function
+		// isn't invoked defensively, a rejection (e.g. the client aborting the
+		// connection mid-upload, which readBody's Promise turns into a
+		// rejection) becomes an unhandled rejection that crashes the entire
+		// process under Node's default --unhandled-rejections=throw, killing
+		// every other in-flight/queued request along with it.
+		handleRequest(req, res, config).catch((error) => {
+			if (res.headersSent) {
+				res.destroy();
 				return;
 			}
-
-			const validation = validateIngestPayload(parsed);
-			if (!validation.ok) {
-				sendJson(res, 400, { error: validation.error });
-				return;
-			}
-
-			const payload = parsed as GamePayload;
-			const submittedBy = typeof payload.submittedBy === 'string' ? payload.submittedBy : 'unknown';
-			const capturedAt =
-				typeof payload.capturedAt === 'string' ? payload.capturedAt : new Date().toISOString();
-
-			try {
-				upsertGame(config.db, payload, { submittedBy, capturedAt });
-			} catch (error) {
-				sendJson(res, 500, { error: 'failed to store game', detail: (error as Error).message });
-				return;
-			}
-			sendJson(res, 200, { ok: true });
-			return;
-		}
-
-		if (req.method === 'GET' && req.url?.startsWith('/export')) {
-			const url = new URL(req.url, 'http://localhost');
-			const since = url.searchParams.get('since') ?? undefined;
-			const games = getAllGames(config.db, since);
-			sendJson(res, 200, { games });
-			return;
-		}
-
-		sendJson(res, 404, { error: 'not found' });
+			sendJson(res, 500, { error: 'internal error', detail: (error as Error).message });
+		});
 	});
 }
