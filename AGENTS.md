@@ -31,6 +31,15 @@ Package manager: **pnpm**. Run from repo root.
 | `cd src-tauri && cargo test` | Rust unit tests (pgn.rs, engine.rs) |
 | `cd src-tauri && cargo check` | Fast Rust compile check |
 
+`extension/` and `server/ingest/` are independent Node projects with their own `package.json` and
+`vitest.config.ts` — they are not covered by the root `pnpm test`/`pnpm check`/`pnpm lint`:
+
+| Command | Purpose |
+|---|---|
+| `cd extension && pnpm test` | Extension unit tests (parse-analyze-frame, build-envelope, retry-queue) |
+| `cd server/ingest && pnpm test` | Ingest server unit tests (validate, server, db) |
+| `cd server/ingest && pnpm exec tsc --noEmit` | Ingest server type check |
+
 <!-- END AUTO-MANAGED -->
 
 <!-- AUTO-MANAGED: architecture -->
@@ -70,10 +79,37 @@ SecondBoard/
 │   ├── SecondBoard_PROJECT_OVERVIEW.md  # Full product/arch spec (§11 classification, §12 accuracy)
 │   ├── LOGIC.md                  # Pointers to reference JS prototype
 │   └── reference/screens/*.png   # Full-screen mockups per app screen
+├── extension/                    # Chrome extension (Manifest V3): captures chess.com Game
+│   │                             # Review results and forwards them to server/ingest/. Own
+│   │                             # package.json/vitest.config.ts — NOT part of the Tauri app.
+│   └── src/
+│       ├── content-script.js     # document_start; relays raw WS messages + pageUrl
+│       ├── injected-page.js      # web-accessible; hooks page WebSocket to see analyze frames
+│       ├── background.js         # service worker: parse → build envelope → POST to ingest
+│       ├── parse-analyze-frame.js # strips metaData (may hold a live session token) before use
+│       ├── build-envelope.js     # extractGameId(pageUrl) + buildEnvelope(...) → ingest payload
+│       ├── retry-queue.js        # persists failed sends to chrome.storage.local, flushes later
+│       └── options.html/.js      # configure ingest URL, shared token, submittedBy name
+├── server/ingest/                # Standalone Node/TS ingest service for the capture pipeline.
+│   │                             # Own package.json/tsconfig/vitest.config/Dockerfile — separate
+│   │                             # deployable, not part of the pnpm workspace root scripts.
+│   ├── server.ts                 # POST /ingest — token + payload validation, upsertGame, 500 on
+│   │                             # storage failure (never throws unhandled in the async handler)
+│   ├── validate.ts               # payload schema checks, incl. per-position numeric `ply`
+│   ├── db.ts                     # SQLite persistence (data/calibration.sqlite)
+│   └── index.ts                  # entrypoint
 └── .superpowers/sdd/             # SDD task briefs, reports, and diff snapshots
+    # docs/superpowers/{plans,specs}/ also holds dated design docs for larger features
+    # (e.g. the calibration capture pipeline), alongside this task-N-report.md ledger
 ```
 
 **Data flow**: PGN paste → `parse_pgn` (Rust) → `appState.game` (positions + moves) → `loadRealAnalysis()` → `analyze_fen` per position (Rust/Stockfish) → `appState.evalPerPly` + `appState.wdlPerPly` + `appState.bestMoves` → review screen components render.
+
+**Calibration capture pipeline** (separate from the app above): chess.com Game Review WS frame →
+`injected-page.js` → `content-script.js` (adds `pageUrl`) → `background.js` → `parse-analyze-frame.js`
+(strips `metaData`, requires only `positions`) → `build-envelope.js` (`gameId`/`ply` derived, never
+trusted from the frame) → POST `server/ingest/server.ts` → SQLite. Failed sends queue in
+`retry-queue.js` and flush on next success/startup/install.
 
 <!-- END AUTO-MANAGED -->
 
@@ -101,6 +137,12 @@ SecondBoard/
 - **Best-move arrow**: "prospective" (next position's best move) always real; "retrospective" (what was played vs best) still mock, gated by `isSample`.
 - **Static adapter**: `@sveltejs/adapter-static` — the SvelteKit output is a static bundle that Tauri serves. No SSR, no server routes.
 - **Component catalog**: `src/lib/components/README.md` lists all components and their responsibilities.
+- **Never trust the captured frame's own IDs**: in the calibration pipeline, `gameId`/`url`/`ply`
+  are always derived locally (from the page URL / array index) rather than read off the chess.com
+  WS payload, because the real payload doesn't reliably carry them — mirrors the existing
+  `src/lib/calibration/har-extract.ts` convention.
+- **Strip secrets before they leave the browser**: `parse-analyze-frame.js` unconditionally deletes
+  `metaData` (which can carry a live session token) from parsed frames before any further handling.
 
 <!-- END AUTO-MANAGED -->
 
@@ -113,6 +155,17 @@ Recent work (Iteration 9 — WDL-based expected score):
 - Arrow overlay opacity reduced for better visibility (`fix: reduce opacity of arrow overlay`).
 - Chess.com classification icons adopted (`feat: use chesscom classification icons`).
 - Real classification counts now shown in the breakdown (`feat: show real classification counts`).
+
+New sibling feature — calibration capture pipeline (`extension/` + `server/ingest/`):
+- Chrome extension captures chess.com Game Review WS frames and forwards them to a personal
+  ingest server; built via design spec + plan under `docs/superpowers/{specs,plans}/`, then an
+  SDD task sequence (`task-1..9-report.md`) and a `final-review-fix-report.md`.
+- Post-review hardening fixed 4 whole-branch-review findings in one commit: the extension
+  originally required fields (`gameId`, per-position `ply`) that don't exist in the real payload
+  and so captured nothing; `gameId`/`ply` are now derived locally instead of trusted from the
+  frame; `metaData` (live session token) is stripped before transmission; the retry queue now
+  flushes after every successful new send, not just on browser restart; `POST /ingest` no longer
+  crashes/hangs on a payload that violates the SQLite `positions` primary key.
 
 Key architectural decisions visible in history:
 - Rust PGN/engine replaced earlier JS mock (`mock-engine.ts` deleted; `LOGIC.md` says it must not ship).
