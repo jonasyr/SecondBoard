@@ -97,10 +97,13 @@ SecondBoard/
 │   │                             # Own package.json/tsconfig/vitest.config/Dockerfile — separate
 │   │                             # deployable, not part of the pnpm workspace root scripts.
 │   ├── server.ts                 # POST /ingest — token + payload validation, upsertGame, 500 on
-│   │                             # storage failure (never throws unhandled in the async handler);
-│   │                             # answers CORS preflight (OPTIONS) before the auth check and sends
-│   │                             # Access-Control-Allow-Origin: * on every response, so the
-│   │                             # extension's cross-origin background fetch isn't blocked
+│   │                             # storage failure; answers CORS preflight (OPTIONS) before the
+│   │                             # auth check and sends Access-Control-Allow-Origin: * on every
+│   │                             # response, so the extension's cross-origin background fetch
+│   │                             # isn't blocked; createServer wraps the async handleRequest(...)
+│   │                             # in an explicit .catch() so a rejection (e.g. client aborting
+│   │                             # mid-upload) can't become an unhandled rejection that crashes
+│   │                             # the whole process
 │   ├── validate.ts               # payload schema checks, incl. per-position numeric `ply`
 │   ├── db.ts                     # SQLite persistence (data/calibration.sqlite)
 │   └── index.ts                  # entrypoint
@@ -161,6 +164,14 @@ toolbar action badge (pending retry-queue count) on every flush/enqueue and on s
   `server/ingest/server.ts`, `OPTIONS` is answered (204 + CORS headers) *before* `isAuthorized()`
   runs, and `Access-Control-Allow-Origin: *` is sent on every response — acceptable because the
   server is LAN-only and auth is a header-based shared secret, not cookies.
+- **Never let an async request handler's rejection go uncaught**: Node's `http` request-listener
+  callback is not awaited by the runtime, so an `async` listener that rejects (e.g. `readBody()`'s
+  promise rejecting because the client aborted mid-upload) becomes an unhandled rejection and
+  crashes the whole process under Node's default `--unhandled-rejections=throw`, killing every
+  other in-flight/queued request too. `server/ingest/server.ts` keeps the route logic in a
+  separate `async function handleRequest(...)` and wraps the call in `createServer` with
+  `.catch((error) => ...)`, responding 500 (or destroying the socket if headers were already sent)
+  instead of crashing.
 
 <!-- END AUTO-MANAGED -->
 
@@ -192,6 +203,11 @@ New sibling feature — calibration capture pipeline (`extension/` + `server/ing
   the extension's service worker was silently failing every real ingest request because the
   server rejected the browser's preflight `OPTIONS` with 401 (auth ran before any CORS handling).
   `server/ingest/server.ts` now answers `OPTIONS` first and sends CORS headers on all responses.
+- Crash-on-abort fix (`fix(ingest): stop the server crashing when a client aborts mid-upload`):
+  a client disconnecting mid-upload rejected `readBody()`'s promise inside the unhandled
+  `async` request-listener callback, crashing the whole Node process (and every other in-flight
+  request) under the default unhandled-rejection behavior. Route logic moved into a named
+  `handleRequest()` that `createServer` now calls with an explicit `.catch()`.
 
 Key architectural decisions visible in history:
 - Rust PGN/engine replaced earlier JS mock (`mock-engine.ts` deleted; `LOGIC.md` says it must not ship).
