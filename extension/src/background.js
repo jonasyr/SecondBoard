@@ -27,7 +27,8 @@ async function sendEnvelope(config, envelope) {
 		body: JSON.stringify(envelope)
 	});
 	if (!response.ok) {
-		throw new Error(`ingest failed with status ${response.status}`);
+		const detail = await response.text().catch(() => '');
+		throw new Error(`ingest failed with status ${response.status}: ${detail}`);
 	}
 	await chrome.storage.local.set({
 		lastSyncedAt: new Date().toISOString(),
@@ -54,7 +55,8 @@ async function flushQueue() {
 	for (const envelope of queue) {
 		try {
 			await sendEnvelope(config, envelope);
-		} catch {
+		} catch (error) {
+			console.error('SecondBoard calibration: failed to sync queued game', envelope.gameId, error);
 			remaining.push(envelope);
 		}
 	}
@@ -72,7 +74,8 @@ async function captureAndSend(analyzeGameData, pageUrl) {
 	try {
 		await sendEnvelope(config, envelope);
 		await flushQueue();
-	} catch {
+	} catch (error) {
+		console.error('SecondBoard calibration: failed to send captured game', envelope.gameId, error);
 		const queue = await getQueue();
 		await setQueue(enqueue(queue, envelope));
 		await updateBadge();
@@ -89,8 +92,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 	}
 
 	if (message?.type === 'manual-sync') {
+		console.log('SecondBoard calibration: manual sync requested');
 		flushQueue().then(async () => {
 			const queue = await getQueue();
+			console.log('SecondBoard calibration: manual sync finished, pending:', queue.length);
 			sendResponse({ pendingCount: queue.length });
 		});
 		return true; // keep the message channel open for the async sendResponse
