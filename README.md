@@ -111,6 +111,21 @@ pnpm exec tauri dev
 
 ---
 
+## Calibration data collection
+
+Two independent, self-contained sub-projects support collecting more
+chess.com Game Review ground truth for calibration:
+
+- `server/ingest/` — a small Node + SQLite server for receiving captured
+  games on your home LAN. See `server/ingest/README.md`.
+- `extension/` — a Chrome extension that auto-captures Game Review results
+  and sends them to the ingest server. See `extension/README.md`.
+
+Neither shares tooling or dependencies with the main SvelteKit/Tauri app;
+each has its own `package.json` and test suite.
+
+---
+
 ## Testing
 
 ### Frontend (Vitest)
