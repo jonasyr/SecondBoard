@@ -149,6 +149,9 @@ toolbar action badge (pending retry-queue count) on every flush/enqueue and on s
   `src/lib/calibration/har-extract.ts` convention.
 - **Strip secrets before they leave the browser**: `parse-analyze-frame.js` unconditionally deletes
   `metaData` (which can carry a live session token) from parsed frames before any further handling.
+- **Extension scripts using ES `import` need `type="module"`**: `popup.html`'s `<script>` tag must
+  declare `type="module"` — a classic script tag silently fails to resolve `popup.js`'s
+  `import { formatRelativeTime } from './format-relative-time.js'`.
 
 <!-- END AUTO-MANAGED -->
 
