@@ -19,9 +19,11 @@ export function extractGameId(pageUrl) {
  * @param {object} analyzeGameData
  * @param {string} pageUrl
  * @param {{ submittedBy: string }} config
+ * @param {string | null} [pgn] the PGN captured from the preceding outgoing
+ *   `gameAnalysis` request frame (see parse-analyze-frame.js), if any
  * @returns {object}
  */
-export function buildEnvelope(analyzeGameData, pageUrl, config) {
+export function buildEnvelope(analyzeGameData, pageUrl, config, pgn = null) {
 	const positions = (analyzeGameData.positions ?? []).map((position, ply) => ({
 		...position,
 		ply
@@ -33,6 +35,7 @@ export function buildEnvelope(analyzeGameData, pageUrl, config) {
 		gameId: extractGameId(pageUrl),
 		url: pageUrl,
 		submittedBy: config.submittedBy,
-		capturedAt: new Date().toISOString()
+		capturedAt: new Date().toISOString(),
+		pgn
 	};
 }

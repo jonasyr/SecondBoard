@@ -35,3 +35,27 @@ export function parseAnalyzeGameMessage(rawMessageData) {
 	delete safeData.metaData;
 	return safeData;
 }
+
+/**
+ * Parses the client's OUTGOING `gameAnalysis` request frame (the one that
+ * kicks off analysis) and returns its `pgn`, or null if this isn't that
+ * frame. The `analyzeGame` response frame this pairs with doesn't carry the
+ * PGN itself, so it must be captured separately from the request.
+ * @param {string} rawMessageData
+ * @returns {string | null}
+ */
+export function parseGameAnalysisRequest(rawMessageData) {
+	let parsed;
+	try {
+		parsed = JSON.parse(rawMessageData);
+	} catch {
+		return null;
+	}
+
+	if (typeof parsed !== 'object' || parsed === null || parsed.action !== 'gameAnalysis') {
+		return null;
+	}
+
+	const pgn = parsed.game?.pgn;
+	return typeof pgn === 'string' ? pgn : null;
+}

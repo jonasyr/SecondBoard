@@ -8,10 +8,23 @@
 		if (typeof url === 'string' && url.includes('analysis.chess.com')) {
 			socket.addEventListener('message', (event) => {
 				window.postMessage(
-					{ source: 'secondboard-calibration-capture', rawMessageData: event.data },
+					{
+						source: 'secondboard-calibration-capture',
+						direction: 'receive',
+						rawMessageData: event.data
+					},
 					'*'
 				);
 			});
+
+			const originalSend = socket.send.bind(socket);
+			socket.send = (data) => {
+				window.postMessage(
+					{ source: 'secondboard-calibration-capture', direction: 'send', rawMessageData: data },
+					'*'
+				);
+				return originalSend(data);
+			};
 		}
 
 		return socket;

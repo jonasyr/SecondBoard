@@ -1,6 +1,12 @@
-import { parseAnalyzeGameMessage } from './parse-analyze-frame.js';
+import { parseAnalyzeGameMessage, parseGameAnalysisRequest } from './parse-analyze-frame.js';
 import { buildEnvelope } from './build-envelope.js';
 import { enqueue } from './retry-queue.js';
+
+// The `analyzeGame` response frame doesn't carry the PGN itself; it arrives
+// separately in the client's preceding outgoing `gameAnalysis` request, so it
+// has to be stashed here and picked up when the response for the same game
+// comes in.
+let lastSeenPgn = null;
 
 async function getConfig() {
 	const stored = await chrome.storage.local.get(['ingestUrl', 'sharedToken', 'submittedBy']);
@@ -68,7 +74,7 @@ async function captureAndSend(analyzeGameData, pageUrl) {
 	const config = await getConfig();
 	if (!config.ingestUrl) return;
 
-	const envelope = buildEnvelope(analyzeGameData, pageUrl, config);
+	const envelope = buildEnvelope(analyzeGameData, pageUrl, config, lastSeenPgn);
 	if (!envelope.gameId) return;
 
 	try {
@@ -84,6 +90,12 @@ async function captureAndSend(analyzeGameData, pageUrl) {
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 	if (message?.type === 'raw-ws-message') {
+		if (message.direction === 'send') {
+			const pgn = parseGameAnalysisRequest(message.rawMessageData);
+			if (pgn) lastSeenPgn = pgn;
+			return;
+		}
+
 		const analyzeGameData = parseAnalyzeGameMessage(message.rawMessageData);
 		if (analyzeGameData) {
 			captureAndSend(analyzeGameData, message.pageUrl);

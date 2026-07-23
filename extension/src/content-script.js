@@ -10,6 +10,7 @@ window.addEventListener('message', (event) => {
 	if (!event.data || event.data.source !== 'secondboard-calibration-capture') return;
 	chrome.runtime.sendMessage({
 		type: 'raw-ws-message',
+		direction: event.data.direction,
 		rawMessageData: event.data.rawMessageData,
 		pageUrl: window.location.href
 	});

@@ -34,4 +34,14 @@ describe('buildEnvelope', () => {
 		]);
 		expect(typeof envelope.capturedAt).toBe('string');
 	});
+
+	it('attaches the pgn when provided, and null otherwise', () => {
+		const analyzeGameData = { positions: [] };
+		const url = 'https://www.chess.com/game/live/170011037438';
+
+		expect(buildEnvelope(analyzeGameData, url, { submittedBy: 'brother' }, '1. e4 e5').pgn).toBe(
+			'1. e4 e5'
+		);
+		expect(buildEnvelope(analyzeGameData, url, { submittedBy: 'brother' }).pgn).toBeNull();
+	});
 });
