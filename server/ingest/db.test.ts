@@ -92,4 +92,39 @@ describe('db', () => {
 		const games = getAllGames(db, '2026-07-22T00:00:00.000Z');
 		expect(games.map((g) => g.gameId)).toEqual(['new']);
 	});
+
+	it('stores non-scalar fields (booleans, objects) instead of crashing the insert', () => {
+		const db = openDb(dbPath);
+
+		expect(() =>
+			upsertGame(
+				db,
+				{
+					gameId: 'game-1',
+					url: 'https://www.chess.com/game/live/1',
+					positions: [
+						{
+							ply: 1,
+							color: 'white',
+							// real chess.com payloads aren't validated beyond
+							// gameId/url/positions/tallies, so a boolean or
+							// nested object here must not crash the insert.
+							difference: false,
+							caps2: { cp: 20 }
+						}
+					],
+					tallies: { white: {}, black: {} },
+					bookPly: true,
+					CAPS: { white: { all: { value: 64.88 } } }
+				},
+				{ submittedBy: 'brother', capturedAt: '2026-07-23T00:00:00.000Z' }
+			)
+		).not.toThrow();
+
+		const games = getAllGames(db);
+		expect(games).toHaveLength(1);
+
+		const positionRows = db.prepare('SELECT * FROM positions WHERE game_id = ?').all('game-1');
+		expect(positionRows).toHaveLength(1);
+	});
 });

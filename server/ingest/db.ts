@@ -65,6 +65,19 @@ export function openDb(path: string): Database.Database {
 	return db;
 }
 
+// better-sqlite3 can only bind numbers, strings, bigints, buffers, and null.
+// Real chess.com payload fields (e.g. difference, bookPly) aren't validated
+// beyond the few fields validate.ts checks, so a boolean/array/object here
+// would otherwise crash the insert instead of just losing that one field.
+function toBindable(value: unknown): number | string | bigint | Buffer | null {
+	if (value === undefined || value === null) return null;
+	if (typeof value === 'boolean') return value ? 1 : 0;
+	if (typeof value === 'number' || typeof value === 'string' || typeof value === 'bigint' || Buffer.isBuffer(value)) {
+		return value;
+	}
+	return JSON.stringify(value);
+}
+
 export function upsertGame(db: Database.Database, payload: GamePayload, meta: IngestMeta): void {
 	const envelope = { ...payload, submittedBy: meta.submittedBy, capturedAt: meta.capturedAt };
 
@@ -93,17 +106,17 @@ export function upsertGame(db: Database.Database, payload: GamePayload, meta: In
 	`);
 
 	insertGame.run({
-		gameId: payload.gameId,
-		url: payload.url,
-		capturedAt: meta.capturedAt,
-		submittedBy: meta.submittedBy,
-		analysisEngine: payload.analysisEngine ?? null,
-		bookCode: payload.book?.code ?? null,
-		bookPly: payload.bookPly ?? null,
-		capsWhiteAll: payload.CAPS?.white?.all ?? null,
-		capsBlackAll: payload.CAPS?.black?.all ?? null,
-		effectiveEloWhite: payload.reportCard?.white?.effectiveElo ?? null,
-		effectiveEloBlack: payload.reportCard?.black?.effectiveElo ?? null,
+		gameId: toBindable(payload.gameId),
+		url: toBindable(payload.url),
+		capturedAt: toBindable(meta.capturedAt),
+		submittedBy: toBindable(meta.submittedBy),
+		analysisEngine: toBindable(payload.analysisEngine),
+		bookCode: toBindable(payload.book?.code),
+		bookPly: toBindable(payload.bookPly),
+		capsWhiteAll: toBindable(payload.CAPS?.white?.all),
+		capsBlackAll: toBindable(payload.CAPS?.black?.all),
+		effectiveEloWhite: toBindable(payload.reportCard?.white?.effectiveElo),
+		effectiveEloBlack: toBindable(payload.reportCard?.black?.effectiveElo),
 		rawJson: JSON.stringify(envelope)
 	});
 
@@ -121,15 +134,15 @@ export function upsertGame(db: Database.Database, payload: GamePayload, meta: In
 
 	for (const position of payload.positions) {
 		insertPosition.run({
-			gameId: payload.gameId,
-			ply: position.ply,
-			color: position.color ?? null,
-			classificationName: position.classificationName ?? null,
-			playedMoveLan: position.playedMove?.moveLan ?? null,
-			difference: position.difference ?? null,
-			caps2: position.caps2 ?? null,
-			fen: position.fen ?? null,
-			bestMove: position.bestMove ?? null,
+			gameId: toBindable(payload.gameId),
+			ply: toBindable(position.ply),
+			color: toBindable(position.color),
+			classificationName: toBindable(position.classificationName),
+			playedMoveLan: toBindable(position.playedMove?.moveLan),
+			difference: toBindable(position.difference),
+			caps2: toBindable(position.caps2),
+			fen: toBindable(position.fen),
+			bestMove: toBindable(position.bestMove),
 			rawJson: JSON.stringify(position)
 		});
 	}
