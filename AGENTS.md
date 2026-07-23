@@ -108,7 +108,8 @@ SecondBoard/
 │   │                             # mid-upload) can't become an unhandled rejection that crashes
 │   │                             # the whole process
 │   ├── validate.ts               # payload schema checks, incl. per-position numeric `ply`
-│   ├── db.ts                     # SQLite persistence (data/calibration.sqlite)
+│   ├── db.ts                     # SQLite persistence (data/calibration.sqlite); toBindable()
+│   │                             # coerces every field before better-sqlite3 bind
 │   └── index.ts                  # entrypoint
 └── .superpowers/sdd/             # SDD task briefs, reports, and diff snapshots
     # docs/superpowers/{plans,specs}/ also holds dated design docs for larger features
@@ -182,6 +183,13 @@ to keep the channel open).
   `flushQueue`, `captureAndSend` in `background.js`) use `catch (error)` and `console.error` the
   game id + error object rather than a bare `catch {}` — needed to debug sync failures from the
   packed extension, which has no other visible logs.
+- **Coerce non-scalar values before an SQLite bind**: better-sqlite3 only accepts numbers,
+  strings, bigints, buffers, and null as bind params. Real chess.com payload fields (e.g.
+  `difference`, `bookPly`, `CAPS.white.all`) aren't validated beyond the few fields `validate.ts`
+  checks, so a boolean/array/object there would otherwise crash the insert. `server/ingest/db.ts`'s
+  `toBindable()` runs every field through this coercion before `insertGame`/`insertPosition`:
+  booleans become 1/0, arrays/objects are `JSON.stringify`'d, everything else passes through
+  unchanged.
 
 <!-- END AUTO-MANAGED -->
 
@@ -199,6 +207,10 @@ New sibling feature — calibration capture pipeline (`extension/` + `server/ing
 - Chrome extension captures chess.com Game Review WS frames and forwards them to a personal
   ingest server; built via design spec + plan under `docs/superpowers/{specs,plans}/`, then an
   SDD task sequence (`task-1..9-report.md`) and a `final-review-fix-report.md`.
+- SQLite persistence hardening (`fix(ingest): coerce non-scalar payload fields before binding to
+  SQLite`): real chess.com payloads aren't validated beyond a few fields, so unvalidated
+  booleans/objects (e.g. `difference`, `bookPly`) previously crashed the insert; `db.ts` gained
+  `toBindable()` to coerce every field before binding.
 - Post-review hardening fixed 4 whole-branch-review findings in one commit: the extension
   originally required fields (`gameId`, per-position `ply`) that don't exist in the real payload
   and so captured nothing; `gameId`/`ply` are now derived locally instead of trusted from the
