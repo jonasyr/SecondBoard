@@ -21,14 +21,29 @@ function isAuthorized(req: IncomingMessage, sharedToken: string): boolean {
 	return req.headers['x-ingest-token'] === sharedToken;
 }
 
+const CORS_HEADERS = {
+	'Access-Control-Allow-Origin': '*',
+	'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+	'Access-Control-Allow-Headers': 'Content-Type, x-ingest-token'
+};
+
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
 	const json = JSON.stringify(body);
-	res.writeHead(status, { 'Content-Type': 'application/json' });
+	res.writeHead(status, { 'Content-Type': 'application/json', ...CORS_HEADERS });
 	res.end(json);
 }
 
 export function createServer(config: ServerConfig) {
 	return createHttpServer(async (req, res) => {
+		// Browsers preflight cross-origin requests (the extension's background
+		// fetch counts as one) with an OPTIONS request that never carries the
+		// shared-secret header — it must be answered before the auth check.
+		if (req.method === 'OPTIONS') {
+			res.writeHead(204, CORS_HEADERS);
+			res.end();
+			return;
+		}
+
 		if (!isAuthorized(req, config.sharedToken)) {
 			sendJson(res, 401, { error: 'unauthorized' });
 			return;

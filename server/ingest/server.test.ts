@@ -31,6 +31,18 @@ describe('createServer', () => {
 		expect(response.status).toBe(401);
 	});
 
+	it('answers a CORS preflight OPTIONS request without requiring the shared token', async () => {
+		const response = await fetch(`${baseUrl}/ingest`, { method: 'OPTIONS' });
+		expect(response.status).toBe(204);
+		expect(response.headers.get('access-control-allow-origin')).toBe('*');
+		expect(response.headers.get('access-control-allow-headers')).toContain('x-ingest-token');
+	});
+
+	it('includes CORS headers on authenticated responses', async () => {
+		const response = await fetch(`${baseUrl}/export`, { headers: { 'x-ingest-token': token } });
+		expect(response.headers.get('access-control-allow-origin')).toBe('*');
+	});
+
 	it('rejects a malformed /ingest body', async () => {
 		const response = await fetch(`${baseUrl}/ingest`, {
 			method: 'POST',
