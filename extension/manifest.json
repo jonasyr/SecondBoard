@@ -1,0 +1,26 @@
+{
+	"manifest_version": 3,
+	"name": "SecondBoard Calibration Capture",
+	"version": "0.1.0",
+	"description": "Forwards chess.com Game Review analysis data to a personal calibration server.",
+	"permissions": ["storage"],
+	"host_permissions": ["https://www.chess.com/*"],
+	"background": {
+		"service_worker": "src/background.js",
+		"type": "module"
+	},
+	"content_scripts": [
+		{
+			"matches": ["https://www.chess.com/*"],
+			"js": ["src/content-script.js"],
+			"run_at": "document_start"
+		}
+	],
+	"web_accessible_resources": [
+		{
+			"resources": ["src/injected-page.js"],
+			"matches": ["https://www.chess.com/*"]
+		}
+	],
+	"options_page": "src/options.html"
+}

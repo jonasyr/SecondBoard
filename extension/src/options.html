@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>SecondBoard Calibration Capture</title>
+	</head>
+	<body>
+		<h1>SecondBoard Calibration Capture</h1>
+		<form id="config-form">
+			<label>
+				Ingest server URL
+				<input type="text" id="ingestUrl" placeholder="http://192.168.1.50:8787/ingest" />
+			</label>
+			<br />
+			<label>
+				Shared token
+				<input type="text" id="sharedToken" />
+			</label>
+			<br />
+			<label>
+				Submitted by
+				<input type="text" id="submittedBy" placeholder="brother" />
+			</label>
+			<br />
+			<button type="submit">Save</button>
+		</form>
+		<p id="status"></p>
+		<script src="options.js"></script>
+	</body>
+</html>
