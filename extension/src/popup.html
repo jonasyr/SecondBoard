@@ -4,28 +4,146 @@
 		<meta charset="utf-8" />
 		<title>SecondBoard Calibration Capture</title>
 		<style>
+			:root {
+				color-scheme: dark;
+			}
+			* {
+				box-sizing: border-box;
+			}
 			body {
-				font-family: system-ui, sans-serif;
-				width: 240px;
-				padding: 12px;
+				font-family:
+					'Geist',
+					-apple-system,
+					system-ui,
+					sans-serif;
+				width: 268px;
+				margin: 0;
+				padding: 14px;
+				background: #07080c;
+				color: #f3f4f8;
 			}
-			h1 {
-				font-size: 14px;
-				margin: 0 0 8px;
+			.header {
+				display: flex;
+				align-items: center;
+				gap: 10px;
+				margin-bottom: 12px;
 			}
-			p {
+			.header img {
+				width: 32px;
+				height: 32px;
+				border-radius: 9px;
+				flex-shrink: 0;
+			}
+			.header h1 {
 				font-size: 13px;
-				margin: 4px 0;
+				font-weight: 600;
+				margin: 0;
+				color: #f3f4f8;
 			}
-			.pending {
-				color: #c0392b;
+			.header p {
+				font-size: 11px;
+				margin: 1px 0 0;
+				color: #8a90a0;
+			}
+			.card {
+				background: #14161f;
+				border: 1px solid rgba(255, 255, 255, 0.05);
+				border-radius: 12px;
+				padding: 11px 12px;
+				margin-bottom: 10px;
+			}
+			.status-row {
+				display: flex;
+				align-items: center;
+				gap: 8px;
+				font-size: 12.5px;
+				color: #c7ccda;
+			}
+			.dot {
+				width: 8px;
+				height: 8px;
+				border-radius: 50%;
+				flex-shrink: 0;
+				background: #6b7180;
+			}
+			.dot.ok {
+				background: #4adea0;
+				box-shadow: 0 0 6px rgba(74, 222, 160, 0.6);
+			}
+			.dot.pending {
+				background: #f5b14c;
+				box-shadow: 0 0 6px rgba(245, 177, 76, 0.6);
+			}
+			.pending-line {
+				margin: 6px 0 0;
+				font-size: 11.5px;
+				color: #f5b14c;
+			}
+			.hint {
+				margin: 6px 0 0;
+				font-size: 11.5px;
+				color: #8a90a0;
+			}
+			button#sync-now {
+				width: 100%;
+				border: none;
+				border-radius: 10px;
+				padding: 9px 0;
+				font-size: 13px;
+				font-weight: 600;
+				font-family: inherit;
+				cursor: pointer;
+				background: linear-gradient(135deg, #4adea0, #2de0ce);
+				color: #062018;
+				transition: opacity 0.15s;
+			}
+			button#sync-now:disabled {
+				opacity: 0.6;
+				cursor: default;
+			}
+			button#sync-now:hover:not(:disabled) {
+				opacity: 0.92;
+			}
+			.footer {
+				text-align: center;
+				margin-top: 10px;
+			}
+			.footer a {
+				font-size: 11px;
+				color: #6b7180;
+				text-decoration: none;
+				cursor: pointer;
+			}
+			.footer a:hover {
+				color: #9aa0b0;
+				text-decoration: underline;
 			}
 		</style>
 	</head>
 	<body>
-		<h1>SecondBoard Calibration Capture</h1>
-		<p id="last-synced">Last Game Review synced: loading…</p>
-		<p id="pending"></p>
+		<div class="header">
+			<img src="../icons/icon-48.png" alt="" />
+			<div>
+				<h1>SecondBoard</h1>
+				<p>Calibration Capture</p>
+			</div>
+		</div>
+
+		<div class="card">
+			<div class="status-row">
+				<span class="dot" id="status-dot"></span>
+				<span id="last-synced">Loading…</span>
+			</div>
+			<p class="pending-line" id="pending" hidden></p>
+			<p class="hint" id="config-hint" hidden>Set up the ingest server in Options first.</p>
+		</div>
+
+		<button id="sync-now" type="button">Sync now</button>
+
+		<div class="footer">
+			<a id="open-options">Options</a>
+		</div>
+
 		<script type="module" src="popup.js"></script>
 	</body>
 </html>

@@ -79,11 +79,21 @@ async function captureAndSend(analyzeGameData, pageUrl) {
 	}
 }
 
-chrome.runtime.onMessage.addListener((message) => {
-	if (message?.type !== 'raw-ws-message') return;
-	const analyzeGameData = parseAnalyzeGameMessage(message.rawMessageData);
-	if (analyzeGameData) {
-		captureAndSend(analyzeGameData, message.pageUrl);
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+	if (message?.type === 'raw-ws-message') {
+		const analyzeGameData = parseAnalyzeGameMessage(message.rawMessageData);
+		if (analyzeGameData) {
+			captureAndSend(analyzeGameData, message.pageUrl);
+		}
+		return;
+	}
+
+	if (message?.type === 'manual-sync') {
+		flushQueue().then(async () => {
+			const queue = await getQueue();
+			sendResponse({ pendingCount: queue.length });
+		});
+		return true; // keep the message channel open for the async sendResponse
 	}
 });
 
