@@ -85,7 +85,10 @@ SecondBoard/
 │   └── src/
 │       ├── content-script.js     # document_start; relays raw WS messages + pageUrl
 │       ├── injected-page.js      # web-accessible; hooks page WebSocket to see analyze frames
-│       ├── background.js         # service worker: parse → build envelope → POST to ingest
+│       ├── background.js         # service worker: parse → build envelope → POST to ingest;
+│       │                         # also handles 'manual-sync' runtime message (flushQueue +
+│       │                         # async sendResponse with pending count) for the popup's
+│       │                         # "Sync now" button
 │       ├── parse-analyze-frame.js # strips metaData (may hold a live session token) before use
 │       ├── build-envelope.js     # extractGameId(pageUrl) + buildEnvelope(...) → ingest payload
 │       ├── retry-queue.js        # persists failed sends to chrome.storage.local, flushes later
@@ -121,7 +124,10 @@ trusted from the frame) → POST `server/ingest/server.ts` → SQLite. Failed se
 `retry-queue.js` and flush on next success/startup/install. `background.js` also updates the
 toolbar action badge (pending retry-queue count) on every flush/enqueue and on startup/install;
 `popup.html`/`popup.js` (the `action.default_popup`) reads `lastSyncedAt`/`retryQueue` from
-`chrome.storage.local` to show last-synced time (via `format-relative-time.js`) and pending count.
+`chrome.storage.local` to show last-synced time (via `format-relative-time.js`) and pending count,
+and can trigger an immediate `flushQueue()` by sending a `'manual-sync'` runtime message that
+`background.js` answers asynchronously (`sendResponse({ pendingCount })`, listener returns `true`
+to keep the channel open).
 
 <!-- END AUTO-MANAGED -->
 
@@ -172,6 +178,10 @@ toolbar action badge (pending retry-queue count) on every flush/enqueue and on s
   separate `async function handleRequest(...)` and wraps the call in `createServer` with
   `.catch((error) => ...)`, responding 500 (or destroying the socket if headers were already sent)
   instead of crashing.
+- **Never swallow a caught error silently**: extension failure paths (`sendEnvelope`,
+  `flushQueue`, `captureAndSend` in `background.js`) use `catch (error)` and `console.error` the
+  game id + error object rather than a bare `catch {}` — needed to debug sync failures from the
+  packed extension, which has no other visible logs.
 
 <!-- END AUTO-MANAGED -->
 
@@ -208,6 +218,12 @@ New sibling feature — calibration capture pipeline (`extension/` + `server/ing
   `async` request-listener callback, crashing the whole Node process (and every other in-flight
   request) under the default unhandled-rejection behavior. Route logic moved into a named
   `handleRequest()` that `createServer` now calls with an explicit `.catch()`.
+- Sync-failure visibility fix (`fix(extension): log sync failures instead of swallowing them
+  silently`): `background.js`'s bare `catch {}` blocks in `sendEnvelope`/`flushQueue`/
+  `captureAndSend` gave no signal when a real send failed; now `console.error` the game id + error,
+  and `sendEnvelope`'s thrown error includes the ingest response body text. Also added a
+  `'manual-sync'` runtime message so the popup's "Sync now" button can trigger `flushQueue()`
+  on demand and get back the resulting pending count.
 
 Key architectural decisions visible in history:
 - Rust PGN/engine replaced earlier JS mock (`mock-engine.ts` deleted; `LOGIC.md` says it must not ship).
