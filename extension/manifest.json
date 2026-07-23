@@ -22,5 +22,8 @@
 			"matches": ["https://www.chess.com/*"]
 		}
 	],
-	"options_page": "src/options.html"
+	"options_page": "src/options.html",
+	"action": {
+		"default_popup": "src/popup.html"
+	}
 }

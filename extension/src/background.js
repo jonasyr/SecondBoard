@@ -29,6 +29,20 @@ async function sendEnvelope(config, envelope) {
 	if (!response.ok) {
 		throw new Error(`ingest failed with status ${response.status}`);
 	}
+	await chrome.storage.local.set({
+		lastSyncedAt: new Date().toISOString(),
+		lastSyncedGameId: envelope.gameId
+	});
+}
+
+async function updateBadge() {
+	const queue = await getQueue();
+	if (queue.length > 0) {
+		await chrome.action.setBadgeText({ text: String(queue.length) });
+		await chrome.action.setBadgeBackgroundColor({ color: '#c0392b' });
+	} else {
+		await chrome.action.setBadgeText({ text: '' });
+	}
 }
 
 async function flushQueue() {
@@ -45,6 +59,7 @@ async function flushQueue() {
 		}
 	}
 	await setQueue(remaining);
+	await updateBadge();
 }
 
 async function captureAndSend(analyzeGameData, pageUrl) {
@@ -60,6 +75,7 @@ async function captureAndSend(analyzeGameData, pageUrl) {
 	} catch {
 		const queue = await getQueue();
 		await setQueue(enqueue(queue, envelope));
+		await updateBadge();
 	}
 }
 
@@ -73,3 +89,5 @@ chrome.runtime.onMessage.addListener((message) => {
 
 chrome.runtime.onStartup.addListener(flushQueue);
 chrome.runtime.onInstalled.addListener(flushQueue);
+chrome.runtime.onStartup.addListener(updateBadge);
+chrome.runtime.onInstalled.addListener(updateBadge);
