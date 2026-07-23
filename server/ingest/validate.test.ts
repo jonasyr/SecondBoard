@@ -40,4 +40,27 @@ describe('validateIngestPayload', () => {
 		const result = validateIngestPayload({ gameId: 'g1', url: 'u', positions: [] });
 		expect(result).toEqual({ ok: false, error: 'tallies is required and must be an object' });
 	});
+
+	it('rejects positions containing an item without a numeric ply', () => {
+		const result = validateIngestPayload({
+			gameId: 'g1',
+			url: 'u',
+			positions: [{ color: 'white' }],
+			tallies: {}
+		});
+		expect(result).toEqual({
+			ok: false,
+			error: 'each position must be an object with a numeric ply'
+		});
+	});
+
+	it('accepts positions where every item has a numeric ply', () => {
+		const result = validateIngestPayload({
+			gameId: 'g1',
+			url: 'u',
+			positions: [{ ply: 0 }, { ply: 1 }],
+			tallies: {}
+		});
+		expect(result).toEqual({ ok: true });
+	});
 });

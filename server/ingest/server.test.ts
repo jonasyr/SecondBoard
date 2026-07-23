@@ -65,4 +65,24 @@ describe('createServer', () => {
 		expect(body.games).toHaveLength(1);
 		expect(body.games[0].gameId).toBe('game-1');
 	});
+
+	it('returns 500 instead of crashing when storing a payload fails at the database layer', async () => {
+		const payload = {
+			gameId: 'game-2',
+			url: 'https://www.chess.com/game/live/2',
+			positions: [
+				{ ply: 0, color: 'white' },
+				{ ply: 0, color: 'black' }
+			],
+			tallies: {}
+		};
+
+		const response = await fetch(`${baseUrl}/ingest`, {
+			method: 'POST',
+			headers: { 'x-ingest-token': token, 'Content-Type': 'application/json' },
+			body: JSON.stringify(payload)
+		});
+
+		expect(response.status).toBe(500);
+	});
 });

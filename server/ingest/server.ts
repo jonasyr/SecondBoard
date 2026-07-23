@@ -55,7 +55,12 @@ export function createServer(config: ServerConfig) {
 			const capturedAt =
 				typeof payload.capturedAt === 'string' ? payload.capturedAt : new Date().toISOString();
 
-			upsertGame(config.db, payload, { submittedBy, capturedAt });
+			try {
+				upsertGame(config.db, payload, { submittedBy, capturedAt });
+			} catch (error) {
+				sendJson(res, 500, { error: 'failed to store game', detail: (error as Error).message });
+				return;
+			}
 			sendJson(res, 200, { ok: true });
 			return;
 		}

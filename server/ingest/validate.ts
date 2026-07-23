@@ -19,6 +19,15 @@ export function validateIngestPayload(body: unknown): ValidationResult {
 	if (!Array.isArray(payload.positions)) {
 		return { ok: false, error: 'positions is required and must be an array' };
 	}
+	for (const position of payload.positions) {
+		if (
+			typeof position !== 'object' ||
+			position === null ||
+			typeof (position as Record<string, unknown>).ply !== 'number'
+		) {
+			return { ok: false, error: 'each position must be an object with a numeric ply' };
+		}
+	}
 	if (typeof payload.tallies !== 'object' || payload.tallies === null) {
 		return { ok: false, error: 'tallies is required and must be an object' };
 	}

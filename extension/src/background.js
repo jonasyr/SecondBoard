@@ -1,4 +1,5 @@
 import { parseAnalyzeGameMessage } from './parse-analyze-frame.js';
+import { buildEnvelope } from './build-envelope.js';
 import { enqueue } from './retry-queue.js';
 
 async function getConfig() {
@@ -46,18 +47,16 @@ async function flushQueue() {
 	await setQueue(remaining);
 }
 
-async function captureAndSend(analyzeGameData) {
+async function captureAndSend(analyzeGameData, pageUrl) {
 	const config = await getConfig();
 	if (!config.ingestUrl) return;
 
-	const envelope = {
-		...analyzeGameData,
-		submittedBy: config.submittedBy,
-		capturedAt: new Date().toISOString()
-	};
+	const envelope = buildEnvelope(analyzeGameData, pageUrl, config);
+	if (!envelope.gameId) return;
 
 	try {
 		await sendEnvelope(config, envelope);
+		await flushQueue();
 	} catch {
 		const queue = await getQueue();
 		await setQueue(enqueue(queue, envelope));
@@ -68,7 +67,7 @@ chrome.runtime.onMessage.addListener((message) => {
 	if (message?.type !== 'raw-ws-message') return;
 	const analyzeGameData = parseAnalyzeGameMessage(message.rawMessageData);
 	if (analyzeGameData) {
-		captureAndSend(analyzeGameData);
+		captureAndSend(analyzeGameData, message.pageUrl);
 	}
 });
 
