@@ -97,7 +97,10 @@ SecondBoard/
 │   │                             # Own package.json/tsconfig/vitest.config/Dockerfile — separate
 │   │                             # deployable, not part of the pnpm workspace root scripts.
 │   ├── server.ts                 # POST /ingest — token + payload validation, upsertGame, 500 on
-│   │                             # storage failure (never throws unhandled in the async handler)
+│   │                             # storage failure (never throws unhandled in the async handler);
+│   │                             # answers CORS preflight (OPTIONS) before the auth check and sends
+│   │                             # Access-Control-Allow-Origin: * on every response, so the
+│   │                             # extension's cross-origin background fetch isn't blocked
 │   ├── validate.ts               # payload schema checks, incl. per-position numeric `ply`
 │   ├── db.ts                     # SQLite persistence (data/calibration.sqlite)
 │   └── index.ts                  # entrypoint
@@ -152,6 +155,12 @@ toolbar action badge (pending retry-queue count) on every flush/enqueue and on s
 - **Extension scripts using ES `import` need `type="module"`**: `popup.html`'s `<script>` tag must
   declare `type="module"` — a classic script tag silently fails to resolve `popup.js`'s
   `import { formatRelativeTime } from './format-relative-time.js'`.
+- **CORS preflight must be answered before auth**: a `chrome-extension://` origin without a
+  declared host permission is subject to standard CORS; the custom `x-ingest-token` header and
+  `POST` method trigger a browser preflight `OPTIONS` request that never carries that header. In
+  `server/ingest/server.ts`, `OPTIONS` is answered (204 + CORS headers) *before* `isAuthorized()`
+  runs, and `Access-Control-Allow-Origin: *` is sent on every response — acceptable because the
+  server is LAN-only and auth is a header-based shared secret, not cookies.
 
 <!-- END AUTO-MANAGED -->
 
@@ -179,6 +188,10 @@ New sibling feature — calibration capture pipeline (`extension/` + `server/ing
   `popup.html`/`popup.js` show last-synced time and pending-sync count; `background.js` keeps the
   action badge text in sync with the retry-queue length; new pure `format-relative-time.js` module
   (with co-located test) backs the "N units ago" display.
+- CORS fix (`fix(ingest): send CORS headers so the extension's background fetch isn't blocked`):
+  the extension's service worker was silently failing every real ingest request because the
+  server rejected the browser's preflight `OPTIONS` with 401 (auth ran before any CORS handling).
+  `server/ingest/server.ts` now answers `OPTIONS` first and sends CORS headers on all responses.
 
 Key architectural decisions visible in history:
 - Rust PGN/engine replaced earlier JS mock (`mock-engine.ts` deleted; `LOGIC.md` says it must not ship).
