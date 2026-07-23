@@ -89,7 +89,10 @@ SecondBoard/
 │       ├── parse-analyze-frame.js # strips metaData (may hold a live session token) before use
 │       ├── build-envelope.js     # extractGameId(pageUrl) + buildEnvelope(...) → ingest payload
 │       ├── retry-queue.js        # persists failed sends to chrome.storage.local, flushes later
-│       └── options.html/.js      # configure ingest URL, shared token, submittedBy name
+│       ├── options.html/.js      # configure ingest URL, shared token, submittedBy name
+│       ├── popup.html/.js        # action.default_popup: last-synced time (formatRelativeTime)
+│       │                         # + pending retry-queue count
+│       └── format-relative-time.js # formatRelativeTime(iso, now) -> coarse "N units ago" string
 ├── server/ingest/                # Standalone Node/TS ingest service for the capture pipeline.
 │   │                             # Own package.json/tsconfig/vitest.config/Dockerfile — separate
 │   │                             # deployable, not part of the pnpm workspace root scripts.
@@ -109,7 +112,10 @@ SecondBoard/
 `injected-page.js` → `content-script.js` (adds `pageUrl`) → `background.js` → `parse-analyze-frame.js`
 (strips `metaData`, requires only `positions`) → `build-envelope.js` (`gameId`/`ply` derived, never
 trusted from the frame) → POST `server/ingest/server.ts` → SQLite. Failed sends queue in
-`retry-queue.js` and flush on next success/startup/install.
+`retry-queue.js` and flush on next success/startup/install. `background.js` also updates the
+toolbar action badge (pending retry-queue count) on every flush/enqueue and on startup/install;
+`popup.html`/`popup.js` (the `action.default_popup`) reads `lastSyncedAt`/`retryQueue` from
+`chrome.storage.local` to show last-synced time (via `format-relative-time.js`) and pending count.
 
 <!-- END AUTO-MANAGED -->
 
@@ -166,6 +172,10 @@ New sibling feature — calibration capture pipeline (`extension/` + `server/ing
   frame; `metaData` (live session token) is stripped before transmission; the retry queue now
   flushes after every successful new send, not just on browser restart; `POST /ingest` no longer
   crashes/hangs on a payload that violates the SQLite `positions` primary key.
+- Toolbar popup added (`feat(extension): add toolbar popup showing last-synced status`):
+  `popup.html`/`popup.js` show last-synced time and pending-sync count; `background.js` keeps the
+  action badge text in sync with the retry-queue length; new pure `format-relative-time.js` module
+  (with co-located test) backs the "N units ago" display.
 
 Key architectural decisions visible in history:
 - Rust PGN/engine replaced earlier JS mock (`mock-engine.ts` deleted; `LOGIC.md` says it must not ship).
